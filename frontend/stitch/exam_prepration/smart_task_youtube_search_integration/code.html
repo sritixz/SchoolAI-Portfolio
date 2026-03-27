@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Daily Smart Task - Revision AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .step-active {
+            border-left: 4px solid #685ae7;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32">
+<!-- Header & Progress -->
+<header class="mb-8">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<div class="bg-primary text-white p-2 rounded-lg">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<div>
+<h1 class="text-2xl font-bold tracking-tight">Smart Task: Integration by Parts</h1>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Mathematics • Calculus II</p>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 px-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+<span class="material-symbols-outlined text-primary">timer</span>
+<span class="text-xl font-bold font-mono tracking-wider">45:00</span>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+<div class="flex justify-between items-end mb-3">
+<div>
+<p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Session Goal</p>
+<p class="text-lg font-medium">Master the basic integration by parts formula through 3 practice steps.</p>
+</div>
+<p class="text-primary font-bold">33% Complete</p>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-700 h-3 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 33.33%;"></div>
+</div>
+</div>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Roadmap / Steps -->
+<div class="lg:col-span-5 space-y-4">
+<h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined">route</span> Session Roadmap
+                </h3>
+<!-- Step 1: Completed -->
+<div class="relative flex items-start gap-4 p-4 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 opacity-75">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm font-bold">check</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-semibold text-slate-500 line-through">Review Summary</h4>
+<span class="text-xs font-medium text-slate-400">5 min</span>
+</div>
+<p class="text-sm text-slate-400">Core concepts &amp; formula basics</p>
+</div>
+</div>
+<!-- Step 2: Active -->
+<div class="relative flex items-start gap-4 p-5 bg-white dark:bg-slate-800 rounded-xl border-2 border-primary shadow-md ring-4 ring-primary/5">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm">
+                        2
+                    </div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-bold text-primary">Watch Concept Video</h4>
+<span class="text-xs font-bold bg-primary/10 text-primary px-2 py-1 rounded">ACTIVE</span>
+</div>
+<p class="text-sm text-slate-600 dark:text-slate-300 mt-1 mb-3">Visualizing the LIATE rule and derivation</p>
+<div class="flex gap-2">
+<button class="bg-primary hover:bg-primary/90 text-white text-xs font-bold py-2 px-4 rounded flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-sm">play_circle</span> Watch Now
+                            </button>
+<span class="text-xs self-center text-slate-500">10 mins</span>
+</div>
+</div>
+</div>
+<!-- Step 3: Locked -->
+<div class="relative flex items-start gap-4 p-4 bg-slate-100 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+<div class="flex-shrink-0 w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-400 flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">lock</span>
+</div>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<h4 class="font-semibold text-slate-400">Solve 5 Practice Questions</h4>
+<span class="text-xs font-medium text-slate-400">30 min</span>
+</div>
+<p class="text-sm text-slate-400">Apply the formula to various difficulty levels</p>
+</div>
+</div>
+</div>
+<!-- Content Area / Resource Preview -->
+<div class="lg:col-span-7">
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden h-full">
+<div class="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+<h3 class="font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">auto_stories</span>
+                            Resource Preview
+                        </h3>
+<span class="text-xs text-slate-400">Summary from Step 1</span>
+</div>
+<div class="p-8 space-y-6">
+<div class="bg-primary/5 border border-primary/20 p-6 rounded-lg text-center">
+<h4 class="text-primary font-bold text-xl mb-2">∫ u dv = uv - ∫ v du</h4>
+<p class="text-sm text-slate-500">The Golden Rule for Integration by Parts</p>
+</div>
+<div class="space-y-4">
+<h5 class="font-bold text-sm uppercase tracking-widest text-slate-400">Quick Tips: LIATE Rule</h5>
+<div class="grid grid-cols-1 gap-3">
+<div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
+<span class="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 rounded font-bold border border-slate-200 dark:border-slate-700">L</span>
+<span class="text-sm">Logarithmic functions</span>
+</div>
+<div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
+<span class="w-8 h-8 flex items-center justify-center bg-white dark:bg-slate-800 rounded font-bold border border-slate-200 dark:border-slate-700">I</span>
+<span class="text-sm">Inverse trigonometric functions</span>
+</div>
+<div class="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg opacity-50">
+<span class="text-xs text-slate-400 italic">...and Algebraic, Trigonometric, Exponential</span>
+</div>
+</div>
+</div>
+<div class="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center text-center">
+<div class="w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-2xl">search</span>
+</div>
+<h6 class="font-bold text-slate-900 dark:text-slate-100 mb-1">Watch on YouTube</h6>
+<p class="text-sm text-slate-500 dark:text-slate-400 mb-4 px-4">Click below to search for "Integration by Parts Masterclass" directly on YouTube.</p>
+<a class="bg-[#FF0000] hover:bg-[#CC0000] text-white px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors shadow-sm" href="https://www.youtube.com/results?search_query=integration+by+parts+masterclass" target="_blank">
+<svg class="w-5 h-5 fill-current" viewbox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"></path></svg>
+        Find on YouTube
+    </a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Footer Actions -->
+<footer class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 py-4 px-6 z-50">
+<div class="max-w-[1000px] mx-auto flex flex-wrap items-center justify-between gap-4">
+<div class="flex gap-2">
+<button class="px-5 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-xl">pause_circle</span>
+                    Pause Session
+                </button>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-primary font-semibold hover:underline flex items-center gap-2">
+<span class="material-symbols-outlined text-xl">smart_toy</span>
+                    I Need Help (Ask Vin)
+                </button>
+<button class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary/25 transition-all active:scale-95">
+                    Next Step
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</footer>
+</body></html>

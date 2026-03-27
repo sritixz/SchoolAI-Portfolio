@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Topic Summaries Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#100e1b] dark:text-white min-h-screen flex flex-col">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 bg-white dark:bg-[#1c1a2e] border-b border-[#e9e8f3] dark:border-[#2a2845] px-4 md:px-10 py-3 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<div class="bg-primary text-white p-1.5 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-2xl">auto_stories</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight">Topic Summaries</h1>
+</div>
+<div class="flex gap-3">
+<button class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e9e8f3] dark:bg-[#2a2845] text-[#100e1b] dark:text-white hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e9e8f3] dark:bg-[#2a2845] text-[#100e1b] dark:text-white hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+</div>
+</header>
+<!-- Sticky Subject Tabs -->
+<nav class="sticky top-[65px] z-40 bg-white dark:bg-[#1c1a2e] border-b border-[#e9e8f3] dark:border-[#2a2845] px-4 md:px-10 overflow-x-auto no-scrollbar">
+<div class="flex gap-8 max-w-[960px] mx-auto">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-primary text-primary pb-3 pt-4 font-bold text-sm" href="#">
+                Math
+            </a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-transparent text-[#575095] dark:text-[#a199d2] pb-3 pt-4 font-bold text-sm hover:text-primary transition-colors" href="#">
+                Physics
+            </a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-transparent text-[#575095] dark:text-[#a199d2] pb-3 pt-4 font-bold text-sm hover:text-primary transition-colors" href="#">
+                Chemistry
+            </a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-transparent text-[#575095] dark:text-[#a199d2] pb-3 pt-4 font-bold text-sm hover:text-primary transition-colors" href="#">
+                Biology
+            </a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-transparent text-[#575095] dark:text-[#a199d2] pb-3 pt-4 font-bold text-sm hover:text-primary transition-colors" href="#">
+                History
+            </a>
+</div>
+</nav>
+<!-- Content Container -->
+<main class="flex-1 max-w-[960px] mx-auto w-full px-4 py-8 pb-32">
+<div class="space-y-3">
+<!-- Chapter 1-4 (Collapsed) -->
+<details class="group bg-white dark:bg-[#1c1a2e] rounded-xl border border-[#e9e8f3] dark:border-[#2a2845] overflow-hidden">
+<summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-[#f9f8fb] dark:hover:bg-[#25223d] transition-colors list-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-open:rotate-90 transition-transform">chevron_right</span>
+<h3 class="font-semibold text-[#100e1b] dark:text-white">Chapter 1: Algebra Basics</h3>
+</div>
+<span class="text-xs font-medium text-[#575095] dark:text-[#a199d2] bg-[#e9e8f3] dark:bg-[#2a2845] px-2 py-1 rounded">8 topics</span>
+</summary>
+</details>
+<details class="group bg-white dark:bg-[#1c1a2e] rounded-xl border border-[#e9e8f3] dark:border-[#2a2845] overflow-hidden">
+<summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-[#f9f8fb] dark:hover:bg-[#25223d] transition-colors list-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-open:rotate-90 transition-transform">chevron_right</span>
+<h3 class="font-semibold text-[#100e1b] dark:text-white">Chapter 2: Linear Equations</h3>
+</div>
+<span class="text-xs font-medium text-[#575095] dark:text-[#a199d2] bg-[#e9e8f3] dark:bg-[#2a2845] px-2 py-1 rounded">6 topics</span>
+</summary>
+</details>
+<details class="group bg-white dark:bg-[#1c1a2e] rounded-xl border border-[#e9e8f3] dark:border-[#2a2845] overflow-hidden">
+<summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-[#f9f8fb] dark:hover:bg-[#25223d] transition-colors list-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-open:rotate-90 transition-transform">chevron_right</span>
+<h3 class="font-semibold text-[#100e1b] dark:text-white">Chapter 3: Functions</h3>
+</div>
+<span class="text-xs font-medium text-[#575095] dark:text-[#a199d2] bg-[#e9e8f3] dark:bg-[#2a2845] px-2 py-1 rounded">12 topics</span>
+</summary>
+</details>
+<!-- Chapter 5 (Expanded) -->
+<details class="group bg-white dark:bg-[#1c1a2e] rounded-xl border border-[#e9e8f3] dark:border-[#2a2845] shadow-sm overflow-hidden" open="">
+<summary class="flex items-center justify-between p-4 cursor-pointer bg-[#f9f8fb] dark:bg-[#25223d] list-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-open:rotate-90 transition-transform">chevron_right</span>
+<h3 class="font-bold text-[#100e1b] dark:text-white">Chapter 5: Quadratic Equations</h3>
+</div>
+<span class="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">8 topics available</span>
+</summary>
+<div class="p-4 space-y-4">
+<!-- Highlighted Topic Card -->
+<div class="relative flex flex-col md:flex-row gap-5 p-5 rounded-lg border-l-4 border-l-[#0EA5E9] bg-white dark:bg-[#1c1a2e] shadow-[0_4px_12px_rgba(0,0,0,0.05)] border-y border-r border-[#e9e8f3] dark:border-[#2a2845]">
+<div class="flex-1">
+<div class="flex items-center gap-2 mb-2">
+<span class="size-2 bg-[#10B981] rounded-full"></span>
+<p class="text-[10px] font-bold text-[#10B981] uppercase tracking-wider">Completed</p>
+</div>
+<h4 class="text-lg font-bold text-[#100e1b] dark:text-white mb-2">Standard Form &amp; Solutions</h4>
+<div class="flex flex-wrap gap-4 text-[#575095] dark:text-[#a199d2] text-sm">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">schedule</span>
+<span>5 min read</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">lightbulb</span>
+<span>4 Key Concepts</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">functions</span>
+<span>3 Formulas</span>
+</div>
+</div>
+<div class="mt-6 flex gap-3">
+<button class="px-5 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-opacity-90 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">play_circle</span>
+                                    Start Learning
+                                </button>
+<button class="p-2 border border-[#e9e8f3] dark:border-[#2a2845] text-primary rounded-lg hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined fill-1">star</span>
+</button>
+</div>
+</div>
+<div class="hidden md:block w-48 h-32 rounded-lg bg-cover bg-center shrink-0 border border-[#e9e8f3] dark:border-[#2a2845]" data-alt="Abstract mathematical quadratic formula visualization" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDQ8C0Hfm0GV6v3WNwp9vjc_R3Zmr9UWaVCwxpSXg9dzf0tLLgH5C9-X9eITvFgbEaveL2oEDFlRQXcmBzA9sCGsa0snOkK0Xjdk8t1YK3pEigKXSr3weqV7HwnFZBlkvWnT5rdkLfP4kpPxqoXO1_3H8OdW-k3HtAEppcrT9kOKp21rFBfE3NgP4Izk_3iyowID7_gn4iiyJCLtwAGdKsndUo1YsUALLp-Osdu1NuXV6mSAcuzH5tghW2tKP602nQo4oHsDLjgc726');"></div>
+</div>
+<!-- Other topics list -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+<div class="flex items-center justify-between p-4 rounded-lg bg-[#f9f8fb] dark:bg-[#131121] border border-transparent hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">circle</span>
+<p class="text-sm font-medium">Factoring Methods</p>
+</div>
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-[#f9f8fb] dark:bg-[#131121] border border-transparent hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">circle</span>
+<p class="text-sm font-medium">Completing the Square</p>
+</div>
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-[#f9f8fb] dark:bg-[#131121] border border-transparent hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">circle</span>
+<p class="text-sm font-medium">Discriminant Analysis</p>
+</div>
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-[#f9f8fb] dark:bg-[#131121] border border-transparent hover:border-primary/30 transition-all cursor-pointer">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">circle</span>
+<p class="text-sm font-medium">Quadratic Formula</p>
+</div>
+<span class="material-symbols-outlined text-[#575095] dark:text-[#a199d2]">chevron_right</span>
+</div>
+</div>
+</div>
+</details>
+<details class="group bg-white dark:bg-[#1c1a2e] rounded-xl border border-[#e9e8f3] dark:border-[#2a2845] overflow-hidden">
+<summary class="flex items-center justify-between p-4 cursor-pointer hover:bg-[#f9f8fb] dark:hover:bg-[#25223d] transition-colors list-none">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary group-open:rotate-90 transition-transform">chevron_right</span>
+<h3 class="font-semibold text-[#100e1b] dark:text-white">Chapter 6: Trigonometry</h3>
+</div>
+<span class="text-xs font-medium text-[#575095] dark:text-[#a199d2] bg-[#e9e8f3] dark:bg-[#2a2845] px-2 py-1 rounded">10 topics</span>
+</summary>
+</details>
+</div>
+</main>
+<!-- Floating Action Bar -->
+<div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
+<div class="bg-white dark:bg-[#1c1a2e] shadow-[0_8px_32px_rgba(0,0,0,0.15)] rounded-full px-6 py-3 flex items-center gap-3 border border-[#e9e8f3] dark:border-[#2a2845]">
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border-2 border-primary/20 text-primary font-bold text-xs hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-sm">functions</span>
+                Formulas Only
+            </button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white font-bold text-xs shadow-lg shadow-primary/30 hover:shadow-xl hover:scale-105 transition-all">
+<span class="material-symbols-outlined text-sm">tips_and_updates</span>
+                Exam Tips
+            </button>
+<div class="w-px h-6 bg-[#e9e8f3] dark:bg-[#2a2845] mx-1"></div>
+<button class="flex h-10 w-10 items-center justify-center rounded-full text-[#575095] dark:text-[#a199d2] hover:bg-[#f9f8fb] dark:hover:bg-[#25223d] transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+</div>
+</body></html>

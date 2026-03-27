@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vin AI Chat Initial State</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#695be6",
+                        "background-light": "#F5F5F5",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .header-gradient {
+            background: linear-gradient(90deg, #6B5CE7 0%, #D4C5F9 100%);
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased h-screen flex flex-col overflow-hidden">
+<header class="header-gradient h-16 shrink-0 flex items-center justify-between px-6 shadow-md z-10">
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="size-10 rounded-full border-2 border-white/50 bg-white overflow-hidden">
+<img alt="Vin AI Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVoyiJ7XrXHXK5K-2X_581fJt9Yda1obdRKXh8gdfrGJ-NTpwYc8Km130_4l0luSueL9ix-IRGHNCp0uH9upkA5CSl6HyXmL9HX8WiewcPAML8ScVZhykcFVW7tUor-OIEAHbE7ZKxqi5Xj8_k00wG3jpjMmNAte8QGNbJqce__URELabhUvBiKHea4H50BaekRP686vZn0lYjQOmCU4n5h_sdI72gdVsRCO-v1PQud4PcPKAtuj3xCRoTX0UhQmi-8lJ7R8e5SPWr"/>
+</div>
+<div class="absolute bottom-0 right-0 size-3 bg-green-400 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<h1 class="text-white font-bold text-base leading-tight">Vin AI</h1>
+<p class="text-white/80 text-xs font-medium">Vin is here to help</p>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined">schedule</span>
+<span class="hidden md:block text-sm font-medium">History</span>
+</button>
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto custom-scrollbar px-4 flex flex-col items-center justify-center">
+<div class="max-w-3xl w-full mx-auto text-center space-y-12 py-8">
+<div class="flex flex-col items-center gap-6">
+<div class="size-48 md:size-56">
+<img alt="Vin AI Illustration" class="w-full h-full object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA70NpSe5l4uCNI6em3ve1E9JyPr6HGB78OpIvvV8ikUtM2sfTWtYyHAMIvomqmuF1-9lYDa7-HoEyIJmaXaQ84v92IEIXsYV9Xy5HfIiaXYTXriwqwoCLLgeXJEFUk7Ec4POBkjeh5NaEFzHWrVpvcvTEnIJnzbAev1oNfKCxxmK8I-9-QqY9J3aXQdX1HD6JNx0VTnRTtpIvFqRrlxRc8zJFJzWmkD1Zi2wnZeYKONtd6yRvT0cowO0sL0nZuhMmgY1jMKmkQ0qAJ"/>
+</div>
+<div class="space-y-2">
+<h2 class="text-3xl md:text-4xl font-bold text-slate-800 dark:text-white">Hi Aarav! 👋</h2>
+<p class="text-lg text-slate-600 dark:text-slate-400">I’m here to help you learn. Ask me anything!</p>
+</div>
+</div>
+
+</div>
+</main>
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] p-4 shrink-0">
+<div class="max-w-4xl mx-auto space-y-4">
+<div class="flex gap-2">
+<button class="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+                Upload Problem
+            </button>
+
+
+</div>
+<div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-2 pr-3">
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">photo_camera</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">image</span>
+</button><button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">mic</span>
+</button>
+</div>
+<input class="w-full bg-transparent border-none focus:ring-0 text-slate-800 dark:text-slate-200 text-sm md:text-base py-2" placeholder="Ask your doubt..." type="text"/>
+<button class="bg-primary text-white size-10 flex items-center justify-center rounded-xl hover:bg-primary/90 transition-transform active:scale-95 shrink-0 shadow-sm">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+<p class="text-[10px] text-center text-slate-400">Vin AI can make mistakes. Verify important information.</p>
+</div>
+</footer>
+</body></html>

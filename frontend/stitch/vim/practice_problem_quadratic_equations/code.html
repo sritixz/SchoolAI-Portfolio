@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vin AI - Practice Session</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#100e1b] antialiased">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Header / Top Navigation -->
+<header class="flex items-center justify-between border-b border-primary/10 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md px-6 py-4 lg:px-20">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">Vin AI</h2>
+<p class="text-xs font-medium text-primary/70">Quadratic Equations Practice</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 rounded-lg bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/20">
+<span class="material-symbols-outlined text-sm">chat_bubble</span>
+<span>Back to Chat</span>
+</button>
+<button class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-400">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex flex-1 flex-col items-center justify-start py-12 px-6">
+<div class="w-full max-w-[800px]">
+<!-- Progress Section -->
+<div class="mb-10 flex flex-col gap-4">
+<div class="flex items-center justify-between text-sm font-semibold text-gray-600 dark:text-gray-400">
+<span class="flex items-center gap-2">
+<span class="flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[10px] text-primary">01</span>
+                            Practice Problem 1
+                        </span>
+<span>25% Complete</span>
+</div>
+<div class="h-2.5 w-full rounded-full bg-primary/10 overflow-hidden">
+<div class="h-full w-1/4 rounded-full bg-primary"></div>
+</div>
+</div>
+<!-- Question Card -->
+<div class="rounded-xl bg-white p-8 shadow-sm border border-primary/5 dark:bg-background-dark/40 mb-8">
+<div class="mb-4 inline-flex items-center rounded-full bg-primary/5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary">
+                        Algebra • Level 1
+                    </div>
+<h1 class="text-3xl font-bold leading-tight text-[#100e1b] dark:text-white lg:text-4xl">
+                        Solve for x: <span class="italic text-primary">x² + 5x + 6 = 0</span>
+</h1>
+<p class="mt-4 text-lg text-gray-500 dark:text-gray-400">
+                        Factor the quadratic expression to find the values of x that satisfy the equation.
+                    </p>
+</div>
+<!-- Options Grid -->
+<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+<!-- Option A - Selected State Example -->
+<label class="group relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 border-primary bg-primary/5 p-6 transition-all shadow-lg shadow-primary/10">
+<input checked="" class="hidden" name="math_option" type="radio"/>
+<div class="flex items-center justify-between">
+<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white font-bold">A</span>
+<div class="h-5 w-5 rounded-full border-2 border-primary bg-primary ring-2 ring-white ring-offset-2 ring-offset-primary"></div>
+</div>
+<div class="mt-2 text-2xl font-bold text-[#100e1b] dark:text-white">x = -2, -3</div>
+<div class="text-sm font-medium text-primary/80">Option A</div>
+</label>
+<!-- Option B -->
+<label class="group relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 border-transparent bg-white p-6 transition-all hover:border-primary/30 hover:shadow-md dark:bg-background-dark/40">
+<input class="hidden" name="math_option" type="radio"/>
+<div class="flex items-center justify-between">
+<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 font-bold group-hover:bg-primary/10 group-hover:text-primary">B</span>
+<div class="h-5 w-5 rounded-full border-2 border-gray-300 bg-transparent group-hover:border-primary/50"></div>
+</div>
+<div class="mt-2 text-2xl font-bold text-[#100e1b] dark:text-white">x = 2, 3</div>
+<div class="text-sm font-medium text-gray-500">Option B</div>
+</label>
+<!-- Option C -->
+<label class="group relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 border-transparent bg-white p-6 transition-all hover:border-primary/30 hover:shadow-md dark:bg-background-dark/40">
+<input class="hidden" name="math_option" type="radio"/>
+<div class="flex items-center justify-between">
+<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 font-bold group-hover:bg-primary/10 group-hover:text-primary">C</span>
+<div class="h-5 w-5 rounded-full border-2 border-gray-300 bg-transparent group-hover:border-primary/50"></div>
+</div>
+<div class="mt-2 text-2xl font-bold text-[#100e1b] dark:text-white">x = -1, -6</div>
+<div class="text-sm font-medium text-gray-500">Option C</div>
+</label>
+<!-- Option D -->
+<label class="group relative flex cursor-pointer flex-col gap-2 rounded-xl border-2 border-transparent bg-white p-6 transition-all hover:border-primary/30 hover:shadow-md dark:bg-background-dark/40">
+<input class="hidden" name="math_option" type="radio"/>
+<div class="flex items-center justify-between">
+<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 font-bold group-hover:bg-primary/10 group-hover:text-primary">D</span>
+<div class="h-5 w-5 rounded-full border-2 border-gray-300 bg-transparent group-hover:border-primary/50"></div>
+</div>
+<div class="mt-2 text-2xl font-bold text-[#100e1b] dark:text-white">x = 1, 6</div>
+<div class="text-sm font-medium text-gray-500">Option D</div>
+</label>
+</div>
+<!-- Action Bar -->
+<div class="mt-12 flex flex-col items-center justify-center gap-6">
+<button class="flex min-w-[240px] items-center justify-center gap-2 rounded-xl bg-primary py-4 px-8 text-lg font-bold text-white shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] hover:bg-primary/90 active:scale-100">
+<span>Check Answer</span>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<p class="flex items-center gap-2 text-sm font-medium text-gray-500">
+<span class="material-symbols-outlined text-[18px]">lightbulb</span>
+                        Need a hint? Just ask Vin AI
+                    </p>
+</div>
+</div>
+</main>
+<!-- Footer Decoration -->
+<footer class="mt-auto py-8 text-center text-xs font-medium text-gray-400">
+            Powered by Vin AI Practice Engine © 2024
+        </footer>
+</div>
+</body></html>

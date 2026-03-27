@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Career Categories - Medical &amp; Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#5336e2",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#141121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .career-card:hover .overlay { opacity: 1; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#100e1b] dark:text-white transition-colors duration-300">
+<!-- Main Container -->
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 px-6 md:px-16 py-4 bg-background-light dark:bg-background-dark sticky top-0 z-50">
+<div class="flex items-center gap-10">
+<div class="flex items-center gap-3 text-primary">
+<div class="size-8">
+<svg fill="currentColor" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"></path>
+</svg>
+</div>
+<h2 class="text-xl font-black leading-tight tracking-tight text-background-dark dark:text-white">CareerHub</h2>
+</div>
+<nav class="hidden lg:flex items-center gap-8">
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Home</a>
+<a class="text-sm font-semibold text-primary transition-colors border-b-2 border-primary" href="#">Categories</a>
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Jobs</a>
+<a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Mentors</a>
+</nav>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<label class="hidden md:flex flex-col min-w-40 h-10 max-w-64">
+<div class="flex w-full flex-1 items-stretch rounded-full bg-primary/5 dark:bg-primary/20 border border-primary/10">
+<div class="flex items-center justify-center pl-4 text-primary">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="w-full border-none bg-transparent focus:ring-0 text-sm placeholder:text-primary/50 px-3" placeholder="Search careers..." value=""/>
+</div>
+</label>
+<button class="flex items-center justify-center rounded-full h-10 w-10 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button class="flex items-center justify-center rounded-full h-10 w-10 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined text-[20px]">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 max-w-[1440px] mx-auto w-full px-6 md:px-16 py-8">
+<!-- Breadcrumbs & Hero -->
+<nav class="flex items-center gap-2 mb-6">
+<a class="text-sm text-primary/60 hover:text-primary" href="#">Home</a>
+<span class="material-symbols-outlined text-sm text-primary/30">chevron_right</span>
+<a class="text-sm text-primary/60 hover:text-primary" href="#">Career Categories</a>
+<span class="material-symbols-outlined text-sm text-primary/30">chevron_right</span>
+<span class="text-sm font-semibold text-primary">Medical &amp; Health</span>
+</nav>
+<header class="mb-12">
+<h1 class="text-4xl md:text-5xl font-black tracking-tighter mb-4 text-background-dark dark:text-white">Career Categories - Medical</h1>
+<p class="text-lg text-primary/70 max-w-2xl">Discover specialized pathways in modern medicine, from precision surgery to clinical research and healthcare leadership.</p>
+</header>
+<!-- Netflix Style Rails -->
+<div class="space-y-16">
+<!-- Row 1: Doctors & Surgeons -->
+<section class="group">
+<div class="flex justify-between items-end mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Doctors &amp; Surgeons</h2>
+<button class="text-primary font-bold text-sm flex items-center gap-1 hover:underline">
+                            Explore All <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="flex gap-6 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2 scroll-smooth">
+<!-- Cardiologist -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Close up of a doctor with a stethoscope" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuATPPhX0XwWPrcynxj54k2Mk8WoERcL_pLZQhAABRk2rA_2I_-zD11NqFcH3xHcMuPZohiPj-9TpmiGdhnSkckmKCVeDua768qi9no7G1Wgej6CUEbq9at_6UI2_VE5asuP35Q1r1o2k5u4BdSQndqAdqKWV2RAzCDzdd5ae-aysf3iYcTZWRTqwSMoSNlt-NVcbs_Qtiwe44B-450r6OyXOPI6HzHMjMr9mYS7Niw966btm1y1-qKUmDE2e4agvnzWs1en3YeB8riA')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Cardiologist</h3>
+<p class="text-white/70 text-sm">Heart specialist</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Neurosurgeon -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Surgeon performing delicate brain surgery" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB57Fm1Wmsd3D-nMqM8haIQ26vALPi0u2FsyWGT7C9C4A-9Dp_1kOGcTvMdHBil3nu1xYSXB3mhymmi0IWVuw5-l9NaWXB2PtWid2kV26tdo7it90ptpxrne8D-l-B1wvClEfoYj8QFpQYgDN8fxnWZAn-8uv1OGYqdyi87pTRXyzFG9-lirqrGAjhbmi7mW3_e27VOHsYE34Yb8hWM3tDLOokikBRKUwsbL4PuBxuyGdWCI_s5bMmdVJC3-q70vMVO-LXQI1qnFVPI')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Neurosurgeon</h3>
+<p class="text-white/70 text-sm">Brain &amp; nervous system</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- General Practitioner -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="General practitioner consulting with patient" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCyqNtfc04FAAnQwMKGVzv_d811cw6HVsyeNRoMl51u6rEbzGzFXMgxnqHb9iGGFw6qdtos4vejRmzVR09BNC1wtPDuXzOKhOBWG56gZ0zHDcCbKYxZv91blyTsbqGl2t17jhy8uHE3JjXLwFJCNHpLz7ewqrs1PQBbXyTvXwC_xieMhnHh6xp3ywbb85OeclY0PENZp1Ryqk8p62-It4T_Hx0VNmsvxHiLXQJnoY0zvU5N2yOuIqxtGEXOtPmK1pmQpe5o3wQJOp1n')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">General Practitioner</h3>
+<p class="text-white/70 text-sm">Primary care physician</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Row 2: Nursing & Allied Health -->
+<section class="group">
+<div class="flex justify-between items-end mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Nursing &amp; Allied Health</h2>
+<button class="text-primary font-bold text-sm flex items-center gap-1 hover:underline">
+                            Explore All <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="flex gap-6 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2 scroll-smooth">
+<!-- Registered Nurse -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Nurse reviewing medical charts" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAsylclNvhkIj6zvlp6hqIVI50Y-yXfTukyTqdZVz3Hk4K8a9DDCVXMU01_6XN-g7xVbIM-xa27Ok1HJf_Losss4z0B36AqVMgbLAPhJ1IVKn_bl4D4YJ48O1lHjRdQyA-0UculcA_fbhq8mut_nbfLuUYvBY2TcaxPCScNhelYZhcnq2cP2Zyj6T0KBufbBX791TqTH-7KABVBj3_subC75NgxG8m89GeUgkpS-Yo-mv9A-w2p9k9JkDz2wtMz0746AyMkpuI-vBph')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Registered Nurse</h3>
+<p class="text-white/70 text-sm">Patient care &amp; advocacy</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Physical Therapist -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Physical therapist helping patient with exercise" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCY9RU9Je-CITuuaP-rhBdid1cKnQKKUQRfsJaLV7ycULMGvlmqetFXWYCG-ZWVtSpNy2f7O2SyST-mZwYiLN2XDYK37rdg24WSx-yPEyNHYFVQSvKT5pFqBj0webwKuuKfvJ621pcCx0vl1Jj0h7aG3vN1rFjxVk8TYLh7vl1xLeIraZiGJX5TFVBpbTsxKoKOlZjRIOUQAeEoDlncFJ7NOL_oMTrEFN2kQY0NuRcgyO0JoX5o0ctJp3sSM2J1QiteXeBrkSVV-VPI')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Physical Therapist</h3>
+<p class="text-white/70 text-sm">Rehabilitation specialist</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Pharmacist -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Pharmacist organizing medications" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD5JeSt420K9iUPkJwKhPM7Zxm7-Iyu_glO9iiXTiQpayPH3Eyf49luuYxI7VjVBJpt7WdHiPdpyt90CZPzCd5LD9WT5qqxpdRWsoJ_jYJ9L-AjJZ54C4_ZSQbDkJ19fhAeXduPQgyQ8uCmHl0rBTwUDpngZdt-nsEZkHe-4ZxGrVyMGzfeeHRV4eR4PhKRudmUujyTzC-IwIlJBvKfkZwnIuVHrYn5LvB9izGhruCiopCaITwwuZO9uiLvVqv6EtrO07Huw2RLclxI')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Pharmacist</h3>
+<p class="text-white/70 text-sm">Medication management</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Row 3: Research & Biotechnology -->
+<section class="group">
+<div class="flex justify-between items-end mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Research &amp; Biotechnology</h2>
+<button class="text-primary font-bold text-sm flex items-center gap-1 hover:underline">
+                            Explore All <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="flex gap-6 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2 scroll-smooth">
+<!-- Geneticist -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Scientist looking at DNA sample" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCzL0bRXFL4CLSoaUFvpLZ6QcoGEhdzKKAkQanlCoDpQossqzguP6V9oBxmkT5TSPDsc9dTahwHq3eJnlBwtbLKQe9I1vMQs93zHkKMR0worRmCoznCdoNU5RyAGlOPD8B4Ykz3ERynxNHtpFcIQWAmd-7ha6vJTK6WTKok-s7oxWySgkE8dCZt22oYE-5Kk5uxc1XMBDjmPsOlaWmEpO1fGD1-1-GVsWprFEI7mJTZ7ox9-jtZ2-QZ-qU-ByWNwet7epFVmPE9O2Bi')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Geneticist</h3>
+<p class="text-white/70 text-sm">DNA &amp; heredity analysis</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Biomedical Engineer -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Engineer working on prosthetic limbs" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDnhZb39ozKUkpgYqK9q1PzwCwYTkLFI7NzV-ormVCaCibsI7FoYfFWXOGI6zukuGlevaBaFtpsaPJE16GuEG8SrKdRsTipU_nY6LGj720Uas48dBkrkyKwpesmn3ZaLhW0Lc2LDDt7_T71ydYnyOaWEjzoiamzvXDUPRZh_0_gXCHTt_4amVKBjnFlsceySNVzoHQ6W83pDj8jE68T7vj1H2eUltSljQztfYYcF5xjMNdNvW6RCPB-IRLtxEtIcmDOHslclW2rETpY')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Biomedical Engineer</h3>
+<p class="text-white/70 text-sm">Healthcare technology design</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Clinical Researcher -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Researcher in a modern laboratory" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAhuvF4liGFcSc1xtEUaJiq9axjBt8TVKZuO_yUI_w3K7w1RG7MazI-wsZIIe8hvlfkrumVhPrDEMAYAM3s_-RBg24z6i3XiKDNaEphm5BS8JiGkQUqSEm_gtPtpZsIw7drpZxPB1S2Jy4eXzADrBJedCeQFOC9u4PhGfkLgDodTMBW56pMjVnOcBscHSv6mKzMDFRp-E53BYW4LFN-MqfZ0lvQMuw7a3YCEBBN-9-_3UFR4EpLgwulIU2PBR19UHbxaMV160fh1WT3')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Clinical Researcher</h3>
+<p class="text-white/70 text-sm">Medical trials &amp; testing</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+</div>
+</section>
+<!-- Row 4: Health Management -->
+<section class="group">
+<div class="flex justify-between items-end mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Health Management</h2>
+<button class="text-primary font-bold text-sm flex items-center gap-1 hover:underline">
+                            Explore All <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+<div class="flex gap-6 overflow-x-auto no-scrollbar pb-4 -mx-2 px-2 scroll-smooth">
+<!-- Hospital Administrator -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Administrator in a clean office setting" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCYzQ8RP5WAaGJV9ygvNvEnnlOw6EST4reFX4dyJBabM_JOfbW6ZjJNWwTaSqnN0kFgfyzh4g_WhAZTINonZ_2bUS9_07m_tkpTTi2bgvGzuRiLr2_yKyB9d0gEv01ac0_Z3HLO15hnxj96JLhHysrGtts5jwDn--tzrAlsGZQoXNzzfdWmTtGyJYIZxtUtAaj5OFmdnlC-geTirFyI1jHWZ0p0ZWv6fT-7b_8zHJO49pwYo4TdFzS9zvvf1I4CqZC6CBwpi_Jkk6nz')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Hospital Administrator</h3>
+<p class="text-white/70 text-sm">Operations &amp; management</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+<!-- Public Health Expert -->
+<div class="flex-none w-72 md:w-80 group/card transition-transform hover:scale-105">
+<div class="relative aspect-video rounded-xl overflow-hidden bg-primary/10 shadow-lg">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Health expert speaking to a crowd" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCpGnrd1Oh86RFxJpPKf5oVw624UVqfZMZEnJEPJSXBz4NdNGTiIdxnQtzlkcysOlQ10dbVGt1QeIPgzlnvsOF42bZm0mIYimIycWz2UmiXUuSedObveCWY2qolIqaILYo64qdLPfnN-rkC2dKM0ZC2Egl6KYnCwQjkMUQSVBrYiKDv1smzu2_4ltXZ35FUe787V9bxPAljugZ6usH2D2fkYAmizBbn9Y-GDTsBHBUk6I0Fuy6roPYY-K9Hhh8CQplqoL7D2CvASJPb')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-4 left-4 right-4">
+<h3 class="text-white text-lg font-bold">Public Health Expert</h3>
+<p class="text-white/70 text-sm">Policy &amp; community health</p>
+</div>
+<div class="absolute inset-0 border-4 border-primary opacity-0 group-hover/card:opacity-100 transition-opacity pointer-events-none rounded-xl"></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Footer -->
+<footer class="border-t border-primary/10 bg-background-light dark:bg-background-dark py-12 px-6 md:px-16 mt-20">
+<div class="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="flex items-center gap-3 text-primary opacity-50">
+<div class="size-6">
+<svg fill="currentColor" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z"></path>
+</svg>
+</div>
+<h2 class="text-lg font-bold tracking-tight text-background-dark dark:text-white">CareerHub</h2>
+</div>
+<div class="flex gap-8 text-sm font-medium text-primary/60">
+<a class="hover:text-primary" href="#">About</a>
+<a class="hover:text-primary" href="#">Privacy Policy</a>
+<a class="hover:text-primary" href="#">Terms of Service</a>
+<a class="hover:text-primary" href="#">Contact</a>
+</div>
+<p class="text-xs text-primary/40">© 2024 CareerHub Inc. All rights reserved.</p>
+</div>
+</footer>
+</div>
+</body></html>

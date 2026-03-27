@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Self-Assessment Quizzes | Study Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#100e1b] min-h-screen">
+<div class="flex h-screen overflow-hidden">
+<!-- Sidebar Navigation -->
+<aside class="w-72 bg-white dark:bg-[#1a182e] border-r border-primary/10 flex flex-col justify-between p-6">
+<div class="flex flex-col gap-8">
+<div class="flex items-center gap-3">
+<div class="bg-primary/10 rounded-xl p-2">
+<span class="material-symbols-outlined text-primary text-3xl">school</span>
+</div>
+<div class="flex flex-col">
+<h1 class="text-primary text-xl font-bold leading-tight">StudyPortal</h1>
+<p class="text-slate-500 text-xs font-medium">Student Dashboard</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-white shadow-lg shadow-primary/20" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm font-semibold">All Quizzes</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-sm font-medium">My Progress</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">bookmark</span>
+<span class="text-sm font-medium">Saved Topics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-primary/5 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm font-medium">Settings</span>
+</a>
+</nav>
+<!-- Mini Progress Tracker -->
+<div class="mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/10">
+<p class="text-xs font-bold text-primary uppercase tracking-wider mb-3">Daily Goal</p>
+<div class="flex items-center justify-between mb-2">
+<span class="text-sm font-medium">3/5 Quizzes</span>
+<span class="text-sm font-bold">60%</span>
+</div>
+<div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[60%] rounded-full"></div>
+</div>
+<p class="text-[10px] text-slate-500 mt-3 leading-relaxed">Complete 2 more quizzes to maintain your streak!</p>
+</div>
+</div>
+<!-- Profile Section -->
+<div class="flex items-center gap-3 p-3 border-t border-slate-100 dark:border-slate-800">
+<div class="w-10 h-10 rounded-full bg-slate-200 border-2 border-primary/20 bg-cover" data-alt="User profile avatar of a smiling student" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBtsvX8QbhzhjCci5I5Ocpg0W8jFDcOwdT46SokCrRdIdyi42oW0M9evfiOrY3TuXRVBYh5mg5xNKPq65TZ8F-T9iJMRf2bnhac1kX4mOcXp4ZueDw-PE7SxW29RSBNWlY_2SPVkJ91IcW4AhYiD7llbiO9Z9Q-ZH1qDzoxJ1o2iHc93SeOK2USSEiUvfKGtiyjCiurq8SUidPO1EWSrRloSDuqz4Ignc0JXO65lUV264Ztzsu_q_y5taFn99X3pxT3qYO-IhQhr1cy')"></div>
+<div class="flex flex-col">
+<p class="text-sm font-bold">Alex Johnson</p>
+<p class="text-xs text-slate-500">Premium Plan</p>
+</div>
+<span class="material-symbols-outlined text-slate-400 ml-auto cursor-pointer">logout</span>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto scroll-smooth">
+<!-- Header -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-8 py-4 flex items-center justify-between">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full pl-12 pr-4 py-2.5 rounded-xl border-none bg-white dark:bg-[#1a182e] text-sm focus:ring-2 focus:ring-primary shadow-sm" placeholder="Search for topics (e.g. Algebra)..." type="text"/>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-[#1a182e] text-slate-500 shadow-sm border border-slate-100 dark:border-slate-800">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-sm">bolt</span>
+                        Quick Start
+                    </button>
+</div>
+</header>
+<div class="p-8 max-w-7xl mx-auto">
+<!-- Page Title & Subtext -->
+<div class="mb-10">
+<h2 class="text-4xl font-black tracking-tight mb-2">Self-Assessment Quizzes</h2>
+<p class="text-slate-500 text-lg max-w-2xl">Topic-wise practice with unlimited attempts and no pressure. Build your confidence at your own pace.</p>
+</div>
+<!-- Filters & Controls -->
+<div class="flex flex-col gap-6 mb-10">
+<!-- Subject Chips -->
+<div class="flex flex-wrap items-center gap-2">
+<button class="px-5 py-2 rounded-full bg-primary text-white text-sm font-semibold shadow-sm">All Subjects</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Mathematics</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Physics</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Chemistry</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Biology</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Computer Science</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-[#1a182e] text-slate-600 dark:text-slate-400 text-sm font-medium hover:bg-primary/5 border border-slate-100 dark:border-slate-800 transition-all">Literature</button>
+</div>
+<!-- Difficulty & Metadata Indicators -->
+<div class="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-6">
+<div class="flex items-center bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+<button class="px-6 py-2 rounded-lg bg-white dark:bg-[#1a182e] text-primary shadow-sm text-sm font-bold">Easy</button>
+<button class="px-6 py-2 rounded-lg text-slate-500 text-sm font-medium hover:bg-white/50">Medium</button>
+<button class="px-6 py-2 rounded-lg text-slate-500 text-sm font-medium hover:bg-white/50">Hard</button>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 text-slate-500">
+<span class="material-symbols-outlined text-primary">history</span>
+<span class="text-xs font-semibold uppercase tracking-wider">Unlimited Attempts</span>
+</div>
+<div class="flex items-center gap-2 text-slate-500">
+<span class="material-symbols-outlined text-primary">timer_off</span>
+<span class="text-xs font-semibold uppercase tracking-wider">No Timer</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Quiz Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Quiz Card 1 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer">
+<div class="flex items-start justify-between mb-4">
+<div class="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-blue-100 dark:border-blue-500/20">Mathematics</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Quadratic Equations</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Master factoring, completing the square, and using the quadratic formula to solve equations.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">15 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+<!-- Quiz Card 2 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer">
+<div class="flex items-start justify-between mb-4">
+<div class="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-purple-100 dark:border-purple-500/20">Physics</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Kinematics Basics</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Understand displacement, velocity, and acceleration in one-dimensional motion.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">12 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+<!-- Quiz Card 3 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer">
+<div class="flex items-start justify-between mb-4">
+<div class="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-amber-100 dark:border-amber-500/20">Chemistry</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Atomic Structure</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Deep dive into protons, neutrons, electrons, and the basics of periodic table organization.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">20 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+<!-- Quiz Card 4 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer">
+<div class="flex items-start justify-between mb-4">
+<div class="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-rose-100 dark:border-rose-500/20">Literature</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Literary Devices</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Identify metaphors, similes, personification, and other common figures of speech.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">10 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+<!-- Quiz Card 5 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer">
+<div class="flex items-start justify-between mb-4">
+<div class="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-100 dark:border-emerald-500/20">Biology</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Cell Organelles</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Test your knowledge of the nucleus, mitochondria, and other specialized cell parts.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">18 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+<!-- Quiz Card 6 -->
+<div class="bg-white dark:bg-[#1a182e] rounded-2xl p-6 border border-slate-100 dark:border-slate-800 hover:shadow-xl hover:shadow-primary/5 transition-all group cursor-pointer relative overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 pattern-grid opacity-20 pointer-events-none"></div>
+<div class="flex items-start justify-between mb-4">
+<div class="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-indigo-100 dark:border-indigo-500/20">Computer Science</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">star</span>
+</div>
+<h3 class="text-xl font-bold mb-2 group-hover:text-primary transition-colors">Python Loops</h3>
+<p class="text-sm text-slate-500 mb-6 line-clamp-2">Iterate like a pro. Practice using for-loops and while-loops in Python programming.</p>
+<div class="flex items-center gap-4 mb-6">
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg">description</span>
+<span class="text-xs font-medium">15 Questions</span>
+</div>
+<div class="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined text-lg text-green-500">signal_cellular_1_bar</span>
+<span class="text-xs font-medium">Easy Difficulty</span>
+</div>
+</div>
+<button class="w-full bg-slate-50 dark:bg-slate-800 group-hover:bg-primary text-slate-700 dark:text-slate-300 group-hover:text-white py-3 rounded-xl text-sm font-bold transition-all border border-slate-100 dark:border-slate-700 group-hover:border-primary">
+                            Start Practice
+                        </button>
+</div>
+</div>
+<!-- Footer Support -->
+<div class="mt-12 text-center py-8">
+<p class="text-slate-400 text-sm mb-4">Don't see a topic you're looking for?</p>
+<button class="text-primary font-bold text-sm hover:underline flex items-center gap-2 mx-auto">
+<span class="material-symbols-outlined text-lg">add_circle</span>
+                        Suggest a New Topic
+                    </button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

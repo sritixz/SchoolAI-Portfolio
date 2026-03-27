@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Topic Summary Reading Workspace</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Lexend -->
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                        "mint": "#4ade80",
+                        "coral": "#fb7185",
+                        "lavender": "#e9e8f3",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .formula-font {
+            font-family: "Times New Roman", Times, serif;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Reading Progress Bar (Fixed Top) -->
+<div class="fixed top-0 left-0 w-full h-1 bg-lavender dark:bg-slate-800 z-[60]">
+<div class="h-full bg-primary" style="width: 45%;"></div>
+</div>
+<!-- Sticky Header -->
+<header class="fixed top-1 left-0 w-full bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-50 px-6 py-3">
+<div class="max-w-6xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">arrow_back</span>
+</button>
+<h1 class="text-lg font-semibold tracking-tight">Standard Form &amp; Solutions</h1>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors group">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400 group-hover:text-primary">star</span>
+</button>
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">download</span>
+</button>
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">more_vert</span>
+</button>
+<div class="ml-4 size-10 rounded-full bg-slate-200 dark:bg-slate-700 bg-cover bg-center" data-alt="User profile avatar" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDIYRxj1bBERZYRmvNzJ80Ly1Krjluq-dNEvVdfP0Ecg1XYRt1V5IWnA_LJrBahFZr7Bp0iJliC-pxy3rMtO99Ol9L4cYviCc2KY0AOcjaP5RwiK7qBaPpIiTf1FJykhzsH7l_tOS1FZ-XXk6xuoaU872IQFKJaB0rFecsrmxMyhXAF14XhAH4kNfwONzwTZKN8jyyBb65SzrXIhc3IxwJvVWTXRpW-i0Vmw9Om7Z0PdmpLVPC63i-2rw97lSE-CxcRq5vujMz0rQ_y')"></div>
+</div>
+</div>
+</header>
+<!-- Main Content Container -->
+<main class="flex-grow pt-24 pb-32 px-6">
+<div class="max-w-4xl mx-auto space-y-12">
+<!-- Topic Header Hero Card -->
+<section class="relative overflow-hidden rounded-xl p-10 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-indigo-950 dark:to-slate-900 border border-blue-100 dark:border-slate-800 shadow-sm">
+<div class="relative z-10">
+<span class="text-sm font-medium text-primary uppercase tracking-widest">Chapter 5: Quadratic Equations</span>
+<h2 class="mt-2 text-4xl font-bold text-slate-900 dark:text-white">Standard Form &amp; Solutions</h2>
+<p class="mt-4 text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+                        Mastering the foundational structure of quadratic equations and the primary methods used to find their roots efficiently.
+                    </p>
+</div>
+<div class="absolute -right-10 -bottom-10 opacity-10">
+<span class="material-symbols-outlined text-[200px]">functions</span>
+</div>
+</section>
+<!-- Key Concepts Section -->
+<section class="space-y-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">lightbulb</span>
+<h3 class="text-2xl font-bold">Key Concepts</h3>
+</div>
+<div class="bg-primary/5 dark:bg-primary/10 rounded-xl p-8 border border-primary/10">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+<div class="space-y-4">
+<div class="flex items-center gap-3">
+<span class="flex items-center justify-center size-8 bg-primary text-white rounded-full text-sm font-bold">1</span>
+<h4 class="text-lg font-bold">Standard Quadratic Form</h4>
+</div>
+<p class="text-slate-700 dark:text-slate-300 leading-relaxed">
+                                The standard form of a quadratic equation is <span class="formula-font font-medium">ax² + bx + c = 0</span>, where <span class="formula-font">a, b,</span> and <span class="formula-font">c</span> are real numbers and <span class="formula-font">a ≠ 0</span>. 
+                                <br/><br/>
+                                This structure allows us to identify the coefficients needed for the quadratic formula and determines the parabola's direction.
+                            </p>
+</div>
+<div class="aspect-video rounded-lg bg-white dark:bg-slate-800 shadow-inner flex items-center justify-center p-6 border border-slate-200 dark:border-slate-700">
+<div class="text-center">
+<div class="text-3xl formula-font text-primary mb-2">ax² + bx + c = 0</div>
+<div class="text-xs text-slate-400 uppercase tracking-tighter">Parabola Equation Mapping</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Important Formulas Section -->
+<section class="space-y-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-coral">calculate</span>
+<h3 class="text-2xl font-bold">Important Formulas</h3>
+</div>
+<div class="bg-rose-50 dark:bg-rose-950/20 rounded-xl p-8 border border-rose-100 dark:border-rose-900">
+<div class="flex flex-col items-center text-center space-y-6">
+<h4 class="text-lg font-semibold text-rose-700 dark:text-rose-400">The Quadratic Formula</h4>
+<div class="bg-white dark:bg-slate-900 py-10 px-12 rounded-lg border border-rose-200 dark:border-rose-800 shadow-sm">
+<div class="text-4xl formula-font text-slate-900 dark:text-white flex items-center gap-4">
+                                x = <div class="flex flex-col items-center">
+<span class="border-b-2 border-slate-900 dark:border-white pb-1">-b ± √b² - 4ac</span>
+<span class="pt-1">2a</span>
+</div>
+</div>
+</div>
+<p class="text-slate-600 dark:text-slate-400 max-w-lg">
+                            Use this formula when factoring is difficult or impossible. It provides exact solutions for any quadratic equation.
+                        </p>
+<button class="flex items-center gap-2 px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold transition-all shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+                            See Example
+                        </button>
+</div>
+</div>
+</section>
+<!-- Common Mistakes Section -->
+<section class="space-y-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-500">warning</span>
+<h3 class="text-2xl font-bold">Common Mistakes</h3>
+</div>
+<div class="bg-orange-50 dark:bg-orange-950/20 rounded-xl p-6 border border-orange-100 dark:border-orange-900">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- The Mistake -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-lg border-l-4 border-coral shadow-sm">
+<div class="flex items-center gap-2 text-coral mb-3">
+<span class="material-symbols-outlined">cancel</span>
+<span class="font-bold uppercase text-xs tracking-wider">The Mistake</span>
+</div>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-4">
+                                Forgetting to include the <span class="font-bold">±</span> sign before the square root in the formula, leading to only one root instead of two.
+                            </p>
+<div class="bg-rose-50 dark:bg-rose-900/30 p-3 rounded formula-font text-coral text-center">
+                                x = (-b + √b²-4ac) / 2a
+                            </div>
+</div>
+<!-- The Correct Approach -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-lg border-l-4 border-mint shadow-sm">
+<div class="flex items-center gap-2 text-mint mb-3">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="font-bold uppercase text-xs tracking-wider">Correct Approach</span>
+</div>
+<p class="text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-4">
+                                Always account for both positive and negative roots. A quadratic equation typically has <span class="font-bold">two solutions</span>.
+                            </p>
+<div class="bg-emerald-50 dark:bg-emerald-900/30 p-3 rounded formula-font text-mint text-center">
+                                x = (-b <span class="underline decoration-2">±</span> √b²-4ac) / 2a
+                            </div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Fixed Bottom Action Bar -->
+<footer class="fixed bottom-0 left-0 w-full bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 p-4 z-50">
+<div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-4">
+<button class="flex-1 bg-lavender dark:bg-slate-800 hover:bg-lavender/80 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 py-3.5 px-6 rounded-xl font-bold flex items-center justify-center gap-3 transition-all border border-slate-200 dark:border-slate-700">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+                Ask Vin About This
+            </button>
+<div class="flex flex-[1.5_1.5_0%] gap-4">
+<button class="flex-1 bg-mint hover:bg-emerald-500 text-slate-900 font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all">
+<span class="material-symbols-outlined">exercise</span>
+                    Practice
+                </button>
+<button class="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined">quiz</span>
+                    Test Yourself
+                </button>
+</div>
+</div>
+</footer>
+</body></html>

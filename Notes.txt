@@ -1,0 +1,4 @@
+Student: phone 9876543210, OTP 1234
+Parent: 9876543211 / 1234
+Teacher: 9876543212 / 1234
+School Admin: 9876543213 / 1234

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vin AI Tutor Chat Interface</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#695be6",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                        "history-title": "#2D2D2D",
+                        "history-purple": "#6B5CE7",
+                        "badge-math": "#FFE5E5"
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .header-gradient {
+            background: linear-gradient(90deg, #6B5CE7 0%, #D4C5F9 100%);
+        }
+        .sidebar-shadow {
+            box-shadow: -4px 0 15px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased h-screen flex overflow-hidden">
+<div class="flex-1 flex flex-col h-full relative overflow-hidden">
+<header class="header-gradient h-16 shrink-0 flex items-center justify-between px-6 shadow-md z-10">
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="size-10 rounded-full border-2 border-white/50 bg-white overflow-hidden">
+<img alt="Vin AI Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVoyiJ7XrXHXK5K-2X_581fJt9Yda1obdRKXh8gdfrGJ-NTpwYc8Km130_4l0luSueL9ix-IRGHNCp0uH9upkA5CSl6HyXmL9HX8WiewcPAML8ScVZhykcFVW7tUor-OIEAHbE7ZKxqi5Xj8_k00wG3jpjMmNAte8QGNbJqce__URELabhUvBiKHea4H50BaekRP686vZn0lYjQOmCU4n5h_sdI72gdVsRCO-v1PQud4PcPKAtuj3xCRoTX0UhQmi-8lJ7R8e5SPWr"/>
+</div>
+<div class="absolute bottom-0 right-0 size-3 bg-green-400 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<h1 class="text-white font-bold text-base leading-tight">Vin AI</h1>
+<p class="text-white/80 text-xs font-medium animate-pulse">Vin is thinking...</p>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined">schedule</span>
+<span class="hidden md:block text-sm font-medium">History</span>
+</button>
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto custom-scrollbar px-4 py-8">
+<div class="max-w-4xl mx-auto flex flex-col gap-8">
+<div class="flex justify-end items-end gap-3">
+<div class="flex flex-col gap-1 items-end max-w-[80%]">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium mr-2">Student</p>
+<div class="bg-primary text-white px-5 py-3 rounded-2xl rounded-tr-none shadow-sm">
+<p class="text-sm md:text-base">How do I solve quadratic equations using the formula?</p>
+</div>
+</div>
+<div class="size-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden mb-1">
+<img alt="Student Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRg7r-fsjgA020m_NQYaJQJ5fHXvySywLHeKqSmTObC4eHkJDXieaDDUoTdMbHUEKYIaNtJjc3UMq1hJHzbXLwC86XwW3_hlPPisTvBzAeAx-9w-i8Ij72pfYqjOtC0ihF6b-MVZEjguFRIjhNBbnPk7VFfq5b8_e-wG2XggIDnroXJdAKv9HMjP6iiUyoLueOYGzPFpiv1qZsZYFsTJBHfnZlVPKsmAjRWfCevV5IUUsb-mYbIhN8ybbr663rk9-QmQdzyyb1sNkM"/>
+</div>
+</div>
+<div class="flex justify-start items-start gap-3">
+<div class="size-8 rounded-full bg-white overflow-hidden mt-1 flex-shrink-0 border border-slate-200">
+<img alt="Vin AI Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA70NpSe5l4uCNI6em3ve1E9JyPr6HGB78OpIvvV8ikUtM2sfTWtYyHAMIvomqmuF1-9lYDa7-HoEyIJmaXaQ84v92IEIXsYV9Xy5HfIiaXYTXriwqwoCLLgeXJEFUk7Ec4POBkjeh5NaEFzHWrVpvcvTEnIJnzbAev1oNfKCxxmK8I-9-QqY9J3aXQdX1HD6JNx0VTnRTtpIvFqRrlxRc8zJFJzWmkD1Zi2wnZeYKONtd6yRvT0cowO0sL0nZuhMmgY1jMKmkQ0qAJ"/>
+</div>
+<div class="flex flex-col gap-4 max-w-[85%]">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium ml-1">Vin AI</p>
+<div class="bg-white dark:bg-slate-800 border-l-4 border-[#D4C5F9] p-5 rounded-2xl rounded-tl-none shadow-sm space-y-4">
+<p class="text-sm md:text-base text-slate-800 dark:text-slate-200 leading-relaxed">
+                                The quadratic formula is a universal tool for solving equations of the form <strong>ax² + bx + c = 0</strong>. 
+                            </p>
+<div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg flex justify-center items-center my-4 font-serif text-lg md:text-xl text-primary border border-slate-100 dark:border-slate-700">
+                                x = <span class="mx-2">(-b ± √(b² - 4ac)) / 2a</span>
+</div>
+<details class="group bg-[#FFE5E5] dark:bg-red-900/20 rounded-lg overflow-hidden transition-all duration-300" open="">
+<summary class="flex items-center justify-between px-4 py-3 cursor-pointer list-none">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-500">lightbulb</span>
+<span class="text-red-700 dark:text-red-300 text-sm font-bold uppercase tracking-wider">Hint 1</span>
+</div>
+<span class="material-symbols-outlined text-red-500 group-open:rotate-180 transition-transform">keyboard_arrow_down</span>
+</summary>
+<div class="px-4 pb-4">
+<p class="text-red-800 dark:text-red-200 text-sm leading-relaxed">
+                                        Before you use the formula, always make sure your equation is set to zero. If you have something like 2x² = 4x - 1, move everything to one side first!
+                                    </p>
+</div>
+</details>
+<div class="bg-[#C8E6C9] dark:bg-green-900/20 p-4 rounded-lg space-y-3">
+<h4 class="text-green-800 dark:text-green-300 font-bold text-sm flex items-center gap-2 uppercase tracking-wider">
+<span class="material-symbols-outlined text-green-600">checklist</span>
+                                    Step-by-Step Breakdown
+                                </h4>
+<ul class="space-y-4 pt-2">
+<li class="flex gap-3">
+<div class="size-6 shrink-0 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-green-700 dark:text-green-400 shadow-sm">1</div>
+<p class="text-sm text-green-900 dark:text-green-200">Identify your coefficients: <strong>a</strong>, <strong>b</strong>, and <strong>c</strong>.</p>
+</li>
+<li class="flex gap-3">
+<div class="size-6 shrink-0 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-green-700 dark:text-green-400 shadow-sm">2</div>
+<p class="text-sm text-green-900 dark:text-green-200">Calculate the discriminant: <strong>D = b² - 4ac</strong>.</p>
+</li>
+<li class="flex gap-3">
+<div class="size-6 shrink-0 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-green-700 dark:text-green-400 shadow-sm">3</div>
+<p class="text-sm text-green-900 dark:text-green-200">Plug everything into the formula and solve for x.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-2 overflow-x-auto pb-4 custom-scrollbar whitespace-nowrap px-11">
+<button class="bg-white dark:bg-slate-800 text-primary border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/5 transition-colors">
+                        Show me an example
+                    </button>
+<button class="bg-white dark:bg-slate-800 text-primary border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/5 transition-colors">
+                        I still don't understand
+                    </button>
+<button class="bg-white dark:bg-slate-800 text-primary border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/5 transition-colors">
+                        Try a practice problem
+                    </button>
+<button class="bg-white dark:bg-slate-800 text-primary border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-primary/5 transition-colors">
+                        What if D is negative?
+                    </button>
+</div>
+</div>
+</main>
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] p-4 shrink-0">
+<div class="max-w-4xl mx-auto space-y-4">
+<div class="flex gap-2">
+<button class="bg-primary/10 text-primary px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+                        Upload Problem
+                    </button>
+<button class="bg-primary/10 text-primary px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">function</span>
+                        Formula Help
+                    </button>
+<button class="bg-primary/10 text-primary px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">history_edu</span>
+                        Past Lessons
+                    </button>
+</div>
+<div class="flex items-end gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 pr-3">
+<div class="flex items-center gap-1 shrink-0 pb-1">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">photo_camera</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">image</span>
+</button><button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">mic</span>
+</button>
+</div>
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-slate-800 dark:text-slate-200 text-sm md:text-base py-2 resize-none max-h-32 custom-scrollbar" placeholder="Ask your doubt..." rows="1"></textarea>
+<button class="bg-primary text-white size-10 flex items-center justify-center rounded-lg hover:bg-primary/90 transition-transform active:scale-95 shrink-0 shadow-sm">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+<p class="text-[10px] text-center text-slate-400">Vin AI can make mistakes. Verify important information.</p>
+</div>
+</footer>
+</div>
+</body></html>

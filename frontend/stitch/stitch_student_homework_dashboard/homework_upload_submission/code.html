@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Homework Submission - Quadratic Functions</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#5b69e6",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#111321",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#0e101a] transition-colors duration-300">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Fixed Header Component -->
+<header class="sticky top-0 z-50 w-full bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-[#e8e9f2] dark:border-primary/20 px-4 md:px-10 lg:px-40 py-4">
+<div class="flex items-center justify-between max-w-[960px] mx-auto">
+<div class="flex items-center gap-3">
+<div class="bg-primary/10 p-2 rounded-lg text-primary">
+<span class="material-symbols-outlined">calculate</span>
+</div>
+<div>
+<h1 class="text-lg font-bold leading-tight tracking-tight dark:text-white">Homework: Quadratic Functions &amp; Graphs</h1>
+<p class="text-xs text-[#515894] font-medium uppercase tracking-wider">Unit 4: Parabolas</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="hidden sm:flex items-center gap-2 px-4 h-10 rounded-full border border-primary/20 hover:bg-primary/5 text-primary text-sm font-semibold transition-all">
+<span class="material-symbols-outlined text-lg">save</span>
+<span>Save &amp; Exit</span>
+</button>
+<div class="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden border-2 border-primary/30" data-alt="Student profile avatar placeholder">
+<span class="material-symbols-outlined text-primary">person</span>
+</div>
+</div>
+</div>
+</header>
+<main class="layout-container flex h-full grow flex-col items-center">
+<div class="w-full max-w-[960px] px-4 md:px-10 py-8 flex flex-col gap-8">
+<!-- Progress Indicator -->
+<div class="bg-white dark:bg-background-dark/40 p-6 rounded-xl border border-[#e8e9f2] dark:border-primary/10 shadow-sm">
+<div class="flex items-center justify-between mb-3">
+<div class="flex items-center gap-2">
+<span class="text-primary font-bold">Step 4</span>
+<span class="text-[#515894]">of 10</span>
+</div>
+<span class="text-primary font-bold bg-primary/10 px-3 py-1 rounded-full text-sm">40% Complete</span>
+</div>
+<div class="w-full bg-primary/10 h-3 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full transition-all duration-500" style="width: 40%;"></div>
+</div>
+</div>
+<!-- Question Section -->
+<div class="flex flex-col gap-6">
+<div class="flex flex-col gap-2">
+<span class="text-primary font-semibold text-sm uppercase tracking-widest">Question 4</span>
+<h2 class="text-[#0e101a] dark:text-white text-2xl md:text-3xl font-bold leading-snug">
+                            Draw the graph of the function <span class="text-primary italic font-extrabold px-1">y = x² + 5x + 6</span> and identify its vertex.
+                        </h2>
+</div>
+<!-- Input Method Switcher -->
+<div class="flex bg-[#e8e9f2] dark:bg-primary/10 p-1.5 rounded-full w-fit">
+<button class="px-6 py-2 rounded-full text-sm font-semibold text-[#515894] hover:text-primary transition-colors">
+                            Type Answer
+                        </button>
+<button class="px-6 py-2 rounded-full text-sm font-semibold bg-white dark:bg-primary shadow-sm text-primary dark:text-white transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">cloud_upload</span>
+                            Upload
+                        </button>
+</div>
+<!-- Upload Area -->
+<div class="group relative flex flex-col items-center justify-center min-h-[400px] border-4 border-dashed border-primary/20 dark:border-primary/30 rounded-xl bg-white dark:bg-background-dark/20 p-8 transition-all hover:border-primary/50 hover:bg-primary/[0.02]">
+<div class="flex flex-col items-center text-center gap-6">
+<div class="flex gap-4">
+<div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined !text-4xl">add_a_photo</span>
+</div>
+<div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-300">
+<span class="material-symbols-outlined !text-4xl">collections</span>
+</div>
+</div>
+<div class="max-w-md space-y-2">
+<h3 class="text-xl font-bold text-[#0e101a] dark:text-white">Click to take a photo or upload a scan</h3>
+<p class="text-[#515894] dark:text-gray-400">Drag &amp; drop your files here or browse from your device gallery</p>
+</div>
+<div class="flex flex-wrap justify-center gap-3">
+<button class="flex items-center gap-2 min-w-[160px] px-6 h-12 rounded-full bg-primary text-white font-bold hover:brightness-110 shadow-lg shadow-primary/20 transition-all">
+<span class="material-symbols-outlined">photo_camera</span>
+                                    Take Photo
+                                </button>
+<button class="flex items-center gap-2 min-w-[160px] px-6 h-12 rounded-full bg-white dark:bg-background-dark/60 border border-primary/30 text-primary dark:text-white font-bold hover:bg-primary/5 transition-all">
+<span class="material-symbols-outlined">file_upload</span>
+                                    Browse Files
+                                </button>
+</div>
+<div class="pt-4 flex items-center gap-2 text-[#515894] text-xs font-medium uppercase tracking-tighter">
+<span>Accepted formats: JPG, PNG, PDF</span>
+<span class="w-1 h-1 rounded-full bg-primary/30"></span>
+<span>Max size: 20MB</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer Actions -->
+<footer class="flex items-center justify-between py-10 border-t border-[#e8e9f2] dark:border-primary/10">
+<button class="flex items-center gap-2 px-8 h-12 rounded-full border-2 border-primary/20 text-[#515894] font-bold hover:bg-primary/5 transition-all">
+<span class="material-symbols-outlined">arrow_back</span>
+                        Previous
+                    </button>
+<div class="flex items-center gap-4">
+<p class="hidden md:block text-sm text-[#515894] italic">Changes are saved automatically</p>
+<button class="flex items-center gap-2 px-10 h-12 rounded-full bg-primary text-white font-bold hover:brightness-110 shadow-xl shadow-primary/25 transition-all">
+                            Submit &amp; Next
+                            <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</footer>
+</div>
+</main>
+</div>
+<!-- Background Decoration -->
+<div class="fixed top-0 right-0 -z-10 opacity-10 dark:opacity-5 pointer-events-none">
+<svg fill="none" height="400" viewbox="0 0 400 400" width="400" xmlns="http://www.w3.org/2000/svg">
+<circle cx="200" cy="200" fill="url(#paint0_radial_theme)" r="200"></circle>
+<defs>
+<radialgradient cx="0" cy="0" gradienttransform="translate(200 200) rotate(90) scale(200)" gradientunits="userSpaceOnUse" id="paint0_radial_theme" r="1">
+<stop stop-color="#5b69e6"></stop>
+<stop offset="1" stop-color="#5b69e6" stop-opacity="0"></stop>
+</radialgradient>
+</defs>
+</svg>
+</div>
+</body></html>

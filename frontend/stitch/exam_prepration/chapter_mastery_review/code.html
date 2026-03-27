@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Chapter Analysis Review - RevisionPro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .mastery-gauge {
+            background: conic-gradient(#685ae7 24%, #e2e8f0 0);
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-[#100e1b] font-display min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-primary/10 px-4 md:px-10 py-3">
+<div class="max-w-7xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-8 bg-primary text-white rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined">menu_book</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">RevisionPro</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-sm font-medium hover:text-primary transition-colors text-primary" href="#">Exams</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">Resources</a>
+</nav>
+<div class="flex items-center gap-3">
+<button class="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full overflow-hidden border-2 border-primary/20">
+<img class="w-full h-full object-cover" data-alt="User profile picture showing a friendly face" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDevA4y2j1DD2ddkwqlOHzwLJjLSz8WNHCfdvlexQiyWlCOg1fMf4tLOitoi3GzV82m2hFl4iCTRE2_cPz5Sb66u6knKH3bqll-i-eQU3LSpVVKQf4r2XkunhbJMwESUDpAvU-Ty7w-9FEL_tepThEFjleOnXZMSnymj8u6F2G8-6lORBbZyKNhon5T6DZY4SH7enh0Q-9cP2O9rrIMrdk75iRdrANF3NZNwfhzBOPF6Kx1cQCYALiYGLOyfQhQAC5HgBg7URVem-TV"/>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto p-4 md:p-8">
+<!-- Breadcrumb & Title Section -->
+<div class="mb-8">
+<div class="flex items-center gap-2 text-sm text-slate-500 mb-4">
+<a class="hover:text-primary" href="#">Mathematics</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<a class="hover:text-primary" href="#">Calculus</a>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-slate-900 font-medium">Integration</span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div class="space-y-2">
+<div class="flex items-center gap-3">
+<h1 class="text-3xl md:text-4xl font-black tracking-tight">Chapter Deep-Dive: Integration</h1>
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">High Weightage</span>
+</div>
+<p class="text-slate-500 max-w-2xl text-lg">Detailed performance analysis and personalized corrective roadmap to ace your upcoming exam.</p>
+</div>
+<button class="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-primary/20 text-primary font-bold hover:bg-primary/5 transition-all">
+<span class="material-symbols-outlined">arrow_back</span>
+                    Back to Dashboard
+                </button>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left Column: Mastery & Weaknesses -->
+<div class="lg:col-span-5 space-y-6">
+<!-- Mastery Card -->
+<div class="bg-white rounded-xl p-8 border border-primary/10 shadow-sm relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16"></div>
+<div class="relative z-10 flex flex-col items-center text-center">
+<div class="relative mb-6">
+<div class="size-48 rounded-full mastery-gauge flex items-center justify-center p-4">
+<div class="size-40 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+<span class="text-4xl font-black text-primary">24%</span>
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Mastery</span>
+</div>
+</div>
+<div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-red-500 text-white px-4 py-1 rounded-full text-xs font-black shadow-lg animate-pulse whitespace-nowrap">
+                                CRITICAL GAP
+                            </div>
+</div>
+<div class="space-y-2">
+<h3 class="text-xl font-bold">Priority Action Required</h3>
+<p class="text-slate-500 text-sm">Integration makes up 15% of your final exam score. Your current mastery is significantly below the class average of 68%.</p>
+</div>
+</div>
+</div>
+<!-- Weaknesses List -->
+<div class="bg-white rounded-xl p-6 border border-primary/10 shadow-sm">
+<div class="flex items-center gap-2 mb-6 text-red-600">
+<span class="material-symbols-outlined">warning</span>
+<h3 class="font-bold">Identified Weaknesses</h3>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 rounded-lg bg-red-50 border border-red-100">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded bg-red-100 flex items-center justify-center text-red-600">
+<span class="material-symbols-outlined text-sm">functions</span>
+</div>
+<span class="font-medium text-red-900 text-sm">Integration by Parts</span>
+</div>
+<span class="text-xs font-bold text-red-600 bg-red-200/50 px-2 py-1 rounded">Score: 12%</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-red-50 border border-red-100">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded bg-red-100 flex items-center justify-center text-red-600">
+<span class="material-symbols-outlined text-sm">variable_add</span>
+</div>
+<span class="font-medium text-red-900 text-sm">Trigonometric Substitution</span>
+</div>
+<span class="text-xs font-bold text-red-600 bg-red-200/50 px-2 py-1 rounded">Score: 18%</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-orange-50 border border-orange-100">
+<div class="flex items-center gap-3">
+<div class="size-8 rounded bg-orange-100 flex items-center justify-center text-orange-600">
+<span class="material-symbols-outlined text-sm">category</span>
+</div>
+<span class="font-medium text-orange-900 text-sm">Partial Fractions</span>
+</div>
+<span class="text-xs font-bold text-orange-600 bg-orange-200/50 px-2 py-1 rounded">Score: 34%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Roadmap & Quick Links -->
+<div class="lg:col-span-7 space-y-6">
+<!-- Corrective Roadmap -->
+<div class="bg-white rounded-xl p-8 border border-primary/10 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<h3 class="text-xl font-bold">Corrective Roadmap</h3>
+<div class="flex items-center gap-2 text-primary font-bold text-sm">
+<span class="material-symbols-outlined">trending_up</span>
+                            Goal: 90% Mastery
+                        </div>
+</div>
+<div class="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary before:via-slate-200 before:to-slate-200">
+<!-- Step 1 -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-primary text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="material-symbols-outlined text-sm">check</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-primary/20 bg-primary/5">
+<div class="flex items-center justify-between space-x-2 mb-1">
+<div class="font-bold text-primary">Step 1: Finish Summary</div>
+<time class="font-display text-xs font-medium text-primary">Completed</time>
+</div>
+<div class="text-slate-500 text-sm">Review core formulas and definitions for indefinite integrals.</div>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-white text-primary shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 ring-2 ring-primary">
+<span class="text-sm font-bold">2</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-slate-200 bg-white">
+<div class="flex items-center justify-between space-x-2 mb-1">
+<div class="font-bold">Solve High-Frequency Questions</div>
+<span class="text-xs bg-primary text-white px-2 py-0.5 rounded-full">Current</span>
+</div>
+<div class="text-slate-500 text-sm">Target the 15 most common integration problems from past exams.</div>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 text-slate-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="text-sm font-bold">3</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50">
+<div class="font-bold text-slate-400">Target Weaknesses</div>
+<div class="text-slate-400 text-sm">Focused practice on 'Integration by Parts' with AI-guided hints.</div>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+<div class="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 text-slate-400 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+<span class="material-symbols-outlined text-sm">flag</span>
+</div>
+<div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50">
+<div class="font-bold text-slate-400">Final Mastery Quiz</div>
+<div class="text-slate-400 text-sm">Pass the 20-question comprehensive challenge with 90%+ accuracy.</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Resource Quick Links -->
+<div class="bg-white rounded-xl p-6 border border-primary/10 shadow-sm">
+<h3 class="font-bold mb-4">Resource Quick Links</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<button class="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-primary/50 hover:bg-primary/5 transition-all group">
+<span class="material-symbols-outlined text-primary mb-2 group-hover:scale-110 transition-transform">article</span>
+<span class="text-sm font-bold">Topic Summary</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-primary/50 hover:bg-primary/5 transition-all group">
+<span class="material-symbols-outlined text-primary mb-2 group-hover:scale-110 transition-transform">verified_user</span>
+<span class="text-sm font-bold">Model Solutions</span>
+</button>
+<button class="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-primary/50 hover:bg-primary/5 transition-all group">
+<span class="material-symbols-outlined text-primary mb-2 group-hover:scale-110 transition-transform">quiz</span>
+<span class="text-sm font-bold">Practice Quiz</span>
+</button>
+</div>
+</div>
+<!-- Primary Action -->
+<button class="w-full bg-primary text-white py-5 rounded-2xl font-black text-xl shadow-[0_10px_30px_-10px_rgba(104,90,231,0.5)] hover:shadow-[0_15px_40px_-10px_rgba(104,90,231,0.6)] hover:-translate-y-1 transition-all active:scale-[0.98] flex items-center justify-center gap-3">
+<span class="material-symbols-outlined">rocket_launch</span>
+                    Start Mastery Path
+                </button>
+</div>
+</div>
+<!-- Support Info -->
+<div class="mt-12 p-6 rounded-2xl bg-primary/5 border border-primary/10 flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="flex items-center gap-4 text-center md:text-left">
+<div class="size-12 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<div>
+<h4 class="font-bold">Need help with a specific concept?</h4>
+<p class="text-slate-500 text-sm">Our AI tutor is available 24/7 to guide you through tricky integration problems.</p>
+</div>
+</div>
+<button class="px-6 py-2.5 bg-white border border-primary/20 rounded-xl text-primary font-bold hover:bg-primary/5 transition-all">
+                Ask RevisionAI
+            </button>
+</div>
+</main>
+<footer class="mt-16 py-12 border-t border-primary/5 text-center text-slate-400 text-sm">
+<p>© 2024 RevisionPro Education. All rights reserved.</p>
+</footer>
+</body></html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Exam Preparation Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Header -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-primary/10 bg-white dark:bg-background-dark px-6 md:px-10 py-4 sticky top-0 z-50">
+<div class="flex items-center gap-4">
+<div class="p-2 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined">menu_book</span>
+</div>
+<h2 class="text-xl font-bold leading-tight tracking-tight">Exam Preparation Hub</h2>
+</div>
+<div class="flex flex-1 justify-end gap-4 items-center">
+<button class="flex items-center justify-center rounded-xl h-10 px-4 bg-primary/10 text-primary hover:bg-primary/20 transition-colors gap-2 text-sm font-bold">
+<span class="material-symbols-outlined text-lg">arrow_back</span>
+<span class="hidden md:inline">Back to Dashboard</span>
+</button>
+<div class="h-10 w-10 rounded-full border-2 border-primary/20 bg-cover bg-center" data-alt="Student profile avatar placeholder" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCTseeE2A2edvx2EFV1M8J0fjZBDlsxcdyKPtJUOaM7yVKCDsOwAazwiLwFD40q8Q4B1jOf8Vqo0AbglPRoK-Wxow0_mY07V3oHH59kfwHig9JywXcPPqOtbRYpPsl4HcvN7PDM7R0JnOkWo7QZvJYqQUi7XYpeG2UrW32-NooF4D9CiWpD8J5zlq9dsRbR6fwjx5TCF1iibK12vSivj6KgkNYfyuQ2ve-fLVSPcPx4XOfoQeQBvUfW7UqCQRQk4s1TfKRwXwuGHVzK')"></div>
+</div>
+</header>
+<main class="max-w-6xl mx-auto w-full p-6 md:p-10 space-y-10">
+<!-- Page Title & Subtitle -->
+<div class="space-y-1">
+<h1 class="text-3xl font-black text-slate-900 dark:text-white">Exam Preparation</h1>
+<p class="text-primary font-medium flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">event</span>
+                    Mathematics Final - March 15
+                </p>
+</div>
+<!-- Section 1: Revision Snapshot -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Revision Snapshot</h2>
+<span class="text-xs font-semibold px-2 py-1 bg-green-100 text-green-700 rounded uppercase tracking-wider">On Track</span>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-3 flex flex-col md:flex-row items-center bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 gap-8">
+<!-- Progress Ring Container -->
+<div class="relative flex items-center justify-center w-40 h-40">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-primary/10" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-width="12"></circle>
+<circle class="text-primary" cx="80" cy="80" fill="transparent" r="70" stroke="currentColor" stroke-dasharray="440" stroke-dashoffset="387.2" stroke-linecap="round" stroke-width="12"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-3xl font-black text-slate-900 dark:text-white">12%</span>
+<span class="text-[10px] uppercase font-bold text-slate-400">Complete</span>
+</div>
+</div>
+<!-- Data & Content -->
+<div class="flex-1 text-center md:text-left space-y-4">
+<div>
+<h3 class="text-4xl font-black text-primary mb-1">34 Days Left</h3>
+<p class="text-slate-500 dark:text-slate-400 text-lg">You've covered 4 out of 32 core topics. Keep up the momentum!</p>
+</div>
+<div class="flex flex-wrap gap-3 justify-center md:justify-start">
+<div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-lg text-sm font-medium border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-primary text-base">check_circle</span>
+<span>Goal: 100% Mastery</span>
+</div>
+<div class="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-lg text-sm font-medium border border-slate-100 dark:border-slate-700">
+<span class="material-symbols-outlined text-primary text-base">timer</span>
+<span>Avg. Study: 2h/day</span>
+</div>
+</div>
+</div>
+<!-- Action -->
+<div class="w-full md:w-auto">
+<button class="w-full md:w-auto bg-primary text-white hover:bg-primary/90 transition-all px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">calendar_today</span>
+                                Go to Full Planner
+                            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Section 2: Quick Revision Notes -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-2xl font-bold tracking-tight">Quick Revision Notes</h2>
+<button class="text-primary hover:underline font-bold text-sm flex items-center gap-1 group">
+                        Browse All Summaries
+                        <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Card 1 -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded">Algebra</span>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">bookmark</span>
+</div>
+<h4 class="text-lg font-bold mb-2">Quadratic Equations</h4>
+<p class="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">Focus: Standard Form &amp; Solutions using the quadratic formula.</p>
+<div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">schedule</span>
+                                5 min read
+                            </div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">list_alt</span>
+                                4 concepts
+                            </div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded">Geometry</span>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">bookmark</span>
+</div>
+<h4 class="text-lg font-bold mb-2">Trigonometry</h4>
+<p class="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">Reviewing the Sine &amp; Cosine rules for non-right-angled triangles.</p>
+<div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">schedule</span>
+                                8 min read
+                            </div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">list_alt</span>
+                                6 concepts
+                            </div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+<div class="flex justify-between items-start mb-4">
+<span class="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded">Statistics</span>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">bookmark</span>
+</div>
+<h4 class="text-lg font-bold mb-2">Probability Distribution</h4>
+<p class="text-slate-500 dark:text-slate-400 text-sm mb-6 leading-relaxed">Quick recap of Normal and Binomial distribution properties.</p>
+<div class="flex items-center gap-4 text-xs font-semibold text-slate-400">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">schedule</span>
+                                6 min read
+                            </div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-base">list_alt</span>
+                                3 concepts
+                            </div>
+</div>
+</div>
+</div>
+<div class="mt-10 flex flex-col items-center justify-center p-8 bg-primary/5 border border-dashed border-primary/20 rounded-xl">
+<p class="text-slate-600 dark:text-slate-400 text-center max-w-md mb-4">Ready to dive deeper into your subjects? Access over 60+ curated summaries for your curriculum.</p>
+<button class="bg-white dark:bg-slate-800 text-primary border border-primary/20 hover:bg-primary/10 transition-colors px-6 py-3 rounded-lg font-bold flex items-center gap-2">
+<span class="material-symbols-outlined">library_books</span>
+                        Browse Topic Library
+                    </button>
+</div>
+</section>
+<!-- Quick Tip Section -->
+<section class="bg-primary text-white p-6 rounded-xl flex flex-col md:flex-row items-center gap-6">
+<div class="p-4 bg-white/20 rounded-full">
+<span class="material-symbols-outlined text-4xl">lightbulb</span>
+</div>
+<div class="flex-1 text-center md:text-left">
+<h5 class="font-bold text-lg mb-1">Study Tip of the Day</h5>
+<p class="text-white/80">Try the Pomodoro technique: Study for 25 minutes, then take a 5-minute break. This keeps your brain fresh for complex topics like Calculus!</p>
+</div>
+<button class="bg-white text-primary px-5 py-2 rounded-lg font-bold text-sm whitespace-nowrap">Learn More</button>
+</section>
+</main>
+<!-- Footer Navigation (Bottom Nav Style for convenience) -->
+<footer class="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark py-6 px-10">
+<div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+<div class="flex items-center gap-2 opacity-50">
+<span class="material-symbols-outlined text-sm">school</span>
+<span class="text-xs">StudyHub v2.4.0 • Exam Mode Active</span>
+</div>
+<nav class="flex gap-6 text-sm font-medium text-slate-500">
+<a class="hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-primary transition-colors" href="#">Help Center</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Service</a>
+</nav>
+</div>
+</footer>
+</div>
+</body></html>

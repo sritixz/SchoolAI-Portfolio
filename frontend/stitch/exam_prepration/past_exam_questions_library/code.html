@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Past Exam Questions Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#685ae7",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .math-symbol {
+            font-family: serif;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<!-- Fixed Header -->
+<header class="sticky top-0 z-50 w-full bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex justify-between items-center h-16">
+<div class="flex items-center gap-3">
+<div class="bg-primary p-2 rounded-lg text-white">
+<span class="material-symbols-outlined block">auto_stories</span>
+</div>
+<div>
+<h1 class="text-xl font-bold leading-none">High-Frequency Questions</h1>
+<p class="text-sm text-slate-500 dark:text-slate-400">Past exam questions library</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="relative p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full ring-2 ring-white"></span>
+</button>
+<button class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<div class="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+<div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
+<img alt="Student profile avatar" data-alt="Rounded student profile avatar placeholder" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB96BV9SGMVlH-9dwLfd0VmNaFD3871jmWQf5tervKw58ApG0YwPZuSRXD0Pygb6d7WkEH5u9UHFewoX-SnsA6MIDO6O2MiE9E5i4ufWjW4Xrg-HqBEzuGOXvZWmFhnDlmeKmMZi6RrYxSMK7tciiVGjvWs5ikP3CrAN-9tN45HPTrpcrcF7Nz9-VzQeXQKXn_39vWwtW_KXMnSuKkmVfa33oUkgN4yR4gyYBUH2D5NpZnHm7sVuZ1DVLDO7WPeRRX7OfkNL6CQ8hzA"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Sticky Subject Tabs -->
+<nav class="sticky top-16 z-40 bg-white dark:bg-background-dark border-b border-slate-200 dark:border-slate-800">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex gap-8 overflow-x-auto no-scrollbar py-3">
+<a class="relative flex items-center gap-2 text-primary font-semibold whitespace-nowrap group" href="#">
+                    Math
+                    <span class="absolute -bottom-3 left-0 w-full h-1 bg-primary rounded-full"></span>
+</a>
+<a class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 font-medium whitespace-nowrap transition-colors" href="#">Physics</a>
+<a class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 font-medium whitespace-nowrap transition-colors" href="#">Chemistry</a>
+<a class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 font-medium whitespace-nowrap transition-colors" href="#">Biology</a>
+<a class="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 font-medium whitespace-nowrap transition-colors" href="#">English</a>
+</div>
+</div>
+</nav>
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+<!-- Stats Banner -->
+<section class="relative overflow-hidden rounded-xl p-8 bg-gradient-to-r from-[#e0dcfc] to-[#dcfce7] dark:from-primary/20 dark:to-emerald-500/20 shadow-sm border border-white/20">
+<div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
+<div class="text-center md:text-left">
+<h2 class="text-2xl font-bold text-slate-800 dark:text-white">Your Progress</h2>
+<p class="text-slate-600 dark:text-slate-300 mt-1">Keep crushing your preparation goals!</p>
+</div>
+<div class="flex flex-wrap justify-center gap-4 md:gap-12">
+<div class="text-center">
+<p class="text-3xl font-bold text-primary dark:text-primary">247</p>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-400">Total Questions</p>
+</div>
+<div class="text-center border-x border-slate-300/30 px-4 md:px-12">
+<p class="text-3xl font-bold text-slate-800 dark:text-white">45</p>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-400">Attempted</p>
+</div>
+<div class="text-center">
+<p class="text-3xl font-bold text-emerald-600 dark:text-emerald-400">78%</p>
+<p class="text-sm font-medium text-slate-600 dark:text-slate-400">Avg Score</p>
+</div>
+</div>
+</div>
+<!-- Decorative circle -->
+<div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/20 rounded-full blur-3xl"></div>
+</section>
+<!-- Chapter & Filter Section -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+<div class="w-full lg:w-96">
+<label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Select Chapter</label>
+<div class="relative">
+<select class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg h-12 px-4 appearance-none focus:ring-2 focus:ring-primary focus:border-primary outline-none">
+<option>Chapter 5: Quadratic Equations</option>
+<option>Chapter 1: Real Numbers</option>
+<option>Chapter 2: Polynomials</option>
+<option>Chapter 3: Linear Equations</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+<span class="material-symbols-outlined text-slate-400">expand_more</span>
+</div>
+</div>
+</div>
+<div class="flex-1">
+<label class="block text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Filter By</label>
+<div class="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+<button class="px-5 py-2 rounded-full bg-primary text-white text-sm font-semibold shadow-md shadow-primary/20 transition-all">All</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap">1-2 Marks</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap">3-5 Marks</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap">Last 3 Years</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap">Most Frequent</button>
+<button class="px-5 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 transition-colors whitespace-nowrap">Unsolved</button>
+</div>
+</div>
+</div>
+<!-- Question List -->
+<div class="grid grid-cols-1 gap-6">
+<!-- Featured Question Card -->
+<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow group">
+<div class="flex flex-col md:flex-row justify-between gap-4">
+<div class="flex-1 space-y-4">
+<div class="flex flex-wrap items-center gap-3">
+<span class="text-sm font-bold text-slate-400">Q247</span>
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded">2024 Exam</span>
+<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded">3 Marks</span>
+<div class="flex items-center gap-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs font-bold rounded">
+<span class="material-symbols-outlined text-xs !text-sm">local_fire_department</span>
+                                Asked 5 times
+                            </div>
+</div>
+<h3 class="text-lg font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
+                            Solve the quadratic equation <span class="math-symbol">x<sup>2</sup> - 5x + 6 = 0</span> and find the roots. Verify the relationship between the zeroes and the coefficients.
+                        </h3>
+<div class="flex items-center gap-4 text-sm text-slate-500">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">signal_cellular_alt</span>
+<span class="font-medium text-orange-500">Medium</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">timer</span>
+                                8 mins
+                            </div>
+</div>
+</div>
+<div class="flex md:flex-col justify-end gap-3 min-w-fit">
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20">
+                            Attempt Now
+                        </button>
+<button class="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Question Card 2 -->
+<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex flex-col md:flex-row justify-between gap-4">
+<div class="flex-1 space-y-4">
+<div class="flex flex-wrap items-center gap-3">
+<span class="text-sm font-bold text-slate-400">Q246</span>
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded">2023 Exam</span>
+<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded">5 Marks</span>
+</div>
+<h3 class="text-lg font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
+                            A train travels 360 km at a uniform speed. If the speed had been 5 km/h more, it would have taken 1 hour less for the same journey. Find the speed of the train.
+                        </h3>
+<div class="flex items-center gap-4 text-sm text-slate-500">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">signal_cellular_alt_2_bar</span>
+<span class="font-medium text-red-500">Hard</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">timer</span>
+                                15 mins
+                            </div>
+</div>
+</div>
+<div class="flex md:flex-col justify-end gap-3 min-w-fit">
+<button class="bg-primary/10 text-primary hover:bg-primary hover:text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all">
+                            Attempt Now
+                        </button>
+<button class="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Question Card 3 -->
+<div class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex flex-col md:flex-row justify-between gap-4">
+<div class="flex-1 space-y-4">
+<div class="flex flex-wrap items-center gap-3">
+<span class="text-sm font-bold text-slate-400">Q245</span>
+<span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold rounded">2023 Exam</span>
+<span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded">2 Marks</span>
+</div>
+<h3 class="text-lg font-medium text-slate-800 dark:text-slate-100 leading-relaxed">
+                            Find the discriminant of the quadratic equation <span class="math-symbol">2x<sup>2</sup> - 4x + 3 = 0</span>, and hence find the nature of its roots.
+                        </h3>
+<div class="flex items-center gap-4 text-sm text-slate-500">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">signal_cellular_alt_1_bar</span>
+<span class="font-medium text-emerald-500">Easy</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">timer</span>
+                                5 mins
+                            </div>
+</div>
+</div>
+<div class="flex md:flex-col justify-end gap-3 min-w-fit">
+<div class="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-4 py-2 rounded-lg font-bold text-sm">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+                            Solved
+                        </div>
+<button class="p-2.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Load More -->
+<div class="flex justify-center py-6">
+<button class="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary font-semibold transition-colors">
+<span class="material-symbols-outlined">expand_more</span>
+                View 20 More Questions
+            </button>
+</div>
+</main>
+<!-- Footer Stats (Floating for Desktop context sometimes) -->
+<footer class="bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 py-12 mt-12">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">school</span>
+<span class="font-bold text-lg">ExamMaster AI</span>
+</div>
+<p class="text-slate-500 dark:text-slate-400 text-sm">© 2024 Exam Question Bank. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="text-sm text-slate-500 hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="text-sm text-slate-500 hover:text-primary transition-colors" href="#">Privacy Policy</a>
+</div>
+</div>
+</footer>
+</body></html>

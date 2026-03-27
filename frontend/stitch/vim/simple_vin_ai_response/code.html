@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vin AI Socratic Chat with Voice &amp; Search</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#695be6",
+                        "background-light": "#F5F5F5",
+                        "background-dark": "#131121",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .header-gradient {
+            background: linear-gradient(90deg, #6B5CE7 0%, #D4C5F9 100%);
+        }
+        .chat-container {
+            height: calc(100vh - 4rem - 130px);
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased h-screen flex flex-col overflow-hidden">
+<header class="header-gradient h-16 shrink-0 flex items-center justify-between px-6 shadow-md z-10">
+<div class="flex items-center gap-4">
+<button class="text-white hover:bg-white/10 p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="size-10 rounded-full border-2 border-white/50 bg-white overflow-hidden">
+<img alt="Vin AI Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVoyiJ7XrXHXK5K-2X_581fJt9Yda1obdRKXh8gdfrGJ-NTpwYc8Km130_4l0luSueL9ix-IRGHNCp0uH9upkA5CSl6HyXmL9HX8WiewcPAML8ScVZhykcFVW7tUor-OIEAHbE7ZKxqi5Xj8_k00wG3jpjMmNAte8QGNbJqce__URELabhUvBiKHea4H50BaekRP686vZn0lYjQOmCU4n5h_sdI72gdVsRCO-v1PQud4PcPKAtuj3xCRoTX0UhQmi-8lJ7R8e5SPWr"/>
+</div>
+<div class="absolute bottom-0 right-0 size-3 bg-green-400 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<h1 class="text-white font-bold text-base leading-tight">Vin AI</h1>
+<p class="text-white/80 text-xs font-medium">Vin is here to help</p>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined">schedule</span>
+<span class="hidden md:block text-sm font-medium">History</span>
+</button>
+<button class="text-white hover:bg-white/10 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto custom-scrollbar px-4 chat-container">
+<div class="max-w-3xl w-full mx-auto py-8 space-y-8">
+<div class="flex justify-end">
+<div class="bg-primary text-white p-4 rounded-2xl rounded-tr-none max-w-[80%] shadow-sm">
+<p class="text-sm md:text-base">Can you help me balance this equation? H2 + O2 -&gt; H2O. I'm a bit stuck on where to start.</p>
+</div>
+</div>
+<div class="flex gap-4">
+<div class="size-10 rounded-full bg-white border border-slate-200 shrink-0 overflow-hidden flex items-center justify-center">
+<img alt="Vin AI Avatar" class="w-8 h-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVoyiJ7XrXHXK5K-2X_581fJt9Yda1obdRKXh8gdfrGJ-NTpwYc8Km130_4l0luSueL9ix-IRGHNCp0uH9upkA5CSl6HyXmL9HX8WiewcPAML8ScVZhykcFVW7tUor-OIEAHbE7ZKxqi5Xj8_k00wG3jpjMmNAte8QGNbJqce__URELabhUvBiKHea4H50BaekRP686vZn0lYjQOmCU4n5h_sdI72gdVsRCO-v1PQud4PcPKAtuj3xCRoTX0UhQmi-8lJ7R8e5SPWr"/>
+</div>
+<div class="space-y-4 max-w-[85%]">
+<div class="bg-white dark:bg-slate-800 p-4 rounded-2xl rounded-tl-none border border-slate-200 dark:border-slate-700 shadow-sm">
+
+<p class="text-sm md:text-base text-slate-700 dark:text-slate-300">
+                        Of course! Balancing equations is all about making sure we have the same number of atoms on both sides. Let's think about it step by step.
+                    </p>
+
+</div>
+<div class="flex flex-col sm:flex-row gap-3 pt-2">
+<button class="flex-1 flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-primary/50 py-3 rounded-xl transition-all shadow-sm group">
+<div class="size-5 flex items-center justify-center">
+<svg class="size-4" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path>
+<path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path>
+<path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path>
+<path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path>
+</svg>
+</div>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Search Google</span>
+</button>
+<button class="flex-1 flex items-center justify-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-red-400/50 py-3 rounded-xl transition-all shadow-sm group">
+<span class="material-symbols-outlined text-red-600 text-xl">play_circle</span>
+<span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Watch YouTube</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] p-4 shrink-0">
+<div class="max-w-4xl mx-auto space-y-4">
+<div class="flex gap-2">
+<button class="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">upload_file</span>
+                Upload Problem
+            </button>
+<button class="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">calculate</span>
+                Formula Help
+            </button>
+<button class="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-sm">history_edu</span>
+                Past Lessons
+            </button>
+</div>
+<div class="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-2 pr-3">
+<div class="flex items-center gap-1 shrink-0">
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">photo_camera</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">image</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">mic</span>
+</button>
+</div>
+<input class="w-full bg-transparent border-none focus:ring-0 text-slate-800 dark:text-slate-200 text-sm md:text-base py-2" placeholder="Ask your doubt..." type="text"/>
+<button class="bg-primary text-white size-10 flex items-center justify-center rounded-xl hover:bg-primary/90 transition-transform active:scale-95 shrink-0 shadow-sm">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+<p class="text-[10px] text-center text-slate-400">Vin AI can make mistakes. Verify important information.</p>
+</div>
+</footer>
+</body></html>

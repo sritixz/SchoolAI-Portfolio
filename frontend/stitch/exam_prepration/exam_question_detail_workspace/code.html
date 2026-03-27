@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Exam Question Detail Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "background-light": "#f6f8f6",
+                        "background-dark": "#102216",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+        .latex-style {
+            font-family: serif;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Header Section -->
+<header class="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-10 py-3 shadow-sm">
+<div class="max-w-5xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+<span class="material-symbols-outlined align-middle">arrow_back</span>
+</button>
+<h1 class="text-lg font-bold tracking-tight">Question 247</h1>
+</div>
+<div class="flex items-center gap-4">
+<nav class="hidden md:flex items-center gap-2">
+<button class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">chevron_left</span>
+                        Previous
+                    </button>
+<div class="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+<button class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+                        Next
+                        <span class="material-symbols-outlined text-lg">chevron_right</span>
+</button>
+</nav>
+<div class="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs border border-primary/30">
+                    JD
+                </div>
+</div>
+</div>
+</header>
+<main class="flex-1 w-full max-w-5xl mx-auto p-4 md:p-8 space-y-6 pb-24">
+<!-- Metadata Grid Card -->
+<section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">calendar_today</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Year</span>
+<span class="font-bold">2024</span>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">grade</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Marks</span>
+<span class="font-bold text-primary">3</span>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">repeat</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Frequency</span>
+<span class="font-bold">5 times</span>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">bar_chart</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Difficulty</span>
+<span class="font-bold text-orange-500">Medium</span>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">schedule</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Est. Time</span>
+<span class="font-bold">5 min</span>
+</div>
+<div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-lg flex flex-col gap-1 shadow-sm">
+<span class="material-symbols-outlined text-slate-400 text-xl">verified</span>
+<span class="text-xs text-slate-500 uppercase font-semibold tracking-wider">Success</span>
+<span class="font-bold">68%</span>
+</div>
+</section>
+<!-- Question Card -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="p-6 md:p-8">
+<div class="flex justify-between items-start mb-6">
+<span class="text-xs font-bold uppercase tracking-widest text-slate-400">Problem Statement</span>
+<span class="bg-primary/10 text-primary text-xs font-bold px-3 py-1 rounded-full border border-primary/20">3 Marks</span>
+</div>
+<div class="text-xl md:text-2xl leading-relaxed">
+                    Find the values of <span class="latex-style">x</span> such that the quadratic equation 
+                    <div class="my-6 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-center font-serif italic text-2xl tracking-wide">
+                        2x² + 5x - 3 = 0
+                    </div>
+                    is satisfied. Show all your working steps clearly.
+                </div>
+</div>
+</section>
+<!-- Model Solution Section -->
+<section class="bg-white dark:bg-slate-900 rounded-xl border-l-4 border-primary border-t border-r border-b border-slate-200 dark:border-slate-800 shadow-md overflow-hidden">
+<div class="p-6 md:p-8">
+<div class="flex items-center gap-2 mb-8">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h2 class="text-lg font-bold">Model Solution</h2>
+</div>
+<div class="space-y-12">
+<!-- Step 1 -->
+<div class="relative pl-12">
+<div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm z-10">1</div>
+<div class="absolute left-[15px] top-8 bottom-[-48px] w-px bg-slate-200 dark:bg-slate-700"></div>
+<h3 class="font-bold text-slate-800 dark:text-slate-200 mb-2">Factorize the quadratic expression</h3>
+<p class="text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                            We need to find two numbers that multiply to <span class="latex-style">(2 * -3) = -6</span> and add to <span class="latex-style">5</span>. These numbers are <span class="latex-style">6</span> and <span class="latex-style">-1</span>.
+                        </p>
+<div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded border border-slate-100 dark:border-slate-800 italic">
+                            2x² + 6x - x - 3 = 0<br/>
+                            2x(x + 3) - 1(x + 3) = 0<br/>
+                            (2x - 1)(x + 3) = 0
+                        </div>
+</div>
+<!-- Step 2 -->
+<div class="relative pl-12">
+<div class="absolute left-0 top-0 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm z-10">2</div>
+<h3 class="font-bold text-slate-800 dark:text-slate-200 mb-2">Solve for x</h3>
+<p class="text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
+                            Set each factor equal to zero to find the individual roots.
+                        </p>
+<div class="grid md:grid-cols-2 gap-4 italic text-center">
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
+                                2x - 1 = 0 <br/> 2x = 1 <br/> <span class="font-bold text-primary">x = 1/2</span>
+</div>
+<div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded border border-slate-100 dark:border-slate-800">
+                                x + 3 = 0 <br/> <span class="font-bold text-primary">x = -3</span>
+</div>
+</div>
+</div>
+<!-- Final Answer -->
+<div class="mt-8 p-6 bg-primary/5 border-2 border-primary rounded-xl flex items-center justify-between">
+<div>
+<span class="text-xs font-bold text-primary uppercase tracking-widest">Final Answer</span>
+<div class="text-2xl font-bold mt-1 text-slate-900 dark:text-white">x = 0.5 or x = -3</div>
+</div>
+<span class="material-symbols-outlined text-primary text-4xl">check_circle</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Insights Grid -->
+<section class="grid md:grid-cols-2 gap-6">
+<!-- Examiner's Note -->
+<div class="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 p-6 rounded-xl">
+<div class="flex items-center gap-2 mb-3 text-rose-600 dark:text-rose-400">
+<span class="material-symbols-outlined">description</span>
+<h3 class="font-bold">Examiner's Note</h3>
+</div>
+<p class="text-rose-800/80 dark:text-rose-300/80 text-sm leading-relaxed">
+                    Common mistake: Students often forget to check the signs when factoring. Always substitute your final values back into the original equation to verify they yield zero.
+                </p>
+</div>
+<!-- Time Management Tip -->
+<div class="bg-purple-50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl">
+<div class="flex items-center gap-2 mb-3 text-purple-600 dark:text-purple-400">
+<span class="material-symbols-outlined">timer</span>
+<h3 class="font-bold">Time Management Tip</h3>
+</div>
+<p class="text-purple-800/80 dark:text-purple-300/80 text-sm leading-relaxed">
+                    Quadratic formula is faster if factoring isn't immediately obvious. Don't spend more than 90 seconds trying to factor manually before switching methods.
+                </p>
+</div>
+</section>
+</main>
+<!-- Fixed Bottom Action Bar -->
+<footer class="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 md:px-10 py-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+<div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Bookmark">
+<span class="material-symbols-outlined">bookmark</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Share">
+<span class="material-symbols-outlined">share</span>
+</button>
+<button class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Report Issue">
+<span class="material-symbols-outlined">flag</span>
+</button>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-slate-900 font-bold px-8 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-lg shadow-primary/20 active:scale-[0.98]">
+<span class="material-symbols-outlined text-xl">refresh</span>
+                Try Again
+            </button>
+</div>
+</footer>
+</body></html>

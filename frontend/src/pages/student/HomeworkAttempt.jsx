@@ -1,0 +1,451 @@
+import { useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { getHomeworkQuestions } from "../../data/mockData";
+
+const ANSWER_TYPES = [
+  { key: "mcq",    label: "Multiple Choice" },
+  { key: "typed",  label: "Typed" },
+  { key: "upload", label: "Upload" },
+];
+
+const OPTION_LABELS = ["A", "B", "C", "D", "E"];
+
+// ── MCQ — 2-column lettered pill grid ───────────────────────
+function MCQInput({ options, selected, onChange }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {options.map((opt, i) => {
+        const isSelected = selected === opt.id;
+        return (
+          <button
+            key={opt.id}
+            onClick={() => onChange(opt.id)}
+            className={`flex items-center gap-4 px-5 py-4 rounded-xl border-2 font-medium text-left transition-all
+              ${isSelected
+                ? "border-[#5b69e6] bg-[#5b69e6]/10 text-[#5b69e6]"
+                : "border-slate-200 bg-white hover:border-[#5b69e6]/40 hover:bg-[#5b69e6]/5 text-slate-700"
+              }`}
+          >
+            <span className={`size-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0
+              ${isSelected ? "bg-[#5b69e6] text-white" : "bg-slate-100 text-slate-500"}`}>
+              {OPTION_LABELS[i]}
+            </span>
+            <span className="text-sm leading-snug">{opt.text}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Typed — toolbar + textarea ───────────────────────────────
+function TypedInput({ value, onChange }) {
+  return (
+    <div className="rounded-xl border-2 border-slate-100 overflow-hidden focus-within:border-[#5b69e6] transition-all bg-white">
+      <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-slate-100">
+        <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-600">
+          <span className="material-symbols-outlined text-[20px]">format_bold</span>
+        </button>
+        <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-600">
+          <span className="material-symbols-outlined text-[20px]">format_italic</span>
+        </button>
+        <div className="h-6 w-px bg-slate-200 mx-1" />
+        <button className="p-2 hover:bg-white rounded-full transition-colors flex items-center gap-1.5 px-3 text-slate-600">
+          <span className="material-symbols-outlined text-[20px] text-[#5b69e6]">functions</span>
+          <span className="text-xs font-bold uppercase tracking-tight">Equation Editor</span>
+        </button>
+        <div className="ml-auto flex gap-1">
+          <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
+            <span className="material-symbols-outlined text-[20px]">undo</span>
+          </button>
+          <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
+            <span className="material-symbols-outlined text-[20px]">redo</span>
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-h-[260px] p-6 text-base border-none focus:ring-0 bg-transparent placeholder:text-slate-300 resize-none"
+        placeholder="Let's work through this... Start typing your thoughts and Vin will help refine them."
+      />
+    </div>
+  );
+}
+
+// ── Upload — centered drag-drop zone ────────────────────────
+function UploadInput({ file, onFile }) {
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) onFile(f);
+  };
+
+  if (file) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[320px] border-4 border-dashed border-green-300 rounded-xl bg-green-50 p-8 gap-4">
+        <div className="size-20 rounded-full bg-green-100 flex items-center justify-center">
+          <span className="material-symbols-outlined text-4xl text-green-600">check_circle</span>
+        </div>
+        <div className="text-center">
+          <p className="font-bold text-slate-800">{file.name}</p>
+          <p className="text-sm text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+        </div>
+        <button onClick={() => onFile(null)} className="text-sm text-red-500 hover:underline">
+          Remove & re-upload
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDrop={handleDrop}
+      onDragOver={(e) => e.preventDefault()}
+      className="group flex flex-col items-center justify-center min-h-[320px] border-4 border-dashed border-[#5b69e6]/20 rounded-xl bg-white p-8 transition-all hover:border-[#5b69e6]/50 hover:bg-[#5b69e6]/[0.02]"
+    >
+      <div className="flex gap-4 mb-6">
+        <div className="size-20 rounded-full bg-[#5b69e6]/10 flex items-center justify-center text-[#5b69e6] group-hover:scale-110 transition-transform">
+          <span className="material-symbols-outlined text-4xl">add_a_photo</span>
+        </div>
+        <div className="size-20 rounded-full bg-[#5b69e6]/10 flex items-center justify-center text-[#5b69e6] group-hover:scale-110 transition-transform">
+          <span className="material-symbols-outlined text-4xl">collections</span>
+        </div>
+      </div>
+      <h3 className="text-xl font-bold text-slate-800 mb-2 text-center">
+        Click to take a photo or upload a scan
+      </h3>
+      <p className="text-slate-500 text-sm mb-6 text-center">
+        Drag & drop your files here or browse from your device gallery
+      </p>
+      <div className="flex flex-wrap justify-center gap-3">
+        <label className="flex items-center gap-2 px-6 h-12 rounded-full bg-[#5b69e6] text-white font-bold hover:brightness-110 shadow-lg shadow-[#5b69e6]/20 transition-all cursor-pointer">
+          <span className="material-symbols-outlined">photo_camera</span>
+          Take Photo
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files[0])} />
+        </label>
+        <label className="flex items-center gap-2 px-6 h-12 rounded-full bg-white border border-[#5b69e6]/30 text-[#5b69e6] font-bold hover:bg-[#5b69e6]/5 transition-all cursor-pointer">
+          <span className="material-symbols-outlined">file_upload</span>
+          Browse Files
+          <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => onFile(e.target.files[0])} />
+        </label>
+      </div>
+      <p className="text-xs text-slate-400 uppercase tracking-tight mt-4">
+        Accepted: JPG, PNG, PDF · Max 20MB
+      </p>
+    </div>
+  );
+}
+
+// ── Vin nudge — always-visible amber panel ───────────────────
+function VinNudge({ hint, vinNudge }) {
+  const [nudgeIdx, setNudgeIdx] = useState(0);
+  const nudges = [hint, vinNudge].filter(Boolean);
+  return (
+    <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+      <span className="material-symbols-outlined text-amber-500 shrink-0 mt-0.5">lightbulb</span>
+      <div className="flex-1">
+        <p className="text-sm font-medium text-amber-800 leading-relaxed">{nudges[nudgeIdx]}</p>
+        {nudges.length > 1 && (
+          <button
+            onClick={() => setNudgeIdx((i) => (i + 1) % nudges.length)}
+            className="text-xs font-bold text-amber-600 mt-2 uppercase tracking-tight hover:underline"
+          >
+            Get another nudge
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main ────────────────────────────────────────────────────
+export default function HomeworkAttempt() {
+  const { homeworkId } = useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const questionSet = getHomeworkQuestions(homeworkId);
+
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [answers, setAnswers]       = useState({});
+  const [activeType, setActiveType] = useState({});
+
+  if (!questionSet) {
+    return (
+      <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
+        <div className="text-center">
+          <span className="material-symbols-outlined text-6xl text-slate-300 mb-4 block">assignment</span>
+          <p className="font-bold text-slate-600">No questions found for this homework.</p>
+          <button onClick={() => navigate("/student/homework")} className="mt-4 px-6 py-2 bg-[#5b69e6] text-white rounded-full font-bold">
+            Back to Homework
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const questions  = questionSet.questions;
+  const q          = questions[currentIdx];
+  const totalQ     = questions.length;
+  const progressPct = Math.round(((currentIdx + 1) / totalQ) * 100);
+  const isLast     = currentIdx === totalQ - 1;
+
+  const currentType   = activeType[q.id] || q.answerType;
+  const currentAnswer = answers[q.id] ?? (currentType === "mcq" ? null : "");
+
+  const setType   = (qid, t) => setActiveType((p) => ({ ...p, [qid]: t }));
+  const setAnswer = (qid, v) => setAnswers((p) => ({ ...p, [qid]: v }));
+
+  const canProceed = () => {
+    if (currentType === "mcq")    return !!currentAnswer;
+    if (currentType === "typed")  return (currentAnswer || "").trim().length > 5;
+    if (currentType === "upload") return !!currentAnswer;
+    return false;
+  };
+
+  const handleNext = () => {
+    if (!isLast) {
+      setCurrentIdx((i) => i + 1);
+    } else {
+      navigate(`/student/homework/${homeworkId}/result`, {
+        state: { answers, questionSet },
+      });
+    }
+  };
+
+  // Typed questions always show the nudge; MCQ/upload show it below
+  const isTyped  = currentType === "typed";
+  const isUpload = currentType === "upload";
+  const isMcq    = currentType === "mcq";
+
+  return (
+    <div className="min-h-screen bg-[#f6f6f8] text-slate-900" style={{ fontFamily: "'Lexend', sans-serif" }}>
+
+      {/* ── Header ── */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#5b69e6]/10">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#5b69e6]/10 p-2 rounded-full">
+              <span className="material-symbols-outlined text-[#5b69e6]">{questionSet.subjectIcon}</span>
+            </div>
+            <h1 className="font-bold text-base leading-tight tracking-tight">{questionSet.unitTitle}</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+              Ask Vin
+            </button>
+            <button
+              onClick={() => navigate("/student/homework")}
+              className="bg-[#5b69e6]/10 hover:bg-[#5b69e6]/20 text-[#5b69e6] px-4 py-2 rounded-full text-sm font-semibold transition-colors"
+            >
+              Save & Exit
+            </button>
+            {user?.avatar
+              ? <img src={user.avatar} alt="avatar" className="size-10 rounded-full border-2 border-[#5b69e6]/20 object-cover" />
+              : <div className="size-10 rounded-full bg-[#5b69e6]/20 flex items-center justify-center border-2 border-[#5b69e6]/30">
+                  <span className="material-symbols-outlined text-[#5b69e6]">person</span>
+                </div>
+            }
+          </div>
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <main className="pt-24 pb-32 px-6 max-w-4xl mx-auto">
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {questionSet.tags.map((tag) => (
+            <span key={tag} className="bg-[#5b69e6]/10 text-[#5b69e6] text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-8 space-y-2">
+          <div className="flex justify-between items-end">
+            <div>
+              <span className="text-xs font-semibold text-[#5b69e6]/60 uppercase tracking-wider">Progress</span>
+              <h2 className="text-xl font-bold">Question {q.questionNumber} of {totalQ}</h2>
+            </div>
+            <span className="text-[#5b69e6] font-bold">{progressPct}% Complete</span>
+          </div>
+          <div className="h-3 w-full bg-[#5b69e6]/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#5b69e6] rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%`, boxShadow: "0 0 12px rgba(91,105,230,0.4)" }}
+            />
+          </div>
+          {/* Dot navigator */}
+          <div className="flex gap-1.5 pt-1">
+            {questions.map((qq, i) => (
+              <button
+                key={qq.id}
+                onClick={() => setCurrentIdx(i)}
+                title={`Q${i + 1}`}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  i === currentIdx
+                    ? "bg-[#5b69e6] w-6"
+                    : answers[qq.id] !== undefined && answers[qq.id] !== null && answers[qq.id] !== ""
+                    ? "bg-[#5b69e6]/40 w-2"
+                    : "bg-slate-200 w-2"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Question card */}
+        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 mb-6">
+
+          {/* Answer type switcher */}
+          <div className="flex mb-8">
+            <div className="bg-slate-100 p-1.5 rounded-full flex gap-1">
+              {ANSWER_TYPES.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setType(q.id, t.key)}
+                  className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                    currentType === t.key
+                      ? "bg-[#5b69e6] text-white shadow-lg shadow-[#5b69e6]/30"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Question text */}
+          <h3
+            className="text-2xl font-semibold leading-snug mb-8"
+            dangerouslySetInnerHTML={{ __html: q.questionText }}
+          />
+
+          {/* MCQ */}
+          {isMcq && (
+            <>
+              <MCQInput
+                options={q.options}
+                selected={currentAnswer}
+                onChange={(v) => setAnswer(q.id, v)}
+              />
+              {/* Nudge below options for MCQ */}
+              {q.hint && (
+                <div className="mt-6">
+                  <VinNudge hint={q.hint} vinNudge={q.vinNudge} />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Typed — nudge always shown above textarea */}
+          {isTyped && (
+            <>
+              {q.hint && (
+                <div className="mb-6">
+                  <VinNudge hint={q.hint} vinNudge={q.vinNudge} />
+                </div>
+              )}
+              <TypedInput
+                value={currentAnswer}
+                onChange={(v) => setAnswer(q.id, v)}
+              />
+            </>
+          )}
+
+          {/* Upload */}
+          {isUpload && (
+            <UploadInput
+              file={currentAnswer || null}
+              onFile={(f) => setAnswer(q.id, f)}
+            />
+          )}
+        </div>
+      </main>
+
+      {/* ── Footer ── */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 p-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <button
+            onClick={() => currentIdx > 0 && setCurrentIdx((i) => i - 1)}
+            disabled={currentIdx === 0}
+            className="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-30"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+            Previous
+          </button>
+
+          <div className="flex items-center gap-4">
+            {/* Learning mode label */}
+            <div className="hidden md:flex flex-col items-end">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {isTyped ? "Ready to move on?" : questionSet.learningMode}
+              </span>
+              <span className="text-xs text-[#5b69e6] font-medium">
+                {isTyped ? "Collaborative Review" : !isLast ? `Next: Q${currentIdx + 2} of ${totalQ}` : "Final Question"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isTyped && (
+                <button className="bg-slate-100 text-slate-700 px-5 py-3 rounded-full font-bold hover:bg-slate-200 transition-all">
+                  Retry Similar
+                </button>
+              )}
+              <button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                className="bg-[#5b69e6] hover:bg-[#5b69e6]/90 text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-[#5b69e6]/20 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40"
+              >
+                {isLast
+                  ? "Submit All"
+                  : isTyped
+                  ? "Check My Work"
+                  : "Submit Answer"}
+                <span className="material-symbols-outlined text-[20px]">
+                  {isLast ? "auto_awesome" : "arrow_forward"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* ── Math reference sidebar (xl) ── */}
+      {questionSet.mathReferenceCard && (
+        <div className="fixed right-8 top-1/2 -translate-y-1/2 hidden xl:flex flex-col gap-3">
+          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xl w-48">
+            <h4 className="text-[10px] font-bold text-[#5b69e6] uppercase tracking-widest mb-3">Math Reference</h4>
+            <ul className="space-y-2 text-xs">
+              {questionSet.mathReferenceCard.map((item, i) => (
+                <li key={i} className={`flex justify-between ${i < questionSet.mathReferenceCard.length - 1 ? "border-b border-slate-50 pb-1" : ""}`}>
+                  <span className="text-slate-400">{item.condition}</span>
+                  <span className="font-medium">{item.result}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Per-question formula card (xl) */}
+      {q.mathReference && (
+        <div className="fixed right-8 bottom-24 hidden xl:block">
+          <div className="bg-[#5b69e6]/5 border border-[#5b69e6]/20 p-4 rounded-xl w-52">
+            <p className="text-[10px] font-bold text-[#5b69e6] uppercase tracking-widest mb-2">Formula</p>
+            <p className="text-sm font-mono text-slate-700">{q.mathReference.formula}</p>
+            {q.mathReference.note && (
+              <p className="text-xs text-slate-500 mt-1">{q.mathReference.note}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
