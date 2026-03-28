@@ -119,6 +119,12 @@ export default function Portfolio() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/student")}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <span className="material-symbols-outlined text-gray-500">arrow_back</span>
+            </button>
             <div className="bg-[#695be6] p-2 rounded-lg flex items-center justify-center text-white">
               <span className="material-symbols-outlined">auto_stories</span>
             </div>

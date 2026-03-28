@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const SUBJECT_COLORS = {
   Mathematics: "text-[#695be6] bg-[#695be6]/10",
@@ -14,9 +14,18 @@ export default function StudentHome() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState(user?.todayTasks || []);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
 
   const toggleTask = (id) =>
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+
+  const addTask = () => {
+    if (!newTaskTitle.trim()) return;
+    setTasks((prev) => [...prev, { id: `custom-${Date.now()}`, subject: "Custom", title: newTaskTitle.trim(), duration: "—", done: false }]);
+    setNewTaskTitle("");
+    setAddingTask(false);
+  };
 
   const pendingCount = tasks.filter((t) => !t.done).length;
 
@@ -153,9 +162,24 @@ export default function StudentHome() {
                       {i < tasks.length - 1 && <hr className="border-gray-100 mt-4" />}
                     </div>
                   ))}
-                  <button className="w-full py-3 mt-2 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                  {addingTask ? (
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        autoFocus
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addTask()}
+                        placeholder="Task title..."
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#695be6]"
+                      />
+                      <button onClick={addTask} className="bg-[#695be6] text-white px-3 py-2 rounded-lg text-sm font-bold">Add</button>
+                      <button onClick={() => setAddingTask(false)} className="text-gray-400 px-2 py-2 rounded-lg text-sm">✕</button>
+                    </div>
+                  ) : (
+                  <button onClick={() => setAddingTask(true)} className="w-full py-3 mt-2 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
                     <span className="material-symbols-outlined">add</span>Add Custom Task
                   </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -170,8 +194,8 @@ export default function StudentHome() {
             { icon: "home", label: "Home", active: true, to: "/student" },
             { icon: "description", label: "Homework", active: false, to: "/student/homework" },
             { icon: "auto_awesome", label: "Vin AI", active: false, fab: true },
-            { icon: "bar_chart", label: "Progress", active: false, to: "#" },
-            { icon: "person", label: "Profile", active: false, to: "#" },
+            { icon: "bar_chart", label: "Progress", active: false, to: "/student/learning-gaps" },
+            { icon: "person", label: "Profile", active: false, to: "/student/portfolio" },
           ].map((item) =>
             item.fab ? (
               <Link
