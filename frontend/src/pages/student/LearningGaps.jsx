@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   GAP_HEALTH, GAP_SUBJECTS, SEVERITY_UI, SUBJECT_BADGE_UI,
   LEARNING_GAPS, getGapsBySubject,
@@ -120,14 +121,30 @@ function GapCard({ gap }) {
 // ── Main dashboard ───────────────────────────────────────────
 export default function LearningGaps() {
   const navigate = useNavigate();
+  const { apiFetch } = useAuth();
   const [activeSubject, setActiveSubject] = useState("All");
+  const [gaps, setGaps] = useState(LEARNING_GAPS);
+  const [health, setHealth] = useState(GAP_HEALTH);
 
-  const filtered = getGapsBySubject(activeSubject);
-  const h = GAP_HEALTH;
+  useEffect(() => {
+    apiFetch("/learning-gaps/")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data) && data.length) setGaps(data); })
+      .catch(() => {});
+    apiFetch("/learning-gaps/health")
+      .then((r) => r.json())
+      .then((data) => { if (data?.score !== undefined) setHealth((p) => ({ ...p, ...data })); })
+      .catch(() => {});
+  }, []);
+
+  const filtered = activeSubject === "All" ? gaps : gaps.filter((g) => g.subject === activeSubject);
+  const h = health;
+  const sevCounts = h.severity || { critical: gaps.filter(g=>g.severity==="critical").length, moderate: gaps.filter(g=>g.severity==="moderate").length, minor: gaps.filter(g=>g.severity==="minor").length };
+  const totalForPct = (sevCounts.critical + sevCounts.moderate + sevCounts.minor) || 1;
   const sevPcts = {
-    critical: (h.severity.critical / h.totalGaps) * 100,
-    moderate: (h.severity.moderate / h.totalGaps) * 100,
-    minor:    (h.severity.minor    / h.totalGaps) * 100,
+    critical: (sevCounts.critical / totalForPct) * 100,
+    moderate: (sevCounts.moderate / totalForPct) * 100,
+    minor:    (sevCounts.minor    / totalForPct) * 100,
   };
 
   return (
@@ -200,10 +217,10 @@ export default function LearningGaps() {
                   <div className="bg-orange-300 h-full" style={{ width: `${sevPcts.moderate}%` }} />
                   <div className="bg-slate-300 h-full" style={{ width: `${sevPcts.minor}%` }} />
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold uppercase tracking-wider">
-                  <span className="flex items-center gap-1.5 text-[#ec5b13]"><span className="size-2 rounded-full bg-[#ec5b13]" />{h.severity.critical} Critical</span>
-                  <span className="flex items-center gap-1.5 text-orange-400"><span className="size-2 rounded-full bg-orange-400" />{h.severity.moderate} Moderate</span>
-                  <span className="flex items-center gap-1.5 text-slate-500"><span className="size-2 rounded-full bg-slate-400" />{h.severity.minor} Minor</span>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-bold uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5 text-[#ec5b13]"><span className="size-2 rounded-full bg-[#ec5b13]" />{sevCounts.critical} Critical</span>
+                  <span className="flex items-center gap-1.5 text-orange-400"><span className="size-2 rounded-full bg-orange-400" />{sevCounts.moderate} Moderate</span>
+                  <span className="flex items-center gap-1.5 text-slate-500"><span className="size-2 rounded-full bg-slate-400" />{sevCounts.minor} Minor</span>
                 </div>
               </div>
             </div>

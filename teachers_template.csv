@@ -1,0 +1,6 @@
+name,email,phone,employee_id,qualified_subjects
+John Doe,john.doe@school.com,1234567890,EMP001,Mathematics;Physics;Chemistry
+Jane Smith,jane.smith@school.com,0987654321,EMP002,English;History;Geography
+Robert Johnson,robert.j@school.com,5551234567,EMP003,Biology;Chemistry
+Emily Davis,emily.d@school.com,5559876543,EMP004,Computer Science;Mathematics
+Michael Brown,michael.b@school.com,5552468135,EMP005,Physical Education;Art

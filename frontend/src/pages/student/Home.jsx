@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import { users } from "../../data/mockData";
 
 const SUBJECT_COLORS = {
   Mathematics: "text-[#695be6] bg-[#695be6]/10",
@@ -10,24 +11,46 @@ const SUBJECT_COLORS = {
 };
 
 export default function StudentHome() {
-  const { user, logout } = useAuth();
+  const { user, logout, apiFetch } = useAuth();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState(user?.todayTasks || []);
+  const mockStudent = users.find((u) => u.role === "student");
+  const [tasks, setTasks] = useState(mockStudent?.todayTasks || []);
+  const [homework, setHomework] = useState(mockStudent?.homework || []);
   const [menuOpen, setMenuOpen] = useState(false);
   const [addingTask, setAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
 
-  const toggleTask = (id) =>
+  // Load tasks from API, fall back to mock
+  useEffect(() => {
+    apiFetch("/student/tasks")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data) && data.length) setTasks(data); })
+      .catch(() => {});
+    apiFetch("/homework/student")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data) && data.length) setHomework(data); })
+      .catch(() => {});
+  }, []);
+
+  const toggleTask = (id) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    // Persist to API if it's a real DB id (not mock)
+    if (!id.startsWith("t") && !id.startsWith("custom-")) {
+      apiFetch(`/student/tasks/${id}/toggle`, { method: "PATCH" }).catch(() => {});
+    }
+  };
 
   const addTask = () => {
     if (!newTaskTitle.trim()) return;
-    setTasks((prev) => [...prev, { id: `custom-${Date.now()}`, subject: "Custom", title: newTaskTitle.trim(), duration: "—", done: false }]);
+    const tempId = `custom-${Date.now()}`;
+    setTasks((prev) => [...prev, { id: tempId, subject: "Custom", title: newTaskTitle.trim(), duration: "—", done: false }]);
+    apiFetch(`/student/tasks?title=${encodeURIComponent(newTaskTitle.trim())}`, { method: "POST" }).catch(() => {});
     setNewTaskTitle("");
     setAddingTask(false);
   };
 
   const pendingCount = tasks.filter((t) => !t.done).length;
+  const pendingHw = homework.filter((h) => h.status === "pending").length;
 
   return (
     <div className="bg-[#f6f6f8] min-h-screen text-[#100e1a] pb-24" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -106,9 +129,9 @@ export default function StudentHome() {
               <h3 className="text-xl font-bold mb-4 px-1">Quick Actions</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
-                  { label: "Homework",        icon: "menu_book",      badge: `${user?.homework?.filter(h => h.status === "pending").length} Pending`, gradient: "from-pink-400 to-rose-500",       to: "/student/homework" },
+                  { label: "Homework",        icon: "menu_book",      badge: `${pendingHw} Pending`,                                                          gradient: "from-pink-400 to-rose-500",       to: "/student/homework" },
                   { label: "Vin AI Tutor",    icon: "auto_awesome",   badge: "24/7 Available",                                                        gradient: "from-[#695be6] to-[#8e82f3]",    to: "/student/vin-ai" },
-                  { label: "Learning Gaps",   icon: "warning",        badge: `${user?.learningGaps?.length} Active Gaps`,                             gradient: "from-orange-400 to-amber-500",    to: "/student/learning-gaps" },
+                  { label: "Learning Gaps",   icon: "warning",        badge: "Active Gaps",                                                                   gradient: "from-orange-400 to-amber-500",    to: "/student/learning-gaps" },
                   { label: "My Portfolio",    icon: "account_circle", badge: "Showcase",                                                              gradient: "from-[#A78BFA] to-[#7C3AED]",    to: "/student/portfolio" },
                   { label: "Exam Preparation",icon: "event_repeat",   badge: `${pendingCount} Tasks Today`,                                           gradient: "from-[#8e82f3] to-pink-400",     to: "/student/exam-prep" },
                   { label: "Career Explorer", icon: "rocket_launch",  badge: "Discover Paths",                                                        gradient: "from-emerald-400 to-indigo-400", to: "/student/career" },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getHomeworkQuestions } from "../../data/mockData";
@@ -163,10 +163,62 @@ function VinNudge({ hint, vinNudge }) {
 // ── Main ────────────────────────────────────────────────────
 export default function HomeworkAttempt() {
   const { homeworkId } = useParams();
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
   const navigate = useNavigate();
 
-  const questionSet = getHomeworkQuestions(homeworkId);
+  const [questionSet,    setQuestionSet]    = useState(() => getHomeworkQuestions(homeworkId));
+  const [submissionType, setSubmissionType] = useState("online_quiz"); // from API
+  const [submitting,     setSubmitting]     = useState(false);
+  const [uploadFile,     setUploadFile]     = useState(null);   // for file/handwritten type
+  const [uploadUrl,      setUploadUrl]      = useState(null);
+  const [uploading,      setUploading]      = useState(false);
+
+  // Load homework metadata + questions from API
+  useEffect(() => {
+    apiFetch(`/homework/${homeworkId}`)
+      .then((r) => r.json())
+      .then((hw) => {
+        if (hw?.submission_type) setSubmissionType(hw.submission_type);
+        if (hw?.questions?.length) {
+          setQuestionSet((prev) => prev
+            ? { ...prev, questions: hw.questions }
+            : { questions: hw.questions, tags: [], unitTitle: hw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
+          );
+        }
+      })
+      .catch(() => {
+        // fallback: try questions endpoint
+        apiFetch(`/homework/${homeworkId}/questions`)
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data) && data.length) {
+              setQuestionSet((prev) => prev ? { ...prev, questions: data } : { questions: data, tags: [], unitTitle: "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null });
+            }
+          })
+          .catch(() => {});
+      });
+  }, [homeworkId]);
+
+  // Upload file to S3 via backend
+  const handleFileUpload = async (file) => {
+    setUploadFile(file);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("http://localhost:8000/homework/upload-file", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("vin_auth") ? JSON.parse(localStorage.getItem("vin_auth")).token : ""}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.url) setUploadUrl(data.url);
+    } catch {
+      // keep local file reference, submit without URL
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers]       = useState({});
@@ -182,6 +234,98 @@ export default function HomeworkAttempt() {
             Back to Homework
           </button>
         </div>
+      </div>
+    );
+  }
+
+  // ── File / Handwritten submission type ──────────────────────
+  if (submissionType === "file_upload" || submissionType === "handwritten") {
+    const icon = submissionType === "handwritten" ? "draw" : "upload_file";
+    const label = submissionType === "handwritten" ? "Handwritten Answer" : "File Upload";
+    return (
+      <div className="min-h-screen bg-[#f6f6f8] flex flex-col" style={{ fontFamily: "'Lexend', sans-serif" }}>
+        <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#5b69e6]/10">
+          <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#5b69e6]/10 p-2 rounded-full">
+                <span className="material-symbols-outlined text-[#5b69e6]">{icon}</span>
+              </div>
+              <div>
+                <h1 className="font-bold text-base">{questionSet?.unitTitle || "Homework"}</h1>
+                <p className="text-xs text-[#5b69e6]">{label} Submission</p>
+              </div>
+            </div>
+            <button onClick={() => navigate("/student/homework")} className="text-sm text-gray-400 hover:text-gray-600">Exit</button>
+          </div>
+        </header>
+        <main className="flex-1 flex items-center justify-center pt-20 pb-10 px-6">
+          <div className="w-full max-w-xl space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-black text-slate-800 mb-2">Submit Your Work</h2>
+              <p className="text-slate-500 text-sm">
+                {submissionType === "handwritten"
+                  ? "Take a clear photo of your handwritten answers and upload it below."
+                  : "Upload your completed work as a PDF or image file."}
+              </p>
+            </div>
+            {!uploadFile ? (
+              <div className="border-4 border-dashed border-[#5b69e6]/20 rounded-2xl p-10 text-center bg-white">
+                <span className="material-symbols-outlined text-5xl text-[#5b69e6]/30 mb-4 block">{icon}</span>
+                <div className="flex flex-col gap-3 items-center">
+                  {submissionType === "handwritten" && (
+                    <label className="flex items-center gap-2 px-6 py-3 bg-[#5b69e6] text-white font-bold rounded-xl cursor-pointer hover:bg-[#5b69e6]/90 transition-colors">
+                      <span className="material-symbols-outlined">photo_camera</span> Take Photo
+                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
+                    </label>
+                  )}
+                  <label className="flex items-center gap-2 px-6 py-3 border-2 border-[#5b69e6] text-[#5b69e6] font-bold rounded-xl cursor-pointer hover:bg-[#5b69e6]/5 transition-colors">
+                    <span className="material-symbols-outlined">file_upload</span> Browse Files
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
+                  </label>
+                  <p className="text-xs text-slate-400">JPG, PNG, PDF · Max 20MB</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white border-2 border-green-300 rounded-2xl p-6 flex items-center gap-4">
+                <div className="size-14 rounded-xl bg-green-100 flex items-center justify-center">
+                  {uploading
+                    ? <span className="size-6 border-2 border-green-400/40 border-t-green-500 rounded-full animate-spin" />
+                    : <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
+                  }
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-slate-800">{uploadFile.name}</p>
+                  <p className="text-xs text-slate-400">{(uploadFile.size / 1024).toFixed(1)} KB · {uploading ? "Uploading..." : uploadUrl ? "Uploaded ✓" : "Ready to submit"}</p>
+                </div>
+                <button onClick={() => { setUploadFile(null); setUploadUrl(null); }} className="text-red-400 hover:text-red-600">
+                  <span className="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            )}
+            <button
+              disabled={!uploadFile || uploading || submitting}
+              onClick={async () => {
+                setSubmitting(true);
+                try {
+                  await apiFetch("/homework/submit", {
+                    method: "POST",
+                    body: JSON.stringify({ homework_id: homeworkId, student_id: user?.id, answers: [], submission_file_url: uploadUrl || null }),
+                  });
+                  navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
+                } catch {
+                  navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              className="w-full py-4 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2 text-lg shadow-xl shadow-[#5b69e6]/20">
+              {submitting
+                ? <><span className="size-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Submitting...</>
+                : <><span className="material-symbols-outlined">send</span> Submit Homework</>
+              }
+            </button>
+          </div>
+        </main>
       </div>
     );
   }
@@ -205,13 +349,34 @@ export default function HomeworkAttempt() {
     return false;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isLast) {
       setCurrentIdx((i) => i + 1);
     } else {
-      navigate(`/student/homework/${homeworkId}/result`, {
-        state: { answers, questionSet },
-      });
+      setSubmitting(true);
+      // Build answers array for API
+      const answersPayload = questions.map((qq) => ({
+        question_id: qq.id,
+        answer: answers[qq.id] instanceof File ? null : (answers[qq.id] ?? null),
+        answer_type: activeType[qq.id] || qq.answerType,
+      }));
+      try {
+        const res = await apiFetch("/homework/submit", {
+          method: "POST",
+          body: JSON.stringify({ homework_id: homeworkId, student_id: user?.id, answers: answersPayload }),
+        });
+        const result = await res.json();
+        navigate(`/student/homework/${homeworkId}/result`, {
+          state: { answers, questionSet, apiResult: result },
+        });
+      } catch {
+        // Fallback: navigate with local data
+        navigate(`/student/homework/${homeworkId}/result`, {
+          state: { answers, questionSet },
+        });
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -404,7 +569,7 @@ export default function HomeworkAttempt() {
                 className="bg-[#5b69e6] hover:bg-[#5b69e6]/90 text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-[#5b69e6]/20 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40"
               >
                 {isLast
-                  ? "Submit All"
+                  ? (submitting ? "Submitting..." : "Submit All")
                   : isTyped
                   ? "Check My Work"
                   : "Submit Answer"}

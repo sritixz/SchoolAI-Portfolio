@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
+import ChangePassword from "./pages/ChangePassword";
 import StudentHome from "./pages/student/Home";
 import StudentHomework from "./pages/student/Homework";
 import HomeworkAttempt from "./pages/student/HomeworkAttempt";
@@ -51,6 +52,7 @@ import SchoolAdminCrossClass from "./pages/schooladmin/CrossClass";
 import SchoolAdminCurriculum from "./pages/schooladmin/CurriculumTracker";
 import SchoolAdminWeakTopics from "./pages/schooladmin/WeakTopics";
 import SchoolAdminTeacherSupport from "./pages/schooladmin/TeacherSupport";
+import SchoolAdminOnboarding from "./pages/schooladmin/Onboarding";
 
 const S = ({ children, role = "student" }) => (
   <ProtectedRoute allowedRole={role}>{children}</ProtectedRoute>
@@ -62,6 +64,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/change-password" element={<ChangePassword />} />
 
           {/* Student */}
           <Route path="/student"                              element={<S><StudentHome /></S>} />
@@ -112,6 +115,7 @@ export default function App() {
           <Route path="/teacher/communication"            element={<S role="teacher"><TeacherParentComm /></S>} />
 
           <Route path="/schooladmin"                        element={<S role="schooladmin"><SchoolAdminHome /></S>} />
+          <Route path="/schooladmin/onboarding"           element={<S role="schooladmin"><SchoolAdminOnboarding /></S>} />
           <Route path="/schooladmin/matrix"               element={<S role="schooladmin"><SchoolAdminMatrix /></S>} />
           <Route path="/schooladmin/gaps"                 element={<S role="schooladmin"><SchoolAdminGaps /></S>} />
           <Route path="/schooladmin/cross-class"          element={<S role="schooladmin"><SchoolAdminCrossClass /></S>} />

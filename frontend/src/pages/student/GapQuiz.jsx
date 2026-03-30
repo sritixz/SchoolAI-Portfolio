@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { getQuizById } from "../../data/learningGapData";
 
 export default function GapQuiz() {
   const { quizId } = useParams();
   const navigate   = useNavigate();
-  const quiz       = getQuizById(quizId);
+  const { apiFetch } = useAuth();
+  const [quiz, setQuiz] = useState(() => getQuizById(quizId));
+
+  // Try to load quiz from API
+  useEffect(() => {
+    apiFetch(`/learning-gaps/quiz/${quizId}`)
+      .then((r) => r.json())
+      .then((data) => { if (data?.questions) setQuiz(data); })
+      .catch(() => {});
+  }, [quizId]);
 
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [selected,   setSelected]   = useState(null);   // option id
+  const [selected,   setSelected]   = useState(null);
   const [checked,    setChecked]     = useState(false);
   const [score,      setScore]       = useState(0);
   const [finished,   setFinished]    = useState(false);
   const [showHint,   setShowHint]    = useState(false);
+  // Track all answers for API submission
+  const [allAnswers, setAllAnswers]  = useState([]);
 
   if (!quiz) {
     return (
@@ -35,7 +47,9 @@ export default function GapQuiz() {
   const handleCheck = () => {
     if (!selected) return;
     setChecked(true);
-    if (selected === correct?.id) setScore((s) => s + 1);
+    const isRight = selected === correct?.id;
+    if (isRight) setScore((s) => s + 1);
+    setAllAnswers((p) => [...p, { question_id: q.id, selected_option_id: selected }]);
   };
 
   const handleNext = () => {
@@ -45,6 +59,11 @@ export default function GapQuiz() {
       setChecked(false);
       setShowHint(false);
     } else {
+      // Submit to API
+      apiFetch("/learning-gaps/quiz/submit", {
+        method: "POST",
+        body: JSON.stringify({ quiz_id: quizId, answers: allAnswers }),
+      }).catch(() => {});
       setFinished(true);
     }
   };

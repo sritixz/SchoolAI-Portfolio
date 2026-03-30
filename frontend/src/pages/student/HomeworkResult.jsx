@@ -113,7 +113,33 @@ export default function HomeworkResult() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { answers = {}, questionSet } = state || {};
+  const { answers = {}, questionSet, apiResult, fileSubmission } = state || {};
+
+  // ── File / handwritten submission result ──────────────────
+  if (fileSubmission) {
+    return (
+      <div className="min-h-screen bg-[#f6f6f8] flex flex-col items-center justify-center px-6" style={{ fontFamily: "'Lexend', sans-serif" }}>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
+          <div className="size-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
+            <span className="material-symbols-outlined text-4xl text-green-600">cloud_done</span>
+          </div>
+          <h2 className="text-2xl font-black text-[#100e1a] mb-2">Submitted!</h2>
+          <p className="text-slate-500 mb-2">Your work has been uploaded successfully.</p>
+          <p className="text-xs text-slate-400 mb-8">Your teacher will review it and publish your grade. You'll be notified when it's ready.</p>
+          <div className="flex flex-col gap-3">
+            <button onClick={() => navigate("/student/homework")}
+              className="w-full py-3 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 transition-all shadow-lg shadow-[#5b69e6]/20">
+              Back to Homework
+            </button>
+            <button onClick={() => navigate("/student")}
+              className="w-full py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all">
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!questionSet) {
     return (
@@ -130,31 +156,37 @@ export default function HomeworkResult() {
 
   const questions = questionSet.questions;
 
-  // Calculate score from MCQ only (typed/upload are teacher-graded)
+  // Use server score if available, otherwise compute locally
+  const serverScorePct = apiResult?.auto_score_pct ?? null;
+  const mcqEarned      = apiResult?.mcq_earned ?? null;
+  const mcqTotal       = apiResult?.mcq_total ?? null;
+
+  // Local fallback calculation
   const mcqQuestions = questions.filter((q) => q.answerType === "mcq");
-  const mcqCorrect = mcqQuestions.filter((q) => {
+  const localMcqCorrect = mcqQuestions.filter((q) => {
     const ans = answers[q.id];
-    return q.options.find((o) => o.id === ans && o.isCorrect);
+    return q.options?.find((o) => o.id === ans && o.isCorrect);
   }).length;
+  const localMcqTotal = mcqQuestions.reduce((s, q) => s + (q.maxPoints || 1), 0);
 
-  const totalMcqPoints = mcqQuestions.reduce((s, q) => s + q.maxPoints, 0);
-  const totalPoints = questions.reduce((s, q) => s + q.maxPoints, 0);
-  const answeredCount = questions.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== "").length;
+  const finalMcqCorrect = mcqEarned ?? localMcqCorrect;
+  const finalMcqTotal   = mcqTotal  ?? localMcqTotal;
+  const totalPoints     = questions.reduce((s, q) => s + (q.maxPoints || 1), 0);
+  const answeredCount   = questions.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== "").length;
 
-  // Estimated score: MCQ scored + assume 70% for typed/upload if answered
   const nonMcqAnswered = questions.filter((q) => q.answerType !== "mcq" && answers[q.id]);
-  const estimatedNonMcq = nonMcqAnswered.reduce((s, q) => s + Math.round(q.maxPoints * 0.7), 0);
-  const estimatedScore = mcqCorrect + estimatedNonMcq;
-  const scorePct = Math.round((estimatedScore / totalPoints) * 100);
+  const estimatedNonMcq = nonMcqAnswered.reduce((s, q) => s + Math.round((q.maxPoints || 1) * 0.7), 0);
+  const estimatedScore  = finalMcqCorrect + estimatedNonMcq;
+  const scorePct = serverScorePct ?? (totalPoints > 0 ? Math.round((estimatedScore / totalPoints) * 100) : 0);
   const grade = getGrade(scorePct);
-  const enc = getEncouragement(scorePct);
-  const col = getScoreColor(scorePct);
+  const enc   = getEncouragement(scorePct);
+  const col   = getScoreColor(scorePct);
 
   const stats = [
-    { label: "Questions", value: `${answeredCount}/${questions.length}`, icon: "quiz", color: "text-[#5b69e6]" },
-    { label: "MCQ Score", value: `${mcqCorrect}/${totalMcqPoints}`, icon: "check_circle", color: "text-green-600" },
-    { label: "Pending Review", value: `${nonMcqAnswered.length} answers`, icon: "pending", color: "text-amber-600" },
-    { label: "Est. Score", value: `${estimatedScore}/${totalPoints}`, icon: "stars", color: "text-purple-600" },
+    { label: "Questions",      value: `${answeredCount}/${questions.length}`, icon: "quiz",         color: "text-[#5b69e6]" },
+    { label: "MCQ Score",      value: `${finalMcqCorrect}/${finalMcqTotal}`,  icon: "check_circle", color: "text-green-600" },
+    { label: "Pending Review", value: `${nonMcqAnswered.length} answers`,     icon: "pending",      color: "text-amber-600" },
+    { label: "Est. Score",     value: `${estimatedScore}/${totalPoints}`,     icon: "stars",        color: "text-purple-600" },
   ];
 
   return (
@@ -228,10 +260,10 @@ export default function HomeworkResult() {
             <p className="font-bold text-slate-800 mb-1">Vin AI Feedback</p>
             <p className="text-sm text-slate-600 leading-relaxed">
               {scorePct >= 80
-                ? `Great work on the MCQ section! You correctly answered ${mcqCorrect} out of ${totalMcqPoints} objective questions. Your typed explanations show strong conceptual understanding — keep it up!`
+                ? `Great work on the MCQ section! You correctly answered ${finalMcqCorrect} out of ${finalMcqTotal} objective questions. Your typed explanations show strong conceptual understanding — keep it up!`
                 : scorePct >= 50
-                ? `You're on the right track! You got ${mcqCorrect}/${totalMcqPoints} MCQs correct. Review the questions you missed and revisit the discriminant concept — it'll help with the typed questions too.`
-                : `Don't worry — this topic takes practice. You answered ${mcqCorrect}/${totalMcqPoints} MCQs correctly. I recommend revisiting the quadratic formula and discriminant sections before your next attempt.`
+                ? `You're on the right track! You got ${finalMcqCorrect}/${finalMcqTotal} MCQs correct. Review the questions you missed and revisit the concept — it'll help with the typed questions too.`
+                : `Don't worry — this topic takes practice. You answered ${finalMcqCorrect}/${finalMcqTotal} MCQs correctly. I recommend revisiting the key concepts before your next attempt.`
               }
             </p>
             <button className="mt-3 text-sm font-bold text-[#5b69e6] hover:underline flex items-center gap-1">

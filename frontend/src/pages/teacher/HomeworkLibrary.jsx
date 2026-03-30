@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { homeworkLibrary } from "../../data/teacherData";
+import { useAuth } from "../../context/AuthContext";
+import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 
 const STATUS_STYLES = {
   template: "bg-gray-100 text-gray-600",
@@ -20,16 +21,46 @@ const CLASSES  = ["Class 6", "Class 7", "Class 8", "Class 9"];
 
 export default function HomeworkLibrary() {
   const navigate = useNavigate();
+  const { apiFetch } = useAuth();
   const [search, setSearch] = useState("");
-  const [selectedSubjects, setSelectedSubjects] = useState(["Math"]);
-  const [selectedClasses, setSelectedClasses] = useState(["Class 6"]);
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [selectedClasses, setSelectedClasses] = useState([]);
   const [viewMode, setViewMode] = useState("grid");
   const [page, setPage] = useState(1);
+  const [library, setLibrary] = useState(mockLibrary);
+
+  useEffect(() => {
+    apiFetch("/homework/library")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length) {
+          // Normalise API shape to match UI expectations
+          const normalised = data.map((hw) => ({
+            id:                 hw._id || hw.id,
+            subject:            hw.subject,
+            subjectColor:       "blue",
+            tags:               hw.tags || [hw.subject?.toUpperCase()],
+            title:              hw.title,
+            chapter:            hw.assigned_to_class || "",
+            questions:          hw.questions?.length || 0,
+            marks:              hw.total_marks || null,
+            estimatedMinutes:   hw.estimated_duration_minutes || null,
+            type:               hw.submission_type === "online_quiz" ? "Online Quiz" : "File Upload",
+            status:             hw.status || "draft",
+            starred:            false,
+            usedCount:          null,
+            class:              hw.assigned_to_class || "",
+          }));
+          setLibrary(normalised);
+        }
+      })
+      .catch(() => {}); // keep mock on failure
+  }, []);
 
   const toggleFilter = (arr, setArr, val) =>
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
 
-  const filtered = homeworkLibrary.filter((hw) => {
+  const filtered = library.filter((hw) => {
     const matchSubject = selectedSubjects.length === 0 || selectedSubjects.includes(hw.subject);
     const matchClass   = selectedClasses.length === 0  || selectedClasses.includes(hw.class);
     const matchSearch  = hw.title.toLowerCase().includes(search.toLowerCase());
@@ -64,7 +95,7 @@ export default function HomeworkLibrary() {
             </div>
             <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">P</div>
             <button
-              onClick={() => navigate("/teacher/homework/new")}
+              onClick={() => navigate("/teacher/homework/create")}
               className="flex items-center gap-2 bg-[#695be6] text-white font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors"
             >
               <span className="material-symbols-outlined text-base">add</span> Create New Homework
@@ -267,10 +298,10 @@ export default function HomeworkLibrary() {
                     <span className="material-symbols-outlined text-sm">visibility</span> Preview
                   </button>
                   <button
-                    onClick={() => navigate("/teacher/homework/new")}
+                    onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
                     className="flex-1 bg-[#695be6] text-white text-xs font-bold py-2 rounded-lg hover:bg-[#5a4dd4] transition-colors"
                   >
-                    Use This
+                    {hw.status === "assigned" ? "Evaluate" : "Use This"}
                   </button>
                   <button className="p-1.5 hover:bg-gray-100 rounded-lg">
                     <span className="material-symbols-outlined text-gray-400 text-base">more_vert</span>
@@ -281,7 +312,7 @@ export default function HomeworkLibrary() {
 
             {/* Add New Content card */}
             <button
-              onClick={() => navigate("/teacher/homework/new")}
+              onClick={() => navigate("/teacher/homework/create")}
               className="bg-white rounded-xl border-2 border-dashed border-gray-200 p-4 flex flex-col items-center justify-center gap-2 hover:border-[#695be6] hover:bg-[#695be6]/5 transition-all min-h-[200px]"
             >
               <div className="size-10 rounded-full bg-[#695be6]/10 flex items-center justify-center">

@@ -1,0 +1,6 @@
+name,phone,roll_no,grade_number,section_name,parent_name,parent_email,parent_phone
+Alice Johnson,1111111111,001,6,A,Bob Johnson,bob.johnson@parent.com,2222222222
+Charlie Brown,3333333333,002,6,A,Diana Brown,diana.brown@parent.com,4444444444
+Emma Wilson,5555555555,003,6,A,Frank Wilson,frank.wilson@parent.com,6666666666
+George Davis,7777777777,004,6,B,Helen Davis,helen.davis@parent.com,8888888888
+Ivy Martinez,9999999999,005,6,B,Jack Martinez,jack.martinez@parent.com,1010101010

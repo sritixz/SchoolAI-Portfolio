@@ -5,7 +5,6 @@ import {
   VIN_AVATAR, QUICK_ACTIONS, DOUBT_HISTORY,
   SUBJECT_BADGE, SIDEBAR_SUBJECTS, matchResponse,
 } from "../../data/vinAiData";
-
 // ─────────────────────────────────────────────────────────────
 // STREAMING HOOK
 // Simulates token-by-token streaming for text blocks.
@@ -545,7 +544,7 @@ function HistoryCard({ item, onSelect, onDetail, onStar }) {
 // MAIN VIN AI PAGE
 // ─────────────────────────────────────────────────────────────
 export default function VinAI() {
-  const { user }  = useAuth();
+  const { user, apiFetch }  = useAuth();
   const navigate  = useNavigate();
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -558,32 +557,79 @@ export default function VinAI() {
   const [history,    setHistory]    = useState(DOUBT_HISTORY);
   const [subjFilter, setSubjFilter] = useState("All");
   const [search,     setSearch]     = useState("");
+  // Keep a rolling history for context
+  const chatHistoryRef = useRef([]);
+
+  // Load real doubt history from API
+  useEffect(() => {
+    apiFetch("/vin-ai/history")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length) {
+          const mapped = data.map((d) => ({
+            id: d._id,
+            subject: d.subject || "General",
+            question: d.question,
+            relativeTime: d.created_at ? new Date(d.created_at).toLocaleDateString() : "Recently",
+            status: "resolved",
+            starred: d.starred || false,
+          }));
+          setHistory(mapped);
+        }
+      })
+      .catch(() => {}); // keep mock history on failure
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, status]);
 
-  const sendMessage = useCallback((text) => {
+  const sendMessage = useCallback(async (text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    setDetailItem(null); // close detail if open
+    setDetailItem(null);
     setMessages((p) => [...p, { id: Date.now(), role: "user", text: trimmed, streaming: false, blocks: [], followUps: [] }]);
     setInput("");
     setStatus("thinking");
-    setTimeout(() => setStatus("typing"), 600);
-    setTimeout(() => {
+
+    // Add to rolling context
+    chatHistoryRef.current = [...chatHistoryRef.current.slice(-6), { role: "user", content: trimmed }];
+
+    try {
+      setTimeout(() => setStatus("typing"), 400);
+      const res = await apiFetch("/vin-ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: trimmed, history: chatHistoryRef.current }),
+      });
+      const resp = await res.json();
+      // resp shape: { blocks, followUps }
+      chatHistoryRef.current = [...chatHistoryRef.current, { role: "assistant", content: trimmed }];
+      setMessages((p) => [...p, {
+        id: Date.now() + 1,
+        role: "assistant",
+        text: null,
+        streaming: true,
+        blocks: resp.blocks || [{ type: "text", html: JSON.stringify(resp) }],
+        followUps: resp.followUps || [],
+      }]);
+    } catch {
+      // Fallback to local mock responses
       const resp = matchResponse(trimmed);
       setMessages((p) => [...p, {
         id: Date.now() + 1,
         role: "assistant",
         text: null,
-        streaming: true,   // triggers StreamingMessage
+        streaming: true,
         blocks: resp.blocks,
         followUps: resp.followUps,
       }]);
+    } finally {
       setStatus("idle");
-    }, 1400);
-  }, []);
+    }
+  }, [apiFetch]);
 
-  const toggleStar = (id) => setHistory((p) => p.map((h) => h.id === id ? { ...h, starred: !h.starred } : h));
+  const toggleStar = (id) => {
+    setHistory((p) => p.map((h) => h.id === id ? { ...h, starred: !h.starred } : h));
+    apiFetch(`/vin-ai/history/${id}/star`, { method: "POST" }).catch(() => {});
+  };
 
   const filteredHistory = history.filter((h) => {
     const matchSubj   = subjFilter === "All" || h.subject === subjFilter;

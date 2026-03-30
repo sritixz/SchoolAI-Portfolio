@@ -2,20 +2,23 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 const NAV = [
-  { section: "OVERVIEW", items: [{ label: "Dashboard", icon: "dashboard", path: "/schooladmin" }] },
+  { section: "OVERVIEW", items: [
+    { label: "Dashboard",   icon: "dashboard",    path: "/schooladmin" },
+    { label: "Onboarding",  icon: "group_add",    path: "/schooladmin/onboarding" },
+  ]},
   {
     section: "PERFORMANCE ANALYTICS",
     items: [
-      { label: "Matrix View", icon: "grid_view", path: "/schooladmin/matrix" },
-      { label: "Learning Gaps", icon: "warning", path: "/schooladmin/gaps" },
+      { label: "Matrix View",    icon: "grid_view", path: "/schooladmin/matrix" },
+      { label: "Learning Gaps",  icon: "warning",   path: "/schooladmin/gaps" },
     ],
   },
   {
     section: "COMPARISONS & COVERAGE",
     items: [
-      { label: "Cross-Class", icon: "compare_arrows", path: "/schooladmin/cross-class" },
-      { label: "Curriculum", icon: "menu_book", path: "/schooladmin/curriculum" },
-      { label: "Weak Topics", icon: "trending_down", path: "/schooladmin/weak-topics" },
+      { label: "Cross-Class",  icon: "compare_arrows", path: "/schooladmin/cross-class" },
+      { label: "Curriculum",   icon: "menu_book",      path: "/schooladmin/curriculum" },
+      { label: "Weak Topics",  icon: "trending_down",  path: "/schooladmin/weak-topics" },
     ],
   },
   {
