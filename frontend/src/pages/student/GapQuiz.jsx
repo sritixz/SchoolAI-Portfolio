@@ -1,21 +1,23 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getQuizById } from "../../data/learningGapData";
+import {
+  fetchQuiz, submitQuiz,
+  selectCurrentQuiz, selectQuizSubmitStatus,
+} from "../../store/slices/learningGapsSlice";
 
 export default function GapQuiz() {
   const { quizId } = useParams();
   const navigate   = useNavigate();
-  const { apiFetch } = useAuth();
+  const { } = useAuth();
+  const dispatch = useDispatch();
+  const reduxQuiz = useSelector(selectCurrentQuiz);
   const [quiz, setQuiz] = useState(() => getQuizById(quizId));
 
-  // Try to load quiz from API
-  useEffect(() => {
-    apiFetch(`/learning-gaps/quiz/${quizId}`)
-      .then((r) => r.json())
-      .then((data) => { if (data?.questions) setQuiz(data); })
-      .catch(() => {});
-  }, [quizId]);
+  useEffect(() => { dispatch(fetchQuiz(quizId)); }, [quizId, dispatch]);
+  useEffect(() => { if (reduxQuiz?.questions) setQuiz(reduxQuiz); }, [reduxQuiz]);
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected,   setSelected]   = useState(null);
@@ -59,11 +61,8 @@ export default function GapQuiz() {
       setChecked(false);
       setShowHint(false);
     } else {
-      // Submit to API
-      apiFetch("/learning-gaps/quiz/submit", {
-        method: "POST",
-        body: JSON.stringify({ quiz_id: quizId, answers: allAnswers }),
-      }).catch(() => {});
+      // Submit to API via Redux
+      dispatch(submitQuiz({ quiz_id: quizId, answers: allAnswers }));
       setFinished(true);
     }
   };

@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { users } from "../../data/mockData";
+import {
+  fetchTasks, fetchStudentDashboard,
+  optimisticToggleTask, optimisticAddTask,
+  selectTasks, selectTasksStatus,
+} from "../../store/slices/studentSlice";
+import { fetchStudentHomework, selectStudentHomework } from "../../store/slices/homeworkSlice";
 
 const SUBJECT_COLORS = {
   Mathematics: "text-[#695be6] bg-[#695be6]/10",
@@ -11,40 +18,47 @@ const SUBJECT_COLORS = {
 };
 
 export default function StudentHome() {
-  const { user, logout, apiFetch } = useAuth();
+  const { user, logout } = useAuth();
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const mockStudent = users.find((u) => u.role === "student");
-  const [tasks, setTasks] = useState(mockStudent?.todayTasks || []);
+  const reduxTasks    = useSelector(selectTasks);
+  const tasksStatus   = useSelector(selectTasksStatus);
+  const reduxHomework = useSelector(selectStudentHomework);
+  const [tasks,    setTasks]    = useState(mockStudent?.todayTasks || []);
   const [homework, setHomework] = useState(mockStudent?.homework || []);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [addingTask, setAddingTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [menuOpen,      setMenuOpen]      = useState(false);
+  const [addingTask,    setAddingTask]    = useState(false);
+  const [newTaskTitle,  setNewTaskTitle]  = useState("");
 
-  // Load tasks from API, fall back to mock
+  // Load tasks and homework via Redux
   useEffect(() => {
-    apiFetch("/student/tasks")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data) && data.length) setTasks(data); })
-      .catch(() => {});
-    apiFetch("/homework/student")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data) && data.length) setHomework(data); })
-      .catch(() => {});
-  }, []);
+    dispatch(fetchTasks());
+    dispatch(fetchStudentHomework());
+  }, [dispatch]);
+
+  // Sync Redux state into local state (fallback to mock if empty)
+  useEffect(() => {
+    if (reduxTasks.length) setTasks(reduxTasks);
+  }, [reduxTasks]);
+  useEffect(() => {
+    if (reduxHomework.length) setHomework(reduxHomework);
+  }, [reduxHomework]);
 
   const toggleTask = (id) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
-    // Persist to API if it's a real DB id (not mock)
     if (!id.startsWith("t") && !id.startsWith("custom-")) {
-      apiFetch(`/student/tasks/${id}/toggle`, { method: "PATCH" }).catch(() => {});
+      dispatch(optimisticToggleTask(id));
     }
   };
 
   const addTask = () => {
     if (!newTaskTitle.trim()) return;
     const tempId = `custom-${Date.now()}`;
-    setTasks((prev) => [...prev, { id: tempId, subject: "Custom", title: newTaskTitle.trim(), duration: "—", done: false }]);
-    apiFetch(`/student/tasks?title=${encodeURIComponent(newTaskTitle.trim())}`, { method: "POST" }).catch(() => {});
+    const newTask = { id: tempId, subject: "Custom", title: newTaskTitle.trim(), duration: "—", done: false, _optimistic: true };
+    setTasks((prev) => [...prev, newTask]);
+    dispatch(optimisticAddTask(newTask));
+    dispatch({ type: "student/addTask", payload: { title: newTaskTitle.trim() } });
     setNewTaskTitle("");
     setAddingTask(false);
   };

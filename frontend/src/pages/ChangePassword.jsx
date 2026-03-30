@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import { useAuth } from "../context/AuthContext";
+import { changePassword } from "../store/slices/authSlice";
 
 export default function ChangePassword() {
-  const { user, apiFetch, login, token } = useAuth();
+  const { user } = useAuth();
+  const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const [form,    setForm]    = useState({ current: "", next: "", confirm: "" });
@@ -21,19 +24,10 @@ export default function ChangePassword() {
 
     setLoading(true);
     try {
-      const res = await apiFetch("/auth/change-password", {
-        method: "POST",
-        body: JSON.stringify({ current_password: form.current, new_password: form.next }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.detail || "Failed to change password"); return; }
-
-      // Update stored auth to clear mustChangePassword flag
-      const stored = JSON.parse(localStorage.getItem("vin_auth") || "{}");
-      login({ ...stored, mustChangePassword: false });
+      await dispatch(changePassword({ current_password: form.current, new_password: form.next })).unwrap();
       navigate(`/${user?.role || "teacher"}`);
     } catch (err) {
-      setError(err.message || "Network error");
+      setError(err?.detail || err?.message || "Failed to change password");
     } finally {
       setLoading(false);
     }

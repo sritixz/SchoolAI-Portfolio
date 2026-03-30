@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import {
+  fetchStudentsByClass, generateAiQuestions,
+  selectStudentsByClass, selectStudentsByClassStatus,
+  selectGeneratedQuestions, selectGenerateStatus, selectGenerateError,
+  clearGeneratedQuestions,
+} from "../../store/slices/teacherSlice";
+import {
+  createHomework, patchHomeworkQuestions, assignHomework,
+} from "../../store/slices/homeworkSlice";
 
 const SUBJECTS = ["Mathematics","Physics","Chemistry","Biology","History","English","Computer Science"];
 const CLASSES  = ["Class 6","Class 7","Class 8","Class 9","Class 10","Class 11","Class 12"];
@@ -71,19 +81,14 @@ function QuestionCard({ q, idx, onRemove }) {
 }
 
 // ── Student picker (Step 2) ──────────────────────────────────
-function StudentPicker({ classLevel, selected, onToggle, apiFetch }) {
-  const [students, setStudents] = useState([]);
-  const [loading,  setLoading]  = useState(false);
+function StudentPicker({ classLevel, selected, onToggle }) {
+  const dispatch = useDispatch();
+  const students = useSelector(selectStudentsByClass);
+  const loading  = useSelector(selectStudentsByClassStatus) === "loading";
 
   useEffect(() => {
-    if (!classLevel) return;
-    setLoading(true);
-    apiFetch(`/teacher/students/by-class?class_name=${encodeURIComponent(classLevel)}`)
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setStudents(d); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [classLevel]);
+    if (classLevel) dispatch(fetchStudentsByClass(classLevel));
+  }, [classLevel, dispatch]);
 
   if (loading) return <p className="text-xs text-gray-400 py-4 text-center">Loading students...</p>;
   if (!students.length) return (
@@ -130,7 +135,8 @@ function StudentPicker({ classLevel, selected, onToggle, apiFetch }) {
 // ── Main page ────────────────────────────────────────────────
 export default function CreateTest() {
   const navigate = useNavigate();
-  const { apiFetch } = useAuth();
+  const { } = useAuth();
+  const dispatch = useDispatch();
 
   // ── State ──
   const [step,      setStep]      = useState(0);   // 0=setup  1=questions  2=assign
@@ -160,11 +166,8 @@ export default function CreateTest() {
     patchTimer.current = setTimeout(async () => {
       setPatchingQs(true);
       try {
-        await apiFetch(`/homework/${hwId}/questions`, {
-          method: "PATCH",
-          body: JSON.stringify({ questions }),
-        });
-      } catch { /* silent — questions still in state */ }
+        await dispatch(patchHomeworkQuestions({ id: hwId, questions })).unwrap();
+      } catch { /* silent */ }
       finally { setPatchingQs(false); }
     }, 800);
     return () => clearTimeout(patchTimer.current);
@@ -176,25 +179,21 @@ export default function CreateTest() {
     setSavingShell(true);
     setError("");
     try {
-      const res = await apiFetch("/homework/create", {
-        method: "POST",
-        body: JSON.stringify({
-          title:                       form.title,
-          subject:                     form.subject,
-          assigned_to_class:           form.class_level,
-          description:                 form.instructions || "",
-          submission_type:             form.submission_type,
-          difficulty_level:            form.difficulty_level,
-          estimated_duration_minutes:  +form.estimated_duration_minutes,
-          instructions:                form.instructions,
-          due_date:                    "TBD",   // set in step 2
-          questions:                   [],
-          tags:                        [],
-          assigned_students:           [],
-          total_marks:                 0,
-        }),
-      });
-      const data = await res.json();
+      const data = await dispatch(createHomework({
+        title:                       form.title,
+        subject:                     form.subject,
+        assigned_to_class:           form.class_level,
+        description:                 form.instructions || "",
+        submission_type:             form.submission_type,
+        difficulty_level:            form.difficulty_level,
+        estimated_duration_minutes:  +form.estimated_duration_minutes,
+        instructions:                form.instructions,
+        due_date:                    "TBD",
+        questions:                   [],
+        tags:                        [],
+        assigned_students:           [],
+        total_marks:                 0,
+      })).unwrap();
       if (!data.id) throw new Error(data.detail || "No ID returned");
       setHwId(data.id);
       setStep(1);
@@ -211,18 +210,14 @@ export default function CreateTest() {
     setGenerating(true);
     setError("");
     try {
-      const res = await apiFetch("/teacher/ai-generate-questions", {
-        method: "POST",
-        body: JSON.stringify({
-          subject:        form.subject,
-          topic:          aiConfig.topic,
-          grade:          form.class_level.replace("Class", "Grade"),
-          count:          aiConfig.count,
-          difficulty:     aiConfig.difficulty,
-          question_types: aiConfig.types,
-        }),
-      });
-      const data = await res.json();
+      const data = await dispatch(generateAiQuestions({
+        subject:        form.subject,
+        topic:          aiConfig.topic,
+        grade:          form.class_level.replace("Class", "Grade"),
+        count:          aiConfig.count,
+        difficulty:     aiConfig.difficulty,
+        question_types: aiConfig.types,
+      })).unwrap();
       if (Array.isArray(data) && data.length) {
         setQuestions((p) => [...p, ...data]);
       } else {
@@ -242,10 +237,7 @@ export default function CreateTest() {
     clearTimeout(patchTimer.current);
     setPatchingQs(true);
     try {
-      await apiFetch(`/homework/${hwId}/questions`, {
-        method: "PATCH",
-        body: JSON.stringify({ questions }),
-      });
+      await dispatch(patchHomeworkQuestions({ id: hwId, questions })).unwrap();
     } catch { /* continue anyway */ }
     finally { setPatchingQs(false); }
     setStep(2);
@@ -258,10 +250,7 @@ export default function CreateTest() {
     setAssigning(true);
     setError("");
     try {
-      await apiFetch("/homework/assign", {
-        method: "POST",
-        body: JSON.stringify({ homework_id: hwId, student_ids: selectedStu, due_date: dueDate }),
-      });
+      await dispatch(assignHomework({ homework_id: hwId, student_ids: selectedStu, due_date: dueDate })).unwrap();
       navigate("/teacher/homework");
     } catch {
       setError("Assignment failed. Check backend.");
@@ -535,7 +524,6 @@ export default function CreateTest() {
                 classLevel={form.class_level}
                 selected={selectedStu}
                 onToggle={toggleStudent}
-                apiFetch={apiFetch}
               />
             </div>
           </div>

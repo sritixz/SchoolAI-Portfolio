@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
+import { fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus } from "../../store/slices/homeworkSlice";
 
 const STATUS_STYLES = {
   template: "bg-gray-100 text-gray-600",
@@ -21,7 +23,10 @@ const CLASSES  = ["Class 6", "Class 7", "Class 8", "Class 9"];
 
 export default function HomeworkLibrary() {
   const navigate = useNavigate();
-  const { apiFetch } = useAuth();
+  const { } = useAuth();
+  const dispatch = useDispatch();
+  const reduxLibrary = useSelector(selectHomeworkLibrary);
+  const libStatus    = useSelector(selectLibraryStatus);
   const [search, setSearch] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
@@ -29,33 +34,28 @@ export default function HomeworkLibrary() {
   const [page, setPage] = useState(1);
   const [library, setLibrary] = useState(mockLibrary);
 
+  useEffect(() => { dispatch(fetchHomeworkLibrary()); }, [dispatch]);
   useEffect(() => {
-    apiFetch("/homework/library")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length) {
-          // Normalise API shape to match UI expectations
-          const normalised = data.map((hw) => ({
-            id:                 hw._id || hw.id,
-            subject:            hw.subject,
-            subjectColor:       "blue",
-            tags:               hw.tags || [hw.subject?.toUpperCase()],
-            title:              hw.title,
-            chapter:            hw.assigned_to_class || "",
-            questions:          hw.questions?.length || 0,
-            marks:              hw.total_marks || null,
-            estimatedMinutes:   hw.estimated_duration_minutes || null,
-            type:               hw.submission_type === "online_quiz" ? "Online Quiz" : "File Upload",
-            status:             hw.status || "draft",
-            starred:            false,
-            usedCount:          null,
-            class:              hw.assigned_to_class || "",
-          }));
-          setLibrary(normalised);
-        }
-      })
-      .catch(() => {}); // keep mock on failure
-  }, []);
+    if (reduxLibrary.length) {
+      const normalised = reduxLibrary.map((hw) => ({
+        id:               hw._id || hw.id,
+        subject:          hw.subject,
+        subjectColor:     "blue",
+        tags:             hw.tags || [hw.subject?.toUpperCase()],
+        title:            hw.title,
+        chapter:          hw.assigned_to_class || "",
+        questions:        hw.questions?.length || 0,
+        marks:            hw.total_marks || null,
+        estimatedMinutes: hw.estimated_duration_minutes || null,
+        type:             hw.submission_type === "online_quiz" ? "Online Quiz" : "File Upload",
+        status:           hw.status || "draft",
+        starred:          false,
+        usedCount:        null,
+        class:            hw.assigned_to_class || "",
+      }));
+      setLibrary(normalised);
+    }
+  }, [reduxLibrary]);
 
   const toggleFilter = (arr, setArr, val) =>
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);

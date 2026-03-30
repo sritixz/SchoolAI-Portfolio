@@ -1,60 +1,45 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  loginSuccess, logoutUser,
+  selectUser, selectToken, selectMustChangePassword,
+} from "../store/slices/authSlice";
+import api from "../api";
 
 const AuthContext = createContext(null);
-const STORAGE_KEY = "vin_auth";
-const API_BASE    = "http://localhost:8000";
 
 export function AuthProvider({ children }) {
-  const [auth, setAuth] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  const dispatch = useDispatch();
+  const user               = useSelector(selectUser);
+  const token              = useSelector(selectToken);
+  const mustChangePassword = useSelector(selectMustChangePassword);
 
-  // auth shape: { token, id, role, name, avatar, mustChangePassword }
   const login = (authData) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authData));
-    setAuth(authData);
+    dispatch(loginSuccess(authData));
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setAuth(null);
+    dispatch(logoutUser());
   };
 
-  // Backward-compatible user object
-  const user  = auth ? { id: auth.id, role: auth.role, name: auth.name, avatar: auth.avatar } : null;
-  const token = auth?.token ?? null;
-  const mustChangePassword = auth?.mustChangePassword ?? false;
-
   /**
-   * Authenticated fetch — auto-attaches Bearer token.
-   * Returns the raw Response so callers can check res.ok and call res.json().
+   * Authenticated axios call — token auto-attached via api.js interceptor.
    * On 401 → logs out automatically.
    */
-  const apiFetch = async (path, options = {}) => {
-    const headers = {
-      ...(options.body && !(options.body instanceof FormData)
-        ? { "Content-Type": "application/json" }
-        : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    };
-
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-    if (res.status === 401) {
-      logout();
-      throw new Error("Session expired. Please log in again.");
+  const apiCall = async (config) => {
+    try {
+      return await api(config);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        logout();
+        throw new Error("Session expired. Please log in again.");
+      }
+      throw err;
     }
-    return res;
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, apiFetch, mustChangePassword }}>
+    <AuthContext.Provider value={{ user, token, login, logout, apiCall, mustChangePassword }}>
       {children}
     </AuthContext.Provider>
   );

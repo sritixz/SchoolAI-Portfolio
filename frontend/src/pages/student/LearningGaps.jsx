@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   GAP_HEALTH, GAP_SUBJECTS, SEVERITY_UI, SUBJECT_BADGE_UI,
   LEARNING_GAPS, getGapsBySubject,
 } from "../../data/learningGapData";
+import {
+  fetchLearningGaps, fetchGapHealth,
+  selectGaps, selectGapsStatus, selectGapHealth,
+} from "../../store/slices/learningGapsSlice";
 
 // ── Health score ring ────────────────────────────────────────
 function HealthRing({ score }) {
@@ -121,21 +126,21 @@ function GapCard({ gap }) {
 // ── Main dashboard ───────────────────────────────────────────
 export default function LearningGaps() {
   const navigate = useNavigate();
-  const { apiFetch } = useAuth();
+  const { } = useAuth();
+  const dispatch = useDispatch();
   const [activeSubject, setActiveSubject] = useState("All");
-  const [gaps, setGaps] = useState(LEARNING_GAPS);
+  const reduxGaps   = useSelector(selectGaps);
+  const reduxHealth = useSelector(selectGapHealth);
+  const [gaps,   setGaps]   = useState(LEARNING_GAPS);
   const [health, setHealth] = useState(GAP_HEALTH);
 
   useEffect(() => {
-    apiFetch("/learning-gaps/")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data) && data.length) setGaps(data); })
-      .catch(() => {});
-    apiFetch("/learning-gaps/health")
-      .then((r) => r.json())
-      .then((data) => { if (data?.score !== undefined) setHealth((p) => ({ ...p, ...data })); })
-      .catch(() => {});
-  }, []);
+    dispatch(fetchLearningGaps());
+    dispatch(fetchGapHealth());
+  }, [dispatch]);
+
+  useEffect(() => { if (reduxGaps.length)  setGaps(reduxGaps); },   [reduxGaps]);
+  useEffect(() => { if (reduxHealth?.score !== undefined) setHealth((p) => ({ ...p, ...reduxHealth })); }, [reduxHealth]);
 
   const filtered = activeSubject === "All" ? gaps : gaps.filter((g) => g.subject === activeSubject);
   const h = health;

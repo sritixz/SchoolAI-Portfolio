@@ -4,8 +4,6 @@ import {
   worksheetDefaults,
   difficultyOptions,
   worksheetQuestionTypes,
-  subjectOptions,
-  classOptions,
 } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
 

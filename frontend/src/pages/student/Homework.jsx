@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { users } from "../../data/mockData";
+import { fetchStudentHomework, selectStudentHomework, selectStudentHwStatus } from "../../store/slices/homeworkSlice";
 
 // ── Status config ────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -179,21 +181,20 @@ function HomeworkCard({ hw }) {
 
 // ── Main Page ────────────────────────────────────────────────
 export default function StudentHomework() {
-  const { user, apiFetch } = useAuth();
+  const { user } = useAuth();
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const mockStudent = users.find((u) => u.role === "student");
+  const reduxHomework = useSelector(selectStudentHomework);
+  const hwStatus      = useSelector(selectStudentHwStatus);
   const [allHomework, setAllHomework] = useState(mockStudent?.homework || []);
 
   const [activeStatus, setActiveStatus] = useState(null);
   const [activeSubject, setActiveSubject] = useState(null);
   const [sortOrder, setSortOrder] = useState("latest");
 
-  useEffect(() => {
-    apiFetch("/homework/student")
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data) && data.length) setAllHomework(data); })
-      .catch(() => {});
-  }, []);
+  useEffect(() => { dispatch(fetchStudentHomework()); }, [dispatch]);
+  useEffect(() => { if (reduxHomework.length) setAllHomework(reduxHomework); }, [reduxHomework]);
 
   // Derived counts
   const counts = useMemo(() => ({

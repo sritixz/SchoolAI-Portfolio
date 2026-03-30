@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import api from "../api";
 
 const ROLES = [
   { id:"student",     label:"Student",      icon:"school",               color:"from-pink-400 to-rose-500" },
@@ -36,17 +37,12 @@ export default function Login() {
     if (!form.phone || form.phone.length < 10) { setError("Enter a valid 10-digit phone number"); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8000/auth/otp/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: form.phone, role: selectedRole.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.detail || "Phone not registered. Contact your school admin."); return; }
-      if (data.dev_otp) setDevOtp(data.dev_otp);
+      const res = await api.post("/auth/otp/request", { phone: form.phone, role: selectedRole.id });
+      if (res.data.dev_otp) setDevOtp(res.data.dev_otp);
       setStep("otp");
-    } catch { setError("Cannot connect to server. Is the backend running?"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Phone not registered. Contact your school admin.");
+    } finally { setLoading(false); }
   };
 
   // ── Phone OTP: verify ──
@@ -55,17 +51,13 @@ export default function Login() {
     if (!form.otp || form.otp.length < 4) { setError("Enter the OTP"); return; }
     setLoading(true); setError("");
     try {
-      const res = await fetch("http://localhost:8000/auth/otp/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: form.phone, otp: form.otp, role: selectedRole.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.detail || "Invalid OTP"); return; }
+      const res = await api.post("/auth/otp/verify", { phone: form.phone, otp: form.otp, role: selectedRole.id });
+      const data = res.data;
       login({ token: data.access_token, id: data.user_id, role: data.role, name: data.name, avatar: data.avatar });
       navigate(`/${data.role}`);
-    } catch { setError("Cannot connect to server."); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Invalid OTP");
+    } finally { setLoading(false); }
   };
 
   // ── Email + password ──
@@ -80,15 +72,13 @@ export default function Login() {
       const body = tab === "login"
         ? { email: form.email, password: form.password, role: selectedRole.id }
         : { name: form.name, email: form.email, password: form.password, role: selectedRole.id };
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.detail || "Something went wrong"); return; }
+      const res = await api.post(endpoint, body);
+      const data = res.data;
       login({ token: data.access_token, id: data.user_id, role: data.role, name: data.name, avatar: data.avatar });
       navigate(`/${data.role}`);
-    } catch { setError("Cannot connect to server. Is the backend running?"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Something went wrong");
+    } finally { setLoading(false); }
   };
 
   return (

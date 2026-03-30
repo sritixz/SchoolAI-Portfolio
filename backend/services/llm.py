@@ -46,3 +46,41 @@ async def stream_completion(messages: list[dict], model: str = None):
                     delta = chunk["choices"][0]["delta"].get("content", "")
                     if delta:
                         yield delta
+
+
+async def stream_vin_chat(messages: list[dict], model: str = None):
+    """
+    Async generator for Vin AI SSE streaming.
+    Yields raw text tokens from the LLM (XML fragments).
+    Uses gemini-flash via OpenRouter.
+    """
+    import json as _json
+    vin_model = model or getattr(settings, "VIN_MODEL", None) or settings.OPENROUTER_MODEL
+    payload = {
+        "model": vin_model,
+        "messages": messages,
+        "stream": True,
+        "temperature": 0.7,
+        "max_tokens": 1024,
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        async with client.stream(
+            "POST",
+            f"{settings.OPENROUTER_BASE_URL}/chat/completions",
+            headers=HEADERS,
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.startswith("data: "):
+                    continue
+                raw = line[6:].strip()
+                if raw == "[DONE]":
+                    break
+                try:
+                    chunk = _json.loads(raw)
+                    delta = chunk["choices"][0]["delta"].get("content", "")
+                    if delta:
+                        yield delta
+                except Exception:
+                    continue

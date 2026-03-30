@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getHomeworkQuestions } from "../../data/mockData";
+import {
+  fetchHomeworkById, fetchHomeworkQuestions,
+  uploadSubmissionFile, submitHomework,
+  selectCurrentHomework, selectUploadUrl, selectUploadStatus, selectSubmitResult, selectSubmitStatus,
+  clearUpload, clearSubmitResult,
+} from "../../store/slices/homeworkSlice";
 
 const ANSWER_TYPES = [
   { key: "mcq",    label: "Multiple Choice" },
@@ -163,61 +170,46 @@ function VinNudge({ hint, vinNudge }) {
 // ── Main ────────────────────────────────────────────────────
 export default function HomeworkAttempt() {
   const { homeworkId } = useParams();
-  const { user, apiFetch } = useAuth();
+  const { user } = useAuth();
+  const dispatch = useDispatch();
   const navigate = useNavigate();
 
+  const currentHw    = useSelector(selectCurrentHomework);
+  const uploadUrl    = useSelector(selectUploadUrl);
+  const uploadStatus = useSelector(selectUploadStatus);
+  const submitResult = useSelector(selectSubmitResult);
+  const submitStatus = useSelector(selectSubmitStatus);
+
   const [questionSet,    setQuestionSet]    = useState(() => getHomeworkQuestions(homeworkId));
-  const [submissionType, setSubmissionType] = useState("online_quiz"); // from API
+  const [submissionType, setSubmissionType] = useState("online_quiz");
   const [submitting,     setSubmitting]     = useState(false);
-  const [uploadFile,     setUploadFile]     = useState(null);   // for file/handwritten type
-  const [uploadUrl,      setUploadUrl]      = useState(null);
+  const [uploadFile,     setUploadFile]     = useState(null);
   const [uploading,      setUploading]      = useState(false);
 
-  // Load homework metadata + questions from API
+  // Load homework metadata + questions from Redux
   useEffect(() => {
-    apiFetch(`/homework/${homeworkId}`)
-      .then((r) => r.json())
-      .then((hw) => {
-        if (hw?.submission_type) setSubmissionType(hw.submission_type);
-        if (hw?.questions?.length) {
-          setQuestionSet((prev) => prev
-            ? { ...prev, questions: hw.questions }
-            : { questions: hw.questions, tags: [], unitTitle: hw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
-          );
-        }
-      })
-      .catch(() => {
-        // fallback: try questions endpoint
-        apiFetch(`/homework/${homeworkId}/questions`)
-          .then((r) => r.json())
-          .then((data) => {
-            if (Array.isArray(data) && data.length) {
-              setQuestionSet((prev) => prev ? { ...prev, questions: data } : { questions: data, tags: [], unitTitle: "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null });
-            }
-          })
-          .catch(() => {});
-      });
-  }, [homeworkId]);
+    dispatch(fetchHomeworkById(homeworkId));
+    dispatch(fetchHomeworkQuestions(homeworkId));
+    return () => { dispatch(clearUpload()); dispatch(clearSubmitResult()); };
+  }, [homeworkId, dispatch]);
 
-  // Upload file to S3 via backend
+  useEffect(() => {
+    if (!currentHw) return;
+    if (currentHw.submission_type) setSubmissionType(currentHw.submission_type);
+    if (currentHw.questions?.length) {
+      setQuestionSet((prev) => prev
+        ? { ...prev, questions: currentHw.questions }
+        : { questions: currentHw.questions, tags: [], unitTitle: currentHw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
+      );
+    }
+  }, [currentHw]);
+
+  // Handle file upload via Redux
   const handleFileUpload = async (file) => {
     setUploadFile(file);
     setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("http://localhost:8000/homework/upload-file", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("vin_auth") ? JSON.parse(localStorage.getItem("vin_auth")).token : ""}` },
-        body: fd,
-      });
-      const data = await res.json();
-      if (data.url) setUploadUrl(data.url);
-    } catch {
-      // keep local file reference, submit without URL
-    } finally {
-      setUploading(false);
-    }
+    await dispatch(uploadSubmissionFile(file));
+    setUploading(false);
   };
 
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -307,10 +299,7 @@ export default function HomeworkAttempt() {
               onClick={async () => {
                 setSubmitting(true);
                 try {
-                  await apiFetch("/homework/submit", {
-                    method: "POST",
-                    body: JSON.stringify({ homework_id: homeworkId, student_id: user?.id, answers: [], submission_file_url: uploadUrl || null }),
-                  });
+                  await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: [], submission_file_url: uploadUrl || null }));
                   navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
                 } catch {
                   navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
@@ -361,11 +350,7 @@ export default function HomeworkAttempt() {
         answer_type: activeType[qq.id] || qq.answerType,
       }));
       try {
-        const res = await apiFetch("/homework/submit", {
-          method: "POST",
-          body: JSON.stringify({ homework_id: homeworkId, student_id: user?.id, answers: answersPayload }),
-        });
-        const result = await res.json();
+        const result = await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: answersPayload })).unwrap();
         navigate(`/student/homework/${homeworkId}/result`, {
           state: { answers, questionSet, apiResult: result },
         });
