@@ -4,8 +4,8 @@ import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { teacherSchedule, dashboardStats, recentActivity, interventionStudents, recentSubmissions } from "../../data/teacherData";
 import {
-  fetchTeacherDashboard, fetchSchedule,
-  selectTeacherDashboard, selectSchedule,
+  fetchTeacherDashboard, fetchSchedule, fetchInterventions,
+  selectTeacherDashboard, selectSchedule, selectInterventions,
 } from "../../store/slices/teacherSlice";
 
 export default function TeacherHome() {
@@ -15,6 +15,7 @@ export default function TeacherHome() {
 
   const reduxDashboard = useSelector(selectTeacherDashboard);
   const reduxSchedule  = useSelector(selectSchedule);
+  const apiInterventions = useSelector(selectInterventions);
   const [stats,       setStats]       = useState(dashboardStats);
   const [schedule,    setSchedule]    = useState(teacherSchedule);
   const [submissions, setSubmissions] = useState(recentSubmissions);
@@ -23,17 +24,50 @@ export default function TeacherHome() {
   useEffect(() => {
     dispatch(fetchTeacherDashboard());
     dispatch(fetchSchedule());
+    dispatch(fetchInterventions());
   }, [dispatch]);
 
   useEffect(() => {
-    if (reduxDashboard?.pending_review != null) {
-      setStats((p) => ({ ...p, homeworkToEvaluate: { ...p.homeworkToEvaluate, count: reduxDashboard.pending_review } }));
+    if (!reduxDashboard) return;
+    // Wire all real counts from API
+    setStats((p) => ({
+      ...p,
+      homeworkToEvaluate: { ...p.homeworkToEvaluate, count: reduxDashboard.pending_review ?? p.homeworkToEvaluate.count },
+      parentReplies:      { ...p.parentReplies,      count: reduxDashboard.parent_messages ?? p.parentReplies.count },
+      studentsWithGaps:   { ...p.studentsWithGaps,   count: reduxDashboard.interventions   ?? p.studentsWithGaps.count },
+    }));
+    // Wire recent submissions from API
+    if (reduxDashboard.recent_submissions?.length) {
+      setSubmissions(reduxDashboard.recent_submissions.map((s, i) => ({
+        id:         s.submission_id,
+        name:       s.student_name,
+        initials:   s.student_name?.split(" ").map((w) => w[0]).join("").slice(0, 2) || "??",
+        color:      ["orange", "pink", "blue", "purple", "green"][i % 5],
+        title:      s.homework_title,
+        status:     s.status === "graded"
+                      ? `Graded: ${s.auto_score_pct ?? "—"}%`
+                      : s.ai_analysed ? "AI Analysed" : "Needs Review",
+        timeAgo:    s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+        autoGraded: s.status === "graded",
+      })));
     }
   }, [reduxDashboard]);
 
   useEffect(() => {
     if (Array.isArray(reduxSchedule) && reduxSchedule.length) setSchedule(reduxSchedule);
   }, [reduxSchedule]);
+
+  // Build intervention list: prefer API, fall back to mock
+  const displayInterventions = apiInterventions?.length
+    ? apiInterventions.slice(0, 4).map((a) => ({
+        id:       a._id || a.id,
+        name:     a.student_name || a.student_id,
+        initials: (a.student_name || "??").split(" ").map((w) => w[0]).join("").slice(0, 2),
+        color:    a.priority === "urgent" ? "red" : "orange",
+        priority: a.priority === "urgent" ? "High Priority" : "Medium",
+        issue:    a.message || a.issue || "Needs attention",
+      }))
+    : interventionStudents;
 
   const quickActions = [
     { label: "Create Homework",   icon: "add_circle",    color: "from-[#695be6] to-[#8e82f3]", to: "/teacher/homework/create" },
@@ -146,8 +180,11 @@ export default function TeacherHome() {
             {/* Recent submissions */}
             <h3 className="text-lg font-bold mb-3">Recent Submissions</h3>
             <div className="flex flex-col gap-3">
-              {submissions.map((sub) => (
-                <div key={sub.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-4">
+              {submissions.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4 text-center">No submissions yet</p>
+              ) : submissions.map((sub) => (
+                <div key={sub.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer"
+                  onClick={() => sub.homework_id && navigate(`/teacher/homework/evaluate/${sub.homework_id}`)}>
                   <div className={`size-10 rounded-full bg-${sub.color}-100 flex items-center justify-center text-${sub.color}-700 font-bold text-sm shrink-0`}>
                     {sub.initials}
                   </div>
@@ -175,7 +212,9 @@ export default function TeacherHome() {
                 <h3 className="font-bold text-sm">Intervention Alerts</h3>
                 <Link to="/teacher/interventions" className="text-xs text-[#695be6] font-medium">View All</Link>
               </div>
-              {interventionStudents.map((s) => (
+              {displayInterventions.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2 text-center">No active alerts</p>
+              ) : displayInterventions.map((s) => (
                 <div key={s.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
                   <div className={`size-9 rounded-full bg-${s.color}-100 flex items-center justify-center text-${s.color}-700 font-bold text-xs shrink-0`}>
                     {s.initials}

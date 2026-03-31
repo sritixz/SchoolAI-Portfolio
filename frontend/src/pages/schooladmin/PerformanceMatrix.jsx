@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import { AdminLayout } from "./Home";
-import { performanceMatrix } from "../../data/schoolAdminData";
+import { fetchPerformanceMatrix, selectPerformanceMatrix } from "../../store/slices/schoolAdminSlice";
 
 function scoreColor(s) {
   if (s >= 85) return "bg-green-200 text-green-800";
@@ -22,7 +24,33 @@ const LEGEND = [
 
 export default function PerformanceMatrix() {
   const navigate = useNavigate();
-  const { subjects, grades, bestCluster, priorityIntervention, aiInsights } = performanceMatrix;
+  const dispatch = useDispatch();
+  const matrixData = useSelector(selectPerformanceMatrix);
+
+  useEffect(() => {
+    dispatch(fetchPerformanceMatrix());
+  }, [dispatch]);
+
+  // Use first doc from array (seeded as single doc)
+  const d = matrixData[0] || {};
+  const subjects = d.subjects || [];
+  const grades = d.grades || [];
+  const bestCluster = d.bestCluster || {};
+  const priorityIntervention = d.priorityIntervention || {};
+  const aiInsights = d.aiInsights || { growthTrends: [], priorityActions: [] };
+
+  if (!matrixData.length) {
+    return (
+      <AdminLayout active="/schooladmin/matrix">
+        <div className="p-6 flex items-center justify-center h-64">
+          <div className="text-center text-gray-400">
+            <span className="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
+            <p>Loading performance data...</p>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout active="/schooladmin/matrix">
@@ -35,9 +63,7 @@ export default function PerformanceMatrix() {
         </div>
 
         <div className="flex gap-4">
-          {/* Matrix */}
           <div className="flex-1">
-            {/* Top cards */}
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-white border-2 border-green-300 rounded-xl p-4 flex items-center gap-3">
                 <div className="size-10 bg-green-100 rounded-xl flex items-center justify-center">
@@ -46,7 +72,7 @@ export default function PerformanceMatrix() {
                 <div>
                   <p className="text-[10px] font-black text-gray-400 tracking-widest">BEST PERFORMING CLUSTER</p>
                   <p className="font-black text-[#100e1a]">{bestCluster.label}</p>
-                  <p className="text-xs text-green-600 font-bold">{bestCluster.score}% Average Institutional Score</p>
+                  <p className="text-xs text-green-600 font-bold">{bestCluster.score}% Average Score</p>
                 </div>
               </div>
               <div className="bg-white border-2 border-red-200 rounded-xl p-4 flex items-center gap-3">
@@ -56,12 +82,11 @@ export default function PerformanceMatrix() {
                 <div>
                   <p className="text-[10px] font-black text-gray-400 tracking-widest">PRIORITY INTERVENTION</p>
                   <p className="font-black text-[#100e1a]">{priorityIntervention.label}</p>
-                  <p className="text-xs text-red-500 font-bold">{priorityIntervention.score}% Average Institutional Score</p>
+                  <p className="text-xs text-red-500 font-bold">{priorityIntervention.score}% Average Score</p>
                 </div>
               </div>
             </div>
 
-            {/* Table */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
@@ -76,11 +101,11 @@ export default function PerformanceMatrix() {
                   {grades.map((row) => (
                     <tr key={row.grade} className="border-t border-gray-100">
                       <td className="p-3 font-bold text-sm text-[#100e1a]">{row.grade}</td>
-                      {row.scores.map((score, i) => (
+                      {(row.scores || []).map((score, i) => (
                         <td key={i} className="p-2 text-center">
                           <div className={`rounded-lg py-2 px-1 font-black text-sm ${scoreColor(score)}`}>
                             {score}%
-                            {row.students[i] && <div className="text-[9px] font-normal opacity-70">{row.students[i]} Students</div>}
+                            {row.students?.[i] && <div className="text-[9px] font-normal opacity-70">{row.students[i]} Students</div>}
                           </div>
                         </td>
                       ))}
@@ -90,7 +115,6 @@ export default function PerformanceMatrix() {
               </table>
             </div>
 
-            {/* Legend */}
             <div className="mt-3 flex items-center gap-1 flex-wrap">
               <span className="text-[10px] font-bold text-gray-400 mr-1">COLOR LEGEND</span>
               {LEGEND.map((l) => (
@@ -102,7 +126,6 @@ export default function PerformanceMatrix() {
             </div>
           </div>
 
-          {/* AI Insights Sidebar */}
           <div className="w-56 shrink-0">
             <div className="bg-[#ede9fb] rounded-xl p-4">
               <p className="font-black text-sm text-[#695be6] flex items-center gap-1 mb-3">

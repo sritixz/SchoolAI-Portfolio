@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   conceptExplainerDefaults,
   targetAudienceOptions,
@@ -8,10 +10,15 @@ import {
 } from "../../data/teacher/conceptExplainerData";
 
 export default function ConceptExplainer() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const aiResult  = useSelector(selectAiToolResult);
+  const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(conceptExplainerDefaults);
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const generating = aiStatus === "loading";
+  const generated  = !!aiResult && !generating;
+
+  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
 
   const toggleElement = (id) =>
     setForm((p) => ({
@@ -20,8 +27,18 @@ export default function ConceptExplainer() {
     }));
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => { setGenerating(false); setGenerated(true); }, 1500);
+    dispatch(clearAiToolResult());
+    dispatch(runAiTool({
+      tool: "concept",
+      subject: "General",
+      topic: form.concept,
+      grade: form.targetAudience,
+      extra: {
+        style: form.explanationStyle,
+        simplify: form.simplifyForStruggling,
+        include: Object.entries(form.includeElements).filter(([,v]) => v).map(([k]) => k),
+      },
+    }));
   };
 
   return (
@@ -186,7 +203,13 @@ export default function ConceptExplainer() {
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-              {!generated ? (
+              {generating && (
+                <div className="flex flex-col items-center gap-3">
+                  <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">Generating explanation...</p>
+                </div>
+              )}
+              {!generating && !generated && (
                 <>
                   <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-5">
                     <span className="material-symbols-outlined text-[#695be6] text-4xl">lightbulb</span>
@@ -202,20 +225,36 @@ export default function ConceptExplainer() {
                     <div className="h-2 bg-gray-100 rounded w-1/2 mx-auto" />
                   </div>
                 </>
-              ) : (
-                <div className="text-left w-full">
-                  <h3 className="font-black text-lg mb-3 text-[#695be6]">{form.concept}</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    <strong>For {form.targetAudience}:</strong> Imagine a tiny kitchen inside every leaf. This kitchen uses sunlight as its energy source, water from the roots as its ingredient, and carbon dioxide from the air as its recipe. The result? Glucose (sugar) for the plant to grow, and oxygen that we breathe!
-                  </p>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-3">
-                    <p className="text-xs font-bold text-yellow-700 mb-1">Common Misconception:</p>
-                    <p className="text-xs text-gray-600">Plants don't get their food from soil — they make it themselves using sunlight!</p>
-                  </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                    <p className="text-xs font-bold text-blue-700 mb-1">Real-world Example:</p>
-                    <p className="text-xs text-gray-600">A solar panel converts sunlight to electricity — a leaf does the same thing, but converts it to sugar instead.</p>
-                  </div>
+              )}
+              {!generating && generated && aiResult && (
+                <div className="text-left w-full space-y-3">
+                  <h3 className="font-black text-lg text-[#695be6]">{form.concept}</h3>
+                  {aiResult.explanation && (
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      <strong>For {form.targetAudience}:</strong> {aiResult.explanation}
+                    </p>
+                  )}
+                  {aiResult.analogy && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-700 mb-1">Analogy</p>
+                      <p className="text-xs text-gray-600">{aiResult.analogy}</p>
+                    </div>
+                  )}
+                  {aiResult.key_points?.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-yellow-700 mb-2">Key Points</p>
+                      <ul className="space-y-1">
+                        {aiResult.key_points.map((pt, i) => (
+                          <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
+                            <span className="size-1.5 rounded-full bg-yellow-500 mt-1.5 shrink-0" />{pt}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {!aiResult.explanation && aiResult.content && (
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{aiResult.content}</p>
+                  )}
                 </div>
               )}
             </div>

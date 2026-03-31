@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   assistanceTypes,
   feedbackTones,
@@ -8,24 +10,43 @@ import {
 } from "../../data/teacher/gradingAssistantData";
 
 export default function GradingAssistant() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const aiResult  = useSelector(selectAiToolResult);
+  const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(gradingDefaults);
-  const [evaluated, setEvaluated] = useState(true); // show result by default for demo
-  const [result, setResult] = useState(sampleEvaluationResult);
-  const [feedbackText, setFeedbackText] = useState(sampleEvaluationResult.feedbackDraft);
-  const [generating, setGenerating] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const generating = aiStatus === "loading";
+  const evaluated  = !!aiResult && !generating;
+
+  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+
+  // Map API result to display shape
+  const result = aiResult || sampleEvaluationResult;
+  const scorePercent = evaluated ? ((result.score / result.maxScore) * 100) : 0;
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      setEvaluated(true);
-      setResult(sampleEvaluationResult);
-      setFeedbackText(sampleEvaluationResult.feedbackDraft);
-      setGenerating(false);
-    }, 1500);
+    dispatch(clearAiToolResult());
+    setFeedbackText("");
+    dispatch(runAiTool({
+      tool: "grading",
+      subject: "General",
+      topic: form.question,
+      grade: "General",
+      extra: {
+        question: form.question,
+        student_response: form.studentResponse,
+        total_marks: form.totalMarks,
+        feedback_tone: form.feedbackTone,
+        assistance_type: form.assistanceType,
+      },
+    }));
   };
 
-  const scorePercent = (result.score / result.maxScore) * 100;
+  // Sync feedback text when result arrives
+  if (aiResult && !feedbackText && aiResult.feedback) {
+    setFeedbackText(aiResult.feedback);
+  }
 
   return (
     <div className="bg-[#fff5f8] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -161,7 +182,13 @@ export default function GradingAssistant() {
 
           {/* Right: Results Panel */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            {evaluated ? (
+            {generating && (
+              <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
+                <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+                <p className="text-sm text-gray-400">Evaluating response...</p>
+              </div>
+            )}
+            {!generating && evaluated ? (
               <>
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -190,21 +217,36 @@ export default function GradingAssistant() {
                 </div>
 
                 {/* Evaluation Summary */}
-                <div className="mb-4">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Evaluation Summary</p>
-                  <div className="border-l-4 border-[#695be6] pl-3 space-y-2">
-                    {result.summary.map((item, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <span className={`material-symbols-outlined text-sm flex-shrink-0 mt-0.5 ${
-                          item.type === "pass" ? "text-green-500" : "text-orange-400"
-                        }`}>
-                          {item.type === "pass" ? "check_circle" : "info"}
-                        </span>
-                        <p className="text-xs text-gray-600">{item.text}</p>
-                      </div>
-                    ))}
+                {result.summary?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Evaluation Summary</p>
+                    <div className="border-l-4 border-[#695be6] pl-3 space-y-2">
+                      {result.summary.map((item, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <span className={`material-symbols-outlined text-sm flex-shrink-0 mt-0.5 ${
+                            item.type === "pass" ? "text-green-500" : "text-orange-400"
+                          }`}>
+                            {item.type === "pass" ? "check_circle" : "info"}
+                          </span>
+                          <p className="text-xs text-gray-600">{item.text}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
+                {/* Suggestions from API */}
+                {result.suggestions?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Suggestions</p>
+                    <ul className="space-y-1">
+                      {result.suggestions.map((s, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                          <span className="material-symbols-outlined text-amber-500 text-sm mt-0.5">lightbulb</span>{s}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Feedback Draft */}
                 <div className="mb-4">
@@ -213,7 +255,7 @@ export default function GradingAssistant() {
                     <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">EDITABLE</span>
                   </div>
                   <textarea
-                    value={feedbackText}
+                    value={feedbackText || result.feedbackDraft || result.feedback || ""}
                     onChange={(e) => setFeedbackText(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-28"
                   />
@@ -236,7 +278,7 @@ export default function GradingAssistant() {
                   </button>
                 </div>
               </>
-            ) : (
+            ) : !generating && (
               <div className="flex flex-col items-center justify-center h-full py-16 text-center text-gray-400">
                 <span className="material-symbols-outlined text-5xl mb-3">grading</span>
                 <p className="font-semibold">Fill in the details and click Generate Evaluation</p>

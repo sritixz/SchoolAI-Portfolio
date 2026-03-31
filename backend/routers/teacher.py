@@ -136,17 +136,52 @@ async def dashboard(user=Depends(require_role("teacher")), db=Depends(get_db)):
         raise HTTPException(404, "Teacher not found")
     teacher = _ser(teacher)
 
-    # Pending submissions needing review
+    # Pending submissions needing review (submitted + AI done, not yet graded)
     pending_review = await db.homework_submissions.count_documents(
-        {"status": "submitted", "ai_analysis": {"$ne": None}, "final_grade": None}
+        {"status": "submitted", "final_grade": None}
     )
     # Homework created by this teacher
     hw_count = await db.homework.count_documents({"created_by": user["id"]})
 
+    # Recent submissions (last 10) for this teacher's homework
+    teacher_hw_ids = [
+        str(h["_id"])
+        async for h in db.homework.find({"created_by": user["id"]}, {"_id": 1})
+    ]
+    recent_subs_cursor = db.homework_submissions.find(
+        {"homework_id": {"$in": teacher_hw_ids}, "status": {"$in": ["submitted", "graded"]}}
+    ).sort("submitted_at", -1).limit(10)
+    recent_subs_raw = await recent_subs_cursor.to_list(None)
+
+    # Enrich with student name + homework title
+    recent_submissions = []
+    for sub in recent_subs_raw:
+        student = await db.users.find_one({"_id": ObjectId(sub["student_id"])}, {"name": 1})
+        hw      = await db.homework.find_one({"_id": ObjectId(sub["homework_id"])}, {"title": 1})
+        recent_submissions.append({
+            "submission_id":  str(sub["_id"]),
+            "student_id":     sub["student_id"],
+            "student_name":   student.get("name", "Unknown") if student else "Unknown",
+            "homework_title": hw.get("title", "Homework") if hw else "Homework",
+            "status":         sub.get("status"),
+            "auto_score_pct": sub.get("auto_score_pct"),
+            "submitted_at":   sub.get("submitted_at"),
+            "ai_analysed":    sub.get("ai_analysis") is not None,
+        })
+
+    # Parent messages count (unread)
+    parent_messages_count = await db.messages.count_documents({"teacher_id": user["id"]})
+
+    # Interventions count (students with learning gaps flagged)
+    interventions_count = await db.interventions.count_documents({"teacher_id": user["id"]})
+
     return {
-        "teacher": teacher,
-        "pending_review": pending_review,
-        "homework_count": hw_count,
+        "teacher":            teacher,
+        "pending_review":     pending_review,
+        "homework_count":     hw_count,
+        "recent_submissions": recent_submissions,
+        "parent_messages":    parent_messages_count,
+        "interventions":      interventions_count,
     }
 
 @router.get("/schedule")
@@ -174,9 +209,106 @@ async def topic_mastery(class_id: str, user=Depends(require_role("teacher")), db
 
 @router.post("/ai-tool")
 async def ai_tool(body: AIToolRequest, user=Depends(require_role("teacher"))):
+    extra = body.extra or {}
     prompts = {
-        "worksheet":    f"Create a worksheet with 10 questions on '{body.topic}' for {body.subject} grade {body.grade}. Return JSON: {{\"title\": \"...\", \"questions\": [{{\"number\": 1, \"text\": \"...\", \"type\": \"short_answer\", \"marks\": 2}}]}}",
-        "lessonplan":   f"Create a lesson plan for '{body.topic}' in {body.subject} grade {body.grade}. Return JSON: {{\"objectives\": [], \"activities\": [], \"assessment\": \"\", \"duration_minutes\": 45}}",
+        "worksheet": f"""Create a classroom worksheet for:
+Subject: {body.subject}, Topic: {body.topic}, Grade: {body.grade or extra.get('classLevel','')},
+Difficulty: {extra.get('difficulty','Medium')}, Total questions: {extra.get('totalQuestions',10)},
+Question types requested: {extra.get('questionTypes','mcq,shortAnswer,longAnswer')}.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "title": "...",
+  "subject": "{body.subject}",
+  "grade": "...",
+  "topic": "{body.topic}",
+  "difficulty": "...",
+  "instructions": "Read all questions carefully. Show your working where required.",
+  "sections": [
+    {{
+      "type": "MCQ",
+      "questions": [
+        {{"number": 1, "text": "...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."], "answer": "A", "marks": 1}}
+      ]
+    }},
+    {{
+      "type": "Short Answer",
+      "questions": [
+        {{"number": 5, "text": "...", "marks": 2, "sample_answer": "..."}}
+      ]
+    }},
+    {{
+      "type": "Long Answer",
+      "questions": [
+        {{"number": 8, "text": "...", "marks": 5, "sample_answer": "..."}}
+      ]
+    }}
+  ],
+  "total_marks": 20,
+  "estimated_time_minutes": 30
+}}""",
+
+        "lessonplan": f"""Create a detailed lesson plan for:
+Subject: {body.subject}, Topic: {body.topic}, Grade: {body.grade or extra.get('classLevel','')},
+Duration: {extra.get('durationMinutes',45)} minutes,
+Instructional methods: {extra.get('instructionalMethods','Guided Practice, Lecture')},
+Resources: {extra.get('resources','Projector, Whiteboard')},
+Selected objectives: {extra.get('objectives','')},
+Specific class needs: {extra.get('specificNeeds','')}.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "title": "Lesson Plan: {body.topic}",
+  "subject": "{body.subject}",
+  "grade": "...",
+  "duration_minutes": {extra.get('durationMinutes',45)},
+  "learning_objectives": ["By the end of this lesson, students will be able to..."],
+  "materials": ["..."],
+  "sections": [
+    {{
+      "name": "Hook",
+      "duration_minutes": 5,
+      "teacher_activity": "...",
+      "student_activity": "...",
+      "notes": "..."
+    }},
+    {{
+      "name": "Recap / Prior Knowledge",
+      "duration_minutes": 5,
+      "teacher_activity": "...",
+      "student_activity": "...",
+      "notes": "..."
+    }},
+    {{
+      "name": "Main Instruction",
+      "duration_minutes": 15,
+      "teacher_activity": "...",
+      "student_activity": "...",
+      "notes": "..."
+    }},
+    {{
+      "name": "Guided Practice",
+      "duration_minutes": 10,
+      "teacher_activity": "...",
+      "student_activity": "...",
+      "notes": "..."
+    }},
+    {{
+      "name": "Exit Ticket",
+      "duration_minutes": 5,
+      "teacher_activity": "...",
+      "student_activity": "...",
+      "notes": "..."
+    }}
+  ],
+  "differentiation": {{
+    "support": "...",
+    "extension": "..."
+  }},
+  "assessment": "...",
+  "homework_suggestion": "..."
+}}""",
+
         "quiz":         f"Generate 5 MCQ questions on '{body.topic}' in {body.subject}. Return JSON: {{\"questions\": [{{\"text\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correct\": \"A\"}}]}}",
         "concept":      f"Explain '{body.topic}' in {body.subject} for grade {body.grade} students. Use analogies. Return JSON: {{\"explanation\": \"...\", \"analogy\": \"...\", \"key_points\": []}}",
         "presentation": f"Create a 10-slide outline for '{body.topic}' in {body.subject}. Return JSON: {{\"slides\": [{{\"number\": 1, \"title\": \"...\", \"bullets\": []}}]}}",

@@ -1,5 +1,8 @@
+import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchAdminDashboard, selectAdminDashboard } from "../../store/slices/schoolAdminSlice";
 
 const NAV = [
   { section: "OVERVIEW", items: [
@@ -99,7 +102,14 @@ export function AdminLayout({ children, active }) {
 export default function SchoolAdminHome() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const stats = user?.stats || {};
+  const dispatch = useDispatch();
+  const dashboard = useSelector(selectAdminDashboard);
+
+  useEffect(() => {
+    dispatch(fetchAdminDashboard());
+  }, [dispatch]);
+
+  const stats = dashboard?.stats || user?.stats || {};
 
   const priorityItems = [
     { title: "Grade 8 Physics - Thermodynamics Gap", desc: "Class 8B & 8C showing 45% below average comprehension.", badge: "High Severity", badgeColor: "bg-red-500 text-white", action: "Take Action", borderColor: "border-l-red-500", route: "/schooladmin/gaps" },

@@ -1,5 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchParentMessages, sendParentMessage,
+  selectParentMessages, fetchMyStudents, selectMyStudents,
+} from "../../store/slices/teacherSlice";
 import {
   parentMeetingRequests,
   messageComposerTemplates,
@@ -9,13 +14,48 @@ import {
 const TABS = ["Parent Meeting Requests", "Message Composer", "Communication History"];
 
 export default function ParentCommunication() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const apiMessages = useSelector(selectParentMessages);
+  const students    = useSelector(selectMyStudents);
   const [activeTab, setActiveTab] = useState(0);
   const [classFilter, setClassFilter] = useState("Grade 8 - Section A");
   const [requests, setRequests] = useState(parentMeetingRequests);
   const [selectedRequest, setSelectedRequest] = useState(requests[0]);
   const [composerTemplate, setComposerTemplate] = useState(messageComposerTemplates[0].id);
   const [composerBody, setComposerBody] = useState(messageComposerTemplates[0].body);
+  const [selectedStudent, setSelectedStudent] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    dispatch(fetchParentMessages());
+    dispatch(fetchMyStudents());
+  }, [dispatch]);
+
+  // Merge API history with mock for display
+  const historyRows = apiMessages.length
+    ? apiMessages.map((m) => ({
+        id: m._id || m.id,
+        studentName: m.student_id,
+        date: m.sent_at ? new Date(m.sent_at).toLocaleDateString() : "—",
+        subject: "Message",
+        channel: "In-App",
+        status: "sent",
+      }))
+    : communicationHistory;
+
+  const handleSend = async () => {
+    if (!selectedStudent || !composerBody.trim()) return;
+    setSending(true);
+    try {
+      await dispatch(sendParentMessage({ studentId: selectedStudent, message: composerBody })).unwrap();
+      setSent(true);
+      setTimeout(() => setSent(false), 3000);
+      dispatch(fetchParentMessages());
+    } catch { /* silent */ }
+    finally { setSending(false); }
+  };
 
   const selectTime = (reqId, timeId) => {
     setRequests((prev) =>
@@ -184,16 +224,24 @@ export default function ParentCommunication() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
               <h3 className="font-black text-lg mb-4">Compose Message</h3>
               <div className="mb-4">
+                <label className="text-xs font-bold text-gray-500 mb-2 block">Send To (Student)</label>
+                <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white mb-3">
+                  <option value="">— Select student —</option>
+                  {students.map((s) => (
+                    <option key={s._id} value={s._id}>{s.name} ({s.class_name})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
                 <label className="text-xs font-bold text-gray-500 mb-2 block">Template</label>
                 <div className="flex flex-wrap gap-2">
                   {messageComposerTemplates.map((t) => (
-                    <button
-                      key={t.id}
+                    <button key={t.id}
                       onClick={() => { setComposerTemplate(t.id); setComposerBody(t.body); }}
                       className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
                         composerTemplate === t.id ? "bg-[#695be6] text-white border-[#695be6]" : "border-gray-200 hover:border-[#695be6]"
-                      }`}
-                    >
+                      }`}>
                       {t.label}
                     </button>
                   ))}
@@ -201,14 +249,21 @@ export default function ParentCommunication() {
               </div>
               <div className="mb-4">
                 <label className="text-xs font-bold text-gray-500 mb-2 block">Message</label>
-                <textarea
-                  value={composerBody}
-                  onChange={(e) => setComposerBody(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-32"
-                />
+                <textarea value={composerBody} onChange={(e) => setComposerBody(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-32" />
               </div>
-              <button className="bg-[#695be6] text-white font-bold px-6 py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors">
-                Send Message
+              {sent && (
+                <div className="mb-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2">
+                  <span className="material-symbols-outlined text-green-600 text-base">check_circle</span>
+                  <p className="text-green-700 text-sm font-medium">Message sent successfully</p>
+                </div>
+              )}
+              <button onClick={handleSend} disabled={sending || !selectedStudent || !composerBody.trim()}
+                className="bg-[#695be6] text-white font-bold px-6 py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors disabled:opacity-50 flex items-center gap-2">
+                {sending
+                  ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Sending...</>
+                  : <><span className="material-symbols-outlined text-base">send</span>Send Message</>
+                }
               </button>
             </div>
           )}
@@ -227,7 +282,7 @@ export default function ParentCommunication() {
                   </tr>
                 </thead>
                 <tbody>
-                  {communicationHistory.map((h) => (
+                  {historyRows.map((h) => (
                     <tr key={h.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="px-5 py-4 font-semibold">{h.studentName}</td>
                       <td className="px-5 py-4 text-gray-500">{h.date}</td>
@@ -235,13 +290,16 @@ export default function ParentCommunication() {
                       <td className="px-5 py-4 text-gray-500">{h.channel}</td>
                       <td className="px-5 py-4">
                         <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          h.status === "completed" ? "bg-green-100 text-green-700" :
-                          h.status === "read"      ? "bg-blue-100 text-blue-700"   :
+                          h.status === "completed" || h.status === "sent" ? "bg-green-100 text-green-700" :
+                          h.status === "read" ? "bg-blue-100 text-blue-700" :
                           "bg-orange-100 text-orange-700"
                         }`}>{h.status}</span>
                       </td>
                     </tr>
                   ))}
+                  {historyRows.length === 0 && (
+                    <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400 text-sm">No messages sent yet</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>

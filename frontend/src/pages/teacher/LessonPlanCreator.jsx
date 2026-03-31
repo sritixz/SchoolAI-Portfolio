@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   lessonPlanDefaults,
   aiTips,
@@ -10,10 +12,15 @@ import { subjectOptions, classOptions } from "../../data/teacher/quizGeneratorDa
 
 export default function LessonPlanCreator() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const aiResult  = useSelector(selectAiToolResult);
+  const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(lessonPlanDefaults);
   const [newMethod, setNewMethod] = useState("");
   const [newResource, setNewResource] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const generating = aiStatus === "loading";
+
+  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
 
   const toggleObjective = (id) =>
     setForm((p) => ({
@@ -48,8 +55,21 @@ export default function LessonPlanCreator() {
   };
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => setGenerating(false), 2000);
+    dispatch(clearAiToolResult());
+    dispatch(runAiTool({
+      tool: "lessonplan",
+      subject: form.subject,
+      topic: form.topic,
+      grade: form.classLevel,
+      extra: {
+        duration: form.durationMinutes,
+        objectives: form.objectives.filter(o => o.selected).map(o => o.text),
+        methods: form.instructionalMethods,
+        resources: form.resources,
+        sections: form.lessonSections.filter(s => s.selected).map(s => s.label),
+        specific_needs: form.specificNeeds,
+      },
+    }));
   };
 
   return (
@@ -301,6 +321,69 @@ export default function LessonPlanCreator() {
           </div>
         </div>
       </div>
+
+      {/* ── AI Result Panel ── */}
+      {(generating || aiResult) && (
+        <div className="max-w-[1200px] mx-auto px-6 pb-12">
+          {generating && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex flex-col items-center gap-3">
+              <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+              <p className="text-sm text-gray-400">AI is drafting your lesson plan...</p>
+            </div>
+          )}
+          {aiResult && !generating && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-base flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#695be6]">auto_awesome</span>
+                  Generated Lesson Plan
+                </h3>
+                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                  className="text-xs text-[#695be6] font-bold hover:underline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                </button>
+              </div>
+              {aiResult.objectives?.length > 0 && (
+                <div>
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Objectives</p>
+                  <ul className="space-y-1">
+                    {aiResult.objectives.map((o, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="material-symbols-outlined text-[#695be6] text-sm mt-0.5">check_circle</span>{o}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {aiResult.activities?.length > 0 && (
+                <div>
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Activities</p>
+                  <ol className="space-y-2">
+                    {aiResult.activities.map((a, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                        <span className="size-5 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">{i+1}</span>
+                        {typeof a === "string" ? a : JSON.stringify(a)}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {aiResult.assessment && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs font-black text-amber-700 mb-1">Assessment</p>
+                  <p className="text-sm text-gray-700">{aiResult.assessment}</p>
+                </div>
+              )}
+              {aiResult.duration_minutes && (
+                <p className="text-xs text-gray-400">Duration: {aiResult.duration_minutes} minutes</p>
+              )}
+              {!aiResult.objectives && !aiResult.activities && aiResult.content && (
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{aiResult.content}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

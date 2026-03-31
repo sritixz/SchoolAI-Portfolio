@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchInterventions, selectInterventions } from "../../store/slices/teacherSlice";
 import { interventionAlerts } from "../../data/teacherData";
 
 const PRIORITY_TABS = [
@@ -24,7 +26,9 @@ function ScoreBar({ history }) {
 }
 
 export default function InterventionAlerts() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const apiAlerts = useSelector(selectInterventions);
   const [activeTab, setActiveTab] = useState("urgent");
   const [classFilter, setClassFilter] = useState("All My Classes");
   const [notes, setNotes] = useState({});
@@ -33,6 +37,9 @@ export default function InterventionAlerts() {
   const [reviewed, setReviewed] = useState({});
   const [allReviewed, setAllReviewed] = useState(false);
 
+  useEffect(() => { dispatch(fetchInterventions()); }, [dispatch]);
+
+  // Use API data if available, fall back to mock
   const urgentAlert = interventionAlerts.urgent[0];
 
   return (
@@ -80,10 +87,10 @@ export default function InterventionAlerts() {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { label: "STUDENTS AT RISK",      value: interventionAlerts.stats.studentsAtRisk },
+            { label: "STUDENTS AT RISK",      value: apiAlerts.length || interventionAlerts.stats.studentsAtRisk },
             { label: "REPEAT OFFENDERS",       value: interventionAlerts.stats.repeatOffenders },
             { label: "PARENT CONTACT NEEDED",  value: interventionAlerts.stats.parentContactNeeded },
-            { label: "ACTIONS PENDING",        value: interventionAlerts.stats.actionsPending },
+            { label: "ACTIONS PENDING",        value: apiAlerts.filter(a => !a.resolved).length || interventionAlerts.stats.actionsPending },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">{s.label}</p>

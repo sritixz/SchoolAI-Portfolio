@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   presentationVisualStyles,
   presentationPurposes,
@@ -7,13 +9,29 @@ import {
 } from "../../data/teacher/presentationCreatorData";
 
 export default function PresentationCreator() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const aiResult  = useSelector(selectAiToolResult);
+  const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(presentationDefaults);
-  const [generating, setGenerating] = useState(false);
+  const generating = aiStatus === "loading";
+
+  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => setGenerating(false), 2000);
+    dispatch(clearAiToolResult());
+    dispatch(runAiTool({
+      tool: "presentation",
+      subject: form.subject,
+      topic: form.topic,
+      grade: form.classLevel,
+      extra: {
+        num_slides: form.numSlides,
+        duration_minutes: form.durationMinutes,
+        purpose: form.purpose,
+        visual_style: form.visualStyle,
+      },
+    }));
   };
 
   return (
@@ -204,21 +222,62 @@ export default function PresentationCreator() {
 
         {/* Right: Preview Panel */}
         <div className="flex-1 bg-[#fdf8ff] flex items-center justify-center p-12">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-lg p-10 flex flex-col items-center text-center">
-            <div className="size-16 bg-[#695be6] rounded-2xl flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-white text-3xl">upload</span>
+          {generating && (
+            <div className="flex flex-col items-center gap-3">
+              <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+              <p className="text-sm text-gray-400">Building your presentation...</p>
             </div>
-            <h2 className="font-black text-xl mb-2">Ready to build your lesson?</h2>
-            <p className="text-sm text-gray-400 mb-6">
-              Your presentation structure and slide previews will appear here after generation. Choose your settings and click generate to start.
-            </p>
-            <div className="flex gap-2 w-full justify-center">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex-1 h-16 bg-gray-100 rounded-lg" />
-              ))}
+          )}
+          {!generating && !aiResult && (
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-lg p-10 flex flex-col items-center text-center">
+              <div className="size-16 bg-[#695be6] rounded-2xl flex items-center justify-center mb-4">
+                <span className="material-symbols-outlined text-white text-3xl">upload</span>
+              </div>
+              <h2 className="font-black text-xl mb-2">Ready to build your lesson?</h2>
+              <p className="text-sm text-gray-400 mb-6">
+                Your presentation structure and slide previews will appear here after generation. Choose your settings and click generate to start.
+              </p>
+              <div className="flex gap-2 w-full justify-center">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex-1 h-16 bg-gray-100 rounded-lg" />
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-3">SLIDE 0 OF 0</p>
             </div>
-            <p className="text-xs text-gray-400 mt-3">SLIDE 0 OF 0</p>
-          </div>
+          )}
+          {!generating && aiResult && (
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-2xl overflow-y-auto max-h-[80vh]">
+              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="font-black text-base">{form.topic} — {form.numSlides} Slides</h2>
+                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                  className="text-xs text-[#695be6] font-bold hover:underline flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                {(aiResult.slides || []).map((slide, i) => (
+                  <div key={i} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center shrink-0">{slide.number || i+1}</span>
+                      <p className="font-bold text-sm">{slide.title}</p>
+                    </div>
+                    {slide.bullets?.length > 0 && (
+                      <ul className="ml-8 space-y-1">
+                        {slide.bullets.map((b, j) => (
+                          <li key={j} className="text-xs text-gray-600 flex items-start gap-1.5">
+                            <span className="size-1.5 rounded-full bg-[#695be6]/40 mt-1.5 shrink-0" />{b}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+                {!aiResult.slides && aiResult.content && (
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap p-2">{aiResult.content}</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

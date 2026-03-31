@@ -1,16 +1,60 @@
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchHomeworkById, selectCurrentHomework } from "../../store/slices/homeworkSlice";
 import { getHomeworkTemplate } from "../../data/teacher/homeworkPreviewData";
 
 const DIFFICULTY_STYLES = {
   EASY:   "bg-green-100 text-green-700",
   MEDIUM: "bg-yellow-100 text-yellow-700",
   HARD:   "bg-red-100 text-red-600",
+  low:    "bg-green-100 text-green-700",
+  medium: "bg-yellow-100 text-yellow-700",
+  high:   "bg-red-100 text-red-600",
 };
 
 export default function HomeworkPreview() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const hw = getHomeworkTemplate(id);
+  const { id }   = useParams();
+  const dispatch = useDispatch();
+  const apiHw    = useSelector(selectCurrentHomework);
+
+  // Try to load from API; fall back to mock template
+  const isMongoId = /^[a-f0-9]{24}$/.test(id);
+  useEffect(() => {
+    if (isMongoId) dispatch(fetchHomeworkById(id));
+  }, [id, isMongoId, dispatch]);
+
+  // Build a unified hw object from API or mock
+  const mockHw = getHomeworkTemplate(id);
+  const hw = isMongoId && apiHw && apiHw._id === id
+    ? {
+        title:   apiHw.title,
+        subject: apiHw.subject,
+        chapter: apiHw.assigned_to_class || "",
+        tags:    apiHw.tags || [],
+        overview: {
+          createdDate:    apiHw.created_at ? new Date(apiHw.created_at).toLocaleDateString() : "—",
+          usedCount:      "—",
+          avgScore:       "—",
+          type:           apiHw.submission_type,
+          totalQuestions: apiHw.questions?.length || 0,
+          totalMarks:     apiHw.total_marks || 0,
+          estTimeMinutes: apiHw.estimated_duration_minutes || "—",
+        },
+        questions: (apiHw.questions || []).map((q, i) => ({
+          id:          q.id || i,
+          number:      q.question_number || i + 1,
+          text:        q.question_text,
+          type:        q.answer_type,
+          difficulty:  apiHw.difficulty_level || "medium",
+          marks:       q.max_points || 1,
+          timeMinutes: 5,
+          options:     q.options?.map((o) => o.text) || [],
+        })),
+        assignmentHistory: [],
+      }
+    : mockHw;
 
   if (!hw) return <div className="p-8 text-center text-gray-400">Homework not found.</div>;
 

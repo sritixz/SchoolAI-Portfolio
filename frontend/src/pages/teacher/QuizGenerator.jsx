@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { generateAiQuestions, selectGeneratedQuestions, selectGenerateStatus, clearGeneratedQuestions } from "../../store/slices/teacherSlice";
 import {
   quizGeneratorDefaults,
   subjectOptions,
@@ -8,16 +10,31 @@ import {
 } from "../../data/teacher/quizGeneratorData";
 
 export default function QuizGenerator() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dispatch  = useDispatch();
+  const questions = useSelector(selectGeneratedQuestions);
+  const genStatus = useSelector(selectGenerateStatus);
   const [form, setForm] = useState(quizGeneratorDefaults);
-  const [generating, setGenerating] = useState(false);
+  const generating = genStatus === "loading";
+
+  useEffect(() => () => { dispatch(clearGeneratedQuestions()); }, [dispatch]);
 
   const toggleQType = (id) =>
     setForm((p) => ({ ...p, questionTypes: { ...p.questionTypes, [id]: !p.questionTypes[id] } }));
 
   const handleGenerate = () => {
-    setGenerating(true);
-    setTimeout(() => setGenerating(false), 2000);
+    dispatch(clearGeneratedQuestions());
+    const types = Object.entries(form.questionTypes).filter(([,v]) => v).map(([k]) =>
+      k === "shortAnswer" ? "typed" : k === "numerical" ? "typed" : k === "caseBased" ? "typed" : k
+    );
+    dispatch(generateAiQuestions({
+      subject: form.subject,
+      topic: form.topic,
+      grade: form.classLevel,
+      count: 5,
+      difficulty: "mixed",
+      question_types: types.length ? types : ["mcq"],
+    }));
   };
 
   return (
@@ -183,45 +200,80 @@ export default function QuizGenerator() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
-              {/* Illustration */}
-              <div className="relative mb-6">
-                <div className="w-40 h-48 bg-[#695be6]/10 rounded-2xl flex flex-col items-center justify-center gap-3 p-4">
-                  <div className="w-full h-2 bg-[#695be6]/20 rounded" />
-                  <div className="w-3/4 h-2 bg-[#695be6]/20 rounded" />
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
-                    <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
+            {generating && (
+              <div className="flex flex-col items-center justify-center p-12 min-h-[400px] gap-3">
+                <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+                <p className="text-sm text-gray-400">Generating questions...</p>
+              </div>
+            )}
+
+            {!generating && questions.length === 0 && (
+              <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
+                <div className="relative mb-6">
+                  <div className="w-40 h-48 bg-[#695be6]/10 rounded-2xl flex flex-col items-center justify-center gap-3 p-4">
+                    <div className="w-full h-2 bg-[#695be6]/20 rounded" />
+                    <div className="w-3/4 h-2 bg-[#695be6]/20 rounded" />
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
+                      <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
+                    </div>
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
+                      <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
+                    </div>
+                    <div className="w-full h-8 bg-[#695be6]/20 rounded-lg" />
                   </div>
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
-                    <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
+                  <div className="absolute -bottom-3 -right-3 size-10 bg-[#695be6] rounded-xl flex items-center justify-center shadow-lg">
+                    <span className="material-symbols-outlined text-white text-lg">chat</span>
                   </div>
-                  <div className="w-full h-8 bg-[#695be6]/20 rounded-lg" />
                 </div>
-                <div className="absolute -bottom-3 -right-3 size-10 bg-[#695be6] rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="material-symbols-outlined text-white text-lg">chat</span>
+                <h3 className="font-black text-xl mb-2">Your generated questions will appear here</h3>
+                <p className="text-sm text-gray-400 mb-6">
+                  Customize the parameters on the left to start generating high-quality assessments and solutions.
+                </p>
+                <div className="flex gap-6">
+                  {[
+                    { icon: "check_circle", label: "ACCURATE" },
+                    { icon: "bolt",         label: "FAST" },
+                    { icon: "auto_awesome", label: "SMART" },
+                  ].map((f) => (
+                    <div key={f.label} className="flex flex-col items-center gap-1">
+                      <span className="material-symbols-outlined text-gray-300 text-2xl">{f.icon}</span>
+                      <span className="text-[10px] font-bold text-gray-400">{f.label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
+            )}
 
-              <h3 className="font-black text-xl mb-2">Your generated questions will appear here</h3>
-              <p className="text-sm text-gray-400 mb-6">
-                Customize the parameters on the left to start generating high-quality assessments and solutions.
-              </p>
-
-              <div className="flex gap-6">
-                {[
-                  { icon: "check_circle", label: "ACCURATE" },
-                  { icon: "bolt",         label: "FAST" },
-                  { icon: "auto_awesome", label: "SMART" },
-                ].map((f) => (
-                  <div key={f.label} className="flex flex-col items-center gap-1">
-                    <span className="material-symbols-outlined text-gray-300 text-2xl">{f.icon}</span>
-                    <span className="text-[10px] font-bold text-gray-400">{f.label}</span>
+            {!generating && questions.length > 0 && (
+              <div className="p-5 space-y-4 overflow-y-auto max-h-[600px]">
+                {questions.map((q, i) => (
+                  <div key={q.id || i} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-start gap-3 mb-2">
+                      <span className="size-6 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-bold flex items-center justify-center shrink-0">{i+1}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-bold bg-[#695be6]/10 text-[#695be6] px-2 py-0.5 rounded-full">{q.answer_type?.toUpperCase()}</span>
+                          <span className="text-[10px] text-gray-400">{q.max_points} pt{q.max_points > 1 ? "s" : ""}</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-800">{q.question_text}</p>
+                      </div>
+                    </div>
+                    {q.options?.length > 0 && (
+                      <div className="ml-9 grid grid-cols-2 gap-1.5">
+                        {q.options.map((opt, j) => (
+                          <div key={j} className={`text-xs px-3 py-1.5 rounded-lg border ${opt.is_correct ? "border-green-300 bg-green-50 text-green-700 font-bold" : "border-gray-100 text-gray-600"}`}>
+                            {opt.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {q.hint && <p className="ml-9 mt-2 text-xs text-amber-600 flex items-center gap-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>}
                   </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

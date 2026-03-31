@@ -1,18 +1,17 @@
+import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { getUserById } from "../../data/mockData";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchParentDashboard,
+  fetchParentNotifications,
+  selectChildren,
+  selectUnreadCount,
+  selectParentNotifications,
+} from "../../store/slices/parentSlice";
 import { parentDashboardData } from "../../data/parentData";
 
 const { insight } = parentDashboardData;
-
-const NAV_ITEMS = [
-  { label: "Homework", icon: "assignment", badge: "8/10 DONE", badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: "2 Pending assignments", bg: "bg-[#ede9ff]", path: "/parent/homework" },
-  { label: "Progress", icon: "trending_up", badge: null, badgeColor: null, sub: "3 topics need practice", bg: "bg-[#e6f9ee]", path: "/parent/progress" },
-  { label: "Consistency", icon: "calendar_month", badge: "85% Score", badgeColor: "bg-amber-100 text-amber-700", sub: "5-Day Streak!", bg: "bg-[#fff8e6]", path: "/parent/consistency" },
-  { label: "Notifications", icon: "notifications_active", badge: "5 NEW", badgeColor: "bg-red-100 text-red-600", sub: "Aarav submitted Math...", bg: "bg-[#fff0f0]", path: "/parent/notifications" },
-  { label: "Support Needed", icon: "psychology", badge: null, badgeColor: null, sub: "2 patterns detected", bg: "bg-[#ffe8e8]", path: "/parent/support", alert: true },
-  { label: "Curiosity Prompts", icon: "auto_awesome", badge: "NEW PROMPTS", badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: "Connect learning at home", bg: "bg-[#e8f4ff]", path: "/parent/curiosity" },
-];
 
 const MORE_OPTIONS = [
   { label: "Learning Profile", icon: "manage_accounts", path: "/parent/learning-profile" },
@@ -23,14 +22,35 @@ const MORE_OPTIONS = [
 export default function ParentHome() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const child = getUserById(user?.children?.[0]);
+  const dispatch = useDispatch();
+  const children = useSelector(selectChildren);
+  const unreadCount = useSelector(selectUnreadCount);
+  const notifications = useSelector(selectParentNotifications);
 
+  useEffect(() => {
+    dispatch(fetchParentDashboard());
+    dispatch(fetchParentNotifications());
+  }, [dispatch]);
+
+  const child = children[0];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
+  // Compute stats from real data
+  const hwNotifs = notifications.filter((n) => n.type === "homework_new" || n.type === "homework_due");
+  const overdueCount = notifications.filter((n) => n.type === "overdue").length;
+
+  const NAV_ITEMS = [
+    { label: "Homework", icon: "assignment", badge: hwNotifs.length > 0 ? `${hwNotifs.length} PENDING` : null, badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: child ? `${child.name}'s assignments` : "View assignments", bg: "bg-[#ede9ff]", path: "/parent/homework" },
+    { label: "Progress", icon: "trending_up", badge: null, sub: "Topic mastery overview", bg: "bg-[#e6f9ee]", path: "/parent/progress" },
+    { label: "Consistency", icon: "calendar_month", badge: null, sub: "Homework streak & habits", bg: "bg-[#fff8e6]", path: "/parent/consistency" },
+    { label: "Notifications", icon: "notifications_active", badge: unreadCount > 0 ? `${unreadCount} NEW` : null, badgeColor: "bg-red-100 text-red-600", sub: "School updates & alerts", bg: "bg-[#fff0f0]", path: "/parent/notifications" },
+    { label: "Support Needed", icon: "psychology", badge: null, sub: overdueCount > 0 ? `${overdueCount} patterns detected` : "No active alerts", bg: "bg-[#ffe8e8]", path: "/parent/support", alert: overdueCount > 0 },
+    { label: "Curiosity Prompts", icon: "auto_awesome", badge: "NEW PROMPTS", badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: "Connect learning at home", bg: "bg-[#e8f4ff]", path: "/parent/curiosity" },
+  ];
+
   return (
     <div className="bg-[#f6f6f8] min-h-screen pb-10" style={{ fontFamily: "'Lexend', sans-serif" }}>
-      {/* Header */}
       <header className="bg-[#695be6] text-white px-5 pt-5 pb-6">
         <div className="max-w-lg mx-auto">
           <div className="flex items-center justify-between mb-3">
@@ -40,7 +60,9 @@ export default function ParentHome() {
             <div className="flex items-center gap-3">
               <button className="relative" onClick={() => navigate("/parent/notifications")}>
                 <span className="material-symbols-outlined text-2xl">notifications</span>
-                <span className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">2</span>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center">{unreadCount}</span>
+                )}
               </button>
               <div className="size-9 rounded-full bg-white/30 overflow-hidden flex items-center justify-center">
                 <span className="material-symbols-outlined text-xl">person</span>
@@ -48,39 +70,41 @@ export default function ParentHome() {
             </div>
           </div>
           <h1 className="text-2xl font-black">{greeting}, {user?.name?.split(" ")[0]}!</h1>
-          <p className="text-white/80 text-sm mt-0.5">Here's how Aarav is doing</p>
-          <div className="mt-3 inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1.5 text-sm font-semibold">
-            <span className="material-symbols-outlined text-base">chat_bubble</span>
-            {child?.name} (Grade {child?.class})
-            <span className="material-symbols-outlined text-base">expand_more</span>
-          </div>
+          <p className="text-white/80 text-sm mt-0.5">
+            {child ? `Here's how ${child.name} is doing` : "Welcome to your parent dashboard"}
+          </p>
+          {child && (
+            <div className="mt-3 inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1.5 text-sm font-semibold">
+              <span className="material-symbols-outlined text-base">chat_bubble</span>
+              {child.name} (Grade {child.grade_number || child.class})
+              {children.length > 1 && <span className="material-symbols-outlined text-base">expand_more</span>}
+            </div>
+          )}
         </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4">
-        {/* Quick Stats */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mt-4 grid grid-cols-3 divide-x divide-gray-100">
           <div className="p-4 text-center">
             <span className="material-symbols-outlined text-[#695be6] text-2xl">menu_book</span>
-            <p className="text-2xl font-black mt-1">8/10</p>
-            <p className="text-xs text-gray-500 font-medium">HOMEWORK DONE</p>
+            <p className="text-2xl font-black mt-1">{hwNotifs.length}</p>
+            <p className="text-xs text-gray-500 font-medium">PENDING HW</p>
             <p className="text-xs text-gray-400">This Week</p>
           </div>
           <div className="p-4 text-center">
             <span className="material-symbols-outlined text-orange-500 text-2xl">local_fire_department</span>
-            <p className="text-2xl font-black mt-1">85%</p>
-            <p className="text-xs text-gray-500 font-medium">CONSISTENCY</p>
-            <p className="text-xs text-emerald-500 font-semibold">+5% ↑</p>
+            <p className="text-2xl font-black mt-1">{unreadCount}</p>
+            <p className="text-xs text-gray-500 font-medium">UNREAD</p>
+            <p className="text-xs text-emerald-500 font-semibold">Notifications</p>
           </div>
           <div className="p-4 text-center">
             <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
-            <p className="text-2xl font-black mt-1">2</p>
+            <p className="text-2xl font-black mt-1">{overdueCount}</p>
             <p className="text-xs text-gray-500 font-medium">ALERTS</p>
-            <p className="text-xs text-red-500 font-semibold">Needs Attention</p>
+            <p className="text-xs text-red-500 font-semibold">{overdueCount > 0 ? "Needs Attention" : "All Clear"}</p>
           </div>
         </div>
 
-        {/* My Dashboard */}
         <h2 className="text-lg font-bold mt-6 mb-3">My Dashboard</h2>
         <div className="grid grid-cols-2 gap-3">
           {NAV_ITEMS.map((item) => (
@@ -97,14 +121,10 @@ export default function ParentHome() {
               </div>
               <p className={`font-bold text-sm ${item.alert ? "text-red-600" : "text-gray-800"}`}>{item.label}</p>
               <p className={`text-xs mt-0.5 ${item.alert ? "text-red-500 font-semibold" : "text-gray-500"}`}>{item.sub}</p>
-              {item.label === "Curiosity Prompts" && (
-                <p className="text-xs text-gray-400 mt-0.5">Personalized conversation starters for Aarav's science unit.</p>
-              )}
             </button>
           ))}
         </div>
 
-        {/* Insight of the Week */}
         <div className="mt-4 bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
           <div className="size-9 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-amber-600 text-xl">lightbulb</span>
@@ -116,7 +136,6 @@ export default function ParentHome() {
           </div>
         </div>
 
-        {/* More Options */}
         <h2 className="text-lg font-bold mt-6 mb-3">More Options</h2>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-100">
           {MORE_OPTIONS.map((opt) => (
