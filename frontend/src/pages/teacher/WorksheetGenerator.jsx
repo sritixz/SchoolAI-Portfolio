@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { useAuth } from "../../context/AuthContext";
+import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
+import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
+import { downloadWorksheetPdf } from "../../utils/aiPdfExport";
 
 export default function WorksheetGenerator() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
+  const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(worksheetDefaults);
@@ -18,9 +22,9 @@ export default function WorksheetGenerator() {
   const toggleQType = (id) =>
     setForm((p) => ({ ...p, questionTypes: { ...p.questionTypes, [id]: !p.questionTypes[id] } }));
 
+  const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
-    dispatch(clearAiToolResult());
-    dispatch(runAiTool({
+    runTool({
       tool: "worksheet",
       subject: form.subject,
       topic: form.topic,
@@ -31,7 +35,7 @@ export default function WorksheetGenerator() {
         question_types: Object.entries(form.questionTypes).filter(([, v]) => v).map(([k]) => k),
         title: form.title,
       },
-    }));
+    }, { tool: "worksheet", title: form.title || `${form.topic} Worksheet`, subject: form.subject, topic: form.topic, grade: form.classLevel });
   };
 
   return (
@@ -52,7 +56,7 @@ export default function WorksheetGenerator() {
           <h1 className="font-black text-base absolute left-1/2 -translate-x-1/2">Worksheet Generator</h1>
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold">{form.classLevel} Teacher</p>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">P</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
           </div>
         </div>
       </header>
@@ -150,7 +154,7 @@ export default function WorksheetGenerator() {
         </div>
 
         {/* Right: Preview */}
-        <div className="flex-1 bg-[#faf9ff] flex items-center justify-center p-12">
+        <div className="flex-1 bg-[#faf9ff] flex items-center justify-center p-8 overflow-y-auto">
           {generating && (
             <div className="flex flex-col items-center gap-3">
               <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
@@ -160,51 +164,116 @@ export default function WorksheetGenerator() {
           {!generating && !aiResult && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-md p-10 flex flex-col items-center text-center">
               <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-6">
-                <span className="material-symbols-outlined text-[#695be6] text-5xl">smart_toy</span>
+                <span className="material-symbols-outlined text-[#695be6] text-5xl">description</span>
               </div>
               <h2 className="font-black text-xl mb-2">Ready to Create?</h2>
-              <p className="text-sm text-gray-400 mb-6">
-                Fill in the details on the left and click{" "}
-                <span className="text-[#695be6] font-bold">Generate</span> to start.
-              </p>
-              <div className="w-full space-y-2">
-                <div className="h-2 bg-gray-100 rounded w-3/4 mx-auto" />
-                <div className="h-2 bg-gray-100 rounded w-1/2 mx-auto" />
-                <div className="h-16 bg-gray-50 border border-gray-100 rounded-xl mt-3" />
-                <div className="h-16 bg-gray-50 border border-gray-100 rounded-xl" />
-              </div>
+              <p className="text-sm text-gray-400">Fill in the details and click Generate to create a professional worksheet with answer key.</p>
             </div>
           )}
-          {!generating && aiResult && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-2xl p-8 overflow-y-auto max-h-[80vh]">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-black text-lg">{aiResult.title || form.title}</h2>
-                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
-                  className="text-xs text-[#695be6] font-bold hover:underline flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">content_copy</span> Copy
-                </button>
+          {!generating && aiResult && (() => {
+            return (
+            <div className="w-full max-w-3xl space-y-4">
+              {/* Action bar */}
+              <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
+                <div>
+                  <p className="font-black text-base">{aiResult.title}</p>
+                  <p className="text-xs text-gray-500">{aiResult.total_marks} marks · {aiResult.estimated_time_minutes} min · {aiResult.difficulty}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                    className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                    <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                  </button>
+                  <button onClick={() => downloadWorksheetPdf(aiResult)}
+                    className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#5a4dd4]">
+                    <span className="material-symbols-outlined text-sm">download</span> Download PDF
+                  </button>
+                </div>
               </div>
-              <div className="space-y-4">
-                {(aiResult.questions || []).map((q, i) => (
-                  <div key={i} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="size-6 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-bold flex items-center justify-center shrink-0">{q.number || i + 1}</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">{q.text}</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-[10px] font-bold text-gray-400">{q.type}</span>
-                          <span className="text-[10px] font-bold text-[#695be6]">{q.marks} marks</span>
+
+              {/* Printable content */}
+              <div id="worksheet-printable" className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+                {/* Header */}
+                <div className="border-b-2 border-[#695be6] pb-3">
+                  <h1 className="font-black text-xl">{aiResult.title}</h1>
+                  <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-1">
+                    <span>Subject: <strong>{aiResult.subject}</strong></span>
+                    <span>Grade: <strong>{aiResult.grade}</strong></span>
+                    <span>Total Marks: <strong>{aiResult.total_marks}</strong></span>
+                    <span>Time: <strong>{aiResult.estimated_time_minutes} min</strong></span>
+                    <span>Name: ___________________</span>
+                    <span>Date: ___________________</span>
+                  </div>
+                  {aiResult.instructions && <p className="text-xs text-gray-600 mt-2 italic">{aiResult.instructions}</p>}
+                </div>
+
+                {/* Sections */}
+                {(aiResult.sections || []).map((sec, si) => (
+                  <div key={si}>
+                    <h2 className="font-black text-sm text-[#695be6] uppercase tracking-wide mb-3 border-b border-[#695be6]/20 pb-1">
+                      {sec.title || sec.type}
+                    </h2>
+                    {sec.instructions && <p className="text-xs text-gray-500 italic mb-3">{sec.instructions}</p>}
+                    <div className="space-y-3">
+                      {(sec.questions || []).map((q, qi) => (
+                        <div key={qi} className="border border-gray-100 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{q.number}</span>
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-sm font-medium">{q.text}</p>
+                                <span className="text-[10px] font-bold text-[#695be6] whitespace-nowrap">[{q.marks} mark{q.marks > 1 ? "s" : ""}]</span>
+                              </div>
+                              {q.options && (
+                                <div className="mt-2 space-y-1">
+                                  {q.options.map((opt, oi) => (
+                                    <p key={oi} className="text-xs text-gray-700 ml-2">{opt}</p>
+                                  ))}
+                                </div>
+                              )}
+                              {q.bloom_level && <span className="text-[9px] text-gray-400 mt-1 block">Bloom's: {q.bloom_level}</span>}
+                              {(sec.type === "Short Answer" || sec.type === "Long Answer") && (
+                                <div className="mt-2 border-t border-dashed border-gray-200 pt-2">
+                                  <div className="h-12 border border-gray-100 rounded bg-gray-50/50" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
                 ))}
-                {!aiResult.questions && aiResult.content && (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{aiResult.content}</p>
+
+                {/* Answer Key */}
+                {aiResult.answer_key?.length > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                    <h3 className="font-black text-sm text-green-800 mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-base">key</span> Answer Key (Teacher Copy)
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {aiResult.answer_key.map((a, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs">
+                          <span className="font-bold text-green-700 w-6">Q{a.number}.</span>
+                          <span className="text-gray-700">{a.answer}</span>
+                          {a.notes && <span className="text-gray-400 italic">({a.notes})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Teacher Notes */}
+                {aiResult.teacher_notes && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-xs font-bold text-amber-800 mb-1">Teacher Notes</p>
+                    <p className="text-xs text-gray-700">{aiResult.teacher_notes}</p>
+                  </div>
                 )}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>

@@ -1,19 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   fetchStudentsByClass, generateAiQuestions,
   selectStudentsByClass, selectStudentsByClassStatus,
-  selectGeneratedQuestions, selectGenerateStatus, selectGenerateError,
-  clearGeneratedQuestions,
 } from "../../store/slices/teacherSlice";
 import {
-  createHomework, patchHomeworkQuestions, assignHomework,
+  createHomework, patchHomeworkQuestions, assignHomework, fetchHomeworkById,
+  updateHomework,
 } from "../../store/slices/homeworkSlice";
 
 const SUBJECTS = ["Mathematics","Physics","Chemistry","Biology","History","English","Computer Science"];
-const CLASSES  = ["Class 6","Class 7","Class 8","Class 9","Class 10","Class 11","Class 12"];
+// Default classes — will be replaced by actual sections from backend
+const DEFAULT_CLASSES = ["Grade 6-A","Grade 6-B","Grade 7-A","Class 6","Class 7","Class 8","Class 9","Class 10"];
 
 const SUBMISSION_TYPES = [
   { id:"online_quiz", icon:"quiz",        label:"Online Quiz",      desc:"MCQ + typed answers in-app, auto-scored" },
@@ -137,12 +137,15 @@ export default function CreateTest() {
   const navigate = useNavigate();
   const { } = useAuth();
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
 
   // ── State ──
-  const [step,      setStep]      = useState(0);   // 0=setup  1=questions  2=assign
-  const [hwId,      setHwId]      = useState(null); // DB id — created at end of step 0
+  const [step,      setStep]      = useState(0);
+  const [hwId,      setHwId]      = useState(null);
+  const [isEditing, setIsEditing] = useState(false); // true when ?edit= param present
+  const [classes,   setClasses]   = useState(DEFAULT_CLASSES);
   const [form,      setForm]      = useState({
-    title: "", subject: "Mathematics", class_level: "Class 10",
+    title: "", subject: "Mathematics", class_level: "Grade 6-A",
     submission_type: "online_quiz", difficulty_level: "medium",
     estimated_duration_minutes: 45, instructions: "",
   });
@@ -156,6 +159,56 @@ export default function CreateTest() {
   const [assigning,    setAssigning]    = useState(false);
   const [error,        setError]        = useState("");
   const patchTimer = useRef(null);
+
+  // ── Load actual sections from backend ─────────────────────
+  useEffect(() => {
+    import("../../api").then(({ default: api }) => {
+      api.get("/teacher/my-sections")
+        .then((res) => {
+          if (res.data?.length) {
+            const names = res.data.map((s) => s.class_name).filter(Boolean);
+            if (names.length) {
+              setClasses(names);
+              setForm((p) => ({ ...p, class_level: names[0] }));
+            }
+          }
+        })
+        .catch(() => {}); // keep defaults on error
+    });
+  }, []);
+
+  // ── If ?from=<id>, load existing homework and jump to Assign step ──
+  useEffect(() => {
+    const fromId = searchParams.get("from");
+    const editId = searchParams.get("edit");
+    const targetId = editId || fromId;
+    if (!targetId) return;
+    if (!/^[a-f\d]{24}$/i.test(targetId)) return;
+    
+    dispatch(fetchHomeworkById(targetId)).unwrap().then((hw) => {
+      setHwId(targetId);
+      setForm((p) => ({
+        ...p,
+        title:                      hw.title || p.title,
+        subject:                    hw.subject || p.subject,
+        class_level:                hw.assigned_to_class || p.class_level,
+        submission_type:            hw.submission_type || p.submission_type,
+        difficulty_level:           hw.difficulty_level || p.difficulty_level,
+        estimated_duration_minutes: hw.estimated_duration_minutes || p.estimated_duration_minutes,
+        instructions:               hw.instructions || p.instructions,
+      }));
+      setQuestions(hw.questions || []);
+      
+      if (editId) {
+        // Edit mode: start at step 0 so teacher can modify details
+        setIsEditing(true);
+        setStep(0);
+      } else {
+        // Template mode: jump to assign
+        setStep(2);
+      }
+    }).catch(() => setError("Could not load homework. Please try again."));
+  }, []);
 
   const f = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
 
@@ -173,13 +226,13 @@ export default function CreateTest() {
     return () => clearTimeout(patchTimer.current);
   }, [questions, hwId]);
 
-  // ── Step 0 → 1: create homework shell in DB ────────────────
+  // ── Step 0 → 1: create or update homework shell in DB ─────
   const handleSetupNext = async () => {
     if (!form.title.trim()) { setError("Add a title before continuing"); return; }
     setSavingShell(true);
     setError("");
     try {
-      const data = await dispatch(createHomework({
+      const payload = {
         title:                       form.title,
         subject:                     form.subject,
         assigned_to_class:           form.class_level,
@@ -193,12 +246,21 @@ export default function CreateTest() {
         tags:                        [],
         assigned_students:           [],
         total_marks:                 0,
-      })).unwrap();
-      if (!data.id) throw new Error(data.detail || "No ID returned");
-      setHwId(data.id);
-      setStep(1);
+      };
+      
+      if (isEditing && hwId) {
+        // Update existing homework
+        await dispatch(updateHomework({ id: hwId, ...payload })).unwrap();
+        setStep(1);
+      } else {
+        // Create new homework
+        const data = await dispatch(createHomework(payload)).unwrap();
+        if (!data.id) throw new Error(data.detail || "No ID returned");
+        setHwId(data.id);
+        setStep(1);
+      }
     } catch (e) {
-      setError(e.message || "Could not create homework. Is the backend running?");
+      setError(e.message || "Could not save homework. Is the backend running?");
     } finally {
       setSavingShell(false);
     }
@@ -251,7 +313,7 @@ export default function CreateTest() {
     setError("");
     try {
       await dispatch(assignHomework({ homework_id: hwId, student_ids: selectedStu, due_date: dueDate })).unwrap();
-      navigate("/teacher/homework");
+      navigate(-1);
     } catch {
       setError("Assignment failed. Check backend.");
     } finally {
@@ -271,12 +333,12 @@ export default function CreateTest() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/teacher/homework")} className="p-2 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-500">arrow_back</span>
             </button>
             <div>
-              <h1 className="font-black text-sm leading-tight">Create Homework / Test</h1>
-              {hwId && <p className="text-[10px] text-gray-400">Draft ID: {hwId}</p>}
+              <h1 className="font-black text-sm leading-tight">{isEditing ? "Edit Homework" : "Create Homework / Test"}</h1>
+              {hwId && <p className="text-[10px] text-gray-400">{isEditing ? "Editing" : "Draft"} ID: {hwId}</p>}
             </div>
           </div>
 
@@ -299,7 +361,10 @@ export default function CreateTest() {
           {step === 0 && (
             <button onClick={handleSetupNext} disabled={savingShell}
               className="bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] disabled:opacity-50 transition-colors flex items-center gap-2">
-              {savingShell ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Saving...</> : "Next →"}
+              {savingShell
+                ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Saving...</>
+                : isEditing ? "Save & Continue →" : "Next →"
+              }
             </button>
           )}
           {step === 1 && (
@@ -342,7 +407,7 @@ export default function CreateTest() {
                   <label className="text-xs font-bold text-gray-500 mb-1 block">Class</label>
                   <select value={form.class_level} onChange={f("class_level")}
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
-                    {CLASSES.map((c) => <option key={c}>{c}</option>)}
+                    {classes.map((c) => <option key={c}>{c}</option>)}
                   </select>
                 </div>
                 <div>

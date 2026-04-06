@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchRemediation, selectCurrentGap, selectRemediation } from "../../store/slices/learningGapsSlice";
 import { getGapById, SEVERITY_UI, SUBJECT_BADGE_UI } from "../../data/learningGapData";
 
 const STATUS_ICON = { mastered: "check_circle", weak: "warning", current: "target" };
@@ -9,10 +11,22 @@ const STATUS_TEXT  = { mastered: "text-green-600", weak: "text-amber-600", curre
 export default function GapRemediation() {
   const { gapId }  = useParams();
   const navigate   = useNavigate();
-  const gap        = getGapById(gapId);
+  const dispatch   = useDispatch();
+  const apiGap     = useSelector(selectCurrentGap);
+  const remediationData = useSelector(selectRemediation);
+  const mockGap    = getGapById(gapId);
 
   const [answer,   setAnswer]   = useState("");
   const [submitted,setSubmitted]= useState(false);
+
+  useEffect(() => {
+    dispatch(fetchRemediation(gapId));
+  }, [gapId, dispatch]);
+
+  // Use API gap if available, fall back to mock
+  const gap = apiGap?.gap || mockGap;
+  // Use API remediation content if available
+  const remContent = remediationData?.remediation || null;
 
   if (!gap) {
     return (
@@ -144,6 +158,37 @@ export default function GapRemediation() {
               </div>
 
               <div className="p-8 flex flex-col gap-8">
+                {/* AI Remediation Content from API */}
+                {remContent && (
+                  <div className="bg-[#685ae7]/5 border border-[#685ae7]/20 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[#685ae7]">auto_awesome</span>
+                      <h4 className="font-bold text-[#685ae7]">AI Remediation Guide</h4>
+                    </div>
+                    {remContent.explanation && (
+                      <p className="text-sm text-gray-700 leading-relaxed mb-3">{remContent.explanation}</p>
+                    )}
+                    {remContent.key_points?.length > 0 && (
+                      <ul className="space-y-1 mb-3">
+                        {remContent.key_points.map((pt, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                            <span className="material-symbols-outlined text-[#685ae7] text-sm mt-0.5">check_circle</span>
+                            {pt}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {remContent.examples?.length > 0 && (
+                      <div className="bg-white rounded-lg p-3">
+                        <p className="text-xs font-bold text-gray-500 mb-2">EXAMPLES</p>
+                        {remContent.examples.map((ex, i) => (
+                          <p key={i} className="text-sm text-gray-700 mb-1">• {ex}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Question */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-[#685ae7] font-bold">

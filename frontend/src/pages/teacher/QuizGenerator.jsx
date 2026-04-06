@@ -1,17 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { generateAiQuestions, selectGeneratedQuestions, selectGenerateStatus, clearGeneratedQuestions } from "../../store/slices/teacherSlice";
+import { useAuth } from "../../context/AuthContext";
+import { selectGeneratedQuestions, selectGenerateStatus, clearGeneratedQuestions } from "../../store/slices/teacherSlice";
 import {
   quizGeneratorDefaults,
   subjectOptions,
   classOptions,
   questionTypeOptions,
 } from "../../data/teacher/quizGeneratorData";
+import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
+import { downloadQuizPdf } from "../../utils/aiPdfExport";
 
 export default function QuizGenerator() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
+  const { user }  = useAuth();
   const questions = useSelector(selectGeneratedQuestions);
   const genStatus = useSelector(selectGenerateStatus);
   const [form, setForm] = useState(quizGeneratorDefaults);
@@ -22,19 +26,19 @@ export default function QuizGenerator() {
   const toggleQType = (id) =>
     setForm((p) => ({ ...p, questionTypes: { ...p.questionTypes, [id]: !p.questionTypes[id] } }));
 
+  const { runQuiz } = useAiToolWithHistory();
   const handleGenerate = () => {
-    dispatch(clearGeneratedQuestions());
     const types = Object.entries(form.questionTypes).filter(([,v]) => v).map(([k]) =>
       k === "shortAnswer" ? "typed" : k === "numerical" ? "typed" : k === "caseBased" ? "typed" : k
     );
-    dispatch(generateAiQuestions({
+    runQuiz({
       subject: form.subject,
       topic: form.topic,
       grade: form.classLevel,
       count: 5,
       difficulty: "mixed",
       question_types: types.length ? types : ["mcq"],
-    }));
+    }, { title: `Quiz — ${form.topic}` });
   };
 
   return (
@@ -58,7 +62,7 @@ export default function QuizGenerator() {
             <button className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600">settings</span>
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">P</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
           </div>
         </div>
       </header>
@@ -194,9 +198,19 @@ export default function QuizGenerator() {
                 <span className="material-symbols-outlined text-[#695be6] text-lg">visibility</span>
                 <h3 className="font-black text-sm">Preview Area</h3>
               </div>
-              <div className="flex gap-3">
-                <button className="text-xs font-semibold text-gray-500 hover:text-gray-700">Export PDF</button>
-                <button className="text-xs font-semibold text-gray-500 hover:text-gray-700">Share Link</button>
+              <div className="flex gap-2">
+                {questions.length > 0 && (
+                  <>
+                    <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(questions, null, 2))}
+                      className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                      <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                    </button>
+                    <button onClick={() => downloadQuizPdf(questions, { subject: form.subject, topic: form.topic, grade: form.classLevel })}
+                      className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#5a4dd4]">
+                      <span className="material-symbols-outlined text-sm">download</span> Download PDF
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -209,69 +223,87 @@ export default function QuizGenerator() {
 
             {!generating && questions.length === 0 && (
               <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
-                <div className="relative mb-6">
-                  <div className="w-40 h-48 bg-[#695be6]/10 rounded-2xl flex flex-col items-center justify-center gap-3 p-4">
-                    <div className="w-full h-2 bg-[#695be6]/20 rounded" />
-                    <div className="w-3/4 h-2 bg-[#695be6]/20 rounded" />
-                    <div className="flex items-center gap-2 w-full">
-                      <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
-                      <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
-                    </div>
-                    <div className="flex items-center gap-2 w-full">
-                      <div className="size-3 rounded-full border-2 border-[#695be6]/30" />
-                      <div className="flex-1 h-1.5 bg-[#695be6]/20 rounded" />
-                    </div>
-                    <div className="w-full h-8 bg-[#695be6]/20 rounded-lg" />
-                  </div>
-                  <div className="absolute -bottom-3 -right-3 size-10 bg-[#695be6] rounded-xl flex items-center justify-center shadow-lg">
-                    <span className="material-symbols-outlined text-white text-lg">chat</span>
-                  </div>
+                <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-4">
+                  <span className="material-symbols-outlined text-[#695be6] text-5xl">quiz</span>
                 </div>
-                <h3 className="font-black text-xl mb-2">Your generated questions will appear here</h3>
-                <p className="text-sm text-gray-400 mb-6">
-                  Customize the parameters on the left to start generating high-quality assessments and solutions.
-                </p>
-                <div className="flex gap-6">
-                  {[
-                    { icon: "check_circle", label: "ACCURATE" },
-                    { icon: "bolt",         label: "FAST" },
-                    { icon: "auto_awesome", label: "SMART" },
-                  ].map((f) => (
-                    <div key={f.label} className="flex flex-col items-center gap-1">
-                      <span className="material-symbols-outlined text-gray-300 text-2xl">{f.icon}</span>
-                      <span className="text-[10px] font-bold text-gray-400">{f.label}</span>
-                    </div>
-                  ))}
-                </div>
+                <h3 className="font-black text-xl mb-2">Your questions will appear here</h3>
+                <p className="text-sm text-gray-400">Configure the settings and click Generate to create high-quality quiz questions with answer keys.</p>
               </div>
             )}
 
             {!generating && questions.length > 0 && (
-              <div className="p-5 space-y-4 overflow-y-auto max-h-[600px]">
-                {questions.map((q, i) => (
-                  <div key={q.id || i} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-start gap-3 mb-2">
-                      <span className="size-6 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-bold flex items-center justify-center shrink-0">{i+1}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-bold bg-[#695be6]/10 text-[#695be6] px-2 py-0.5 rounded-full">{q.answer_type?.toUpperCase()}</span>
-                          <span className="text-[10px] text-gray-400">{q.max_points} pt{q.max_points > 1 ? "s" : ""}</span>
-                        </div>
-                        <p className="text-sm font-medium text-gray-800">{q.question_text}</p>
+              <div className="p-5 space-y-4 overflow-y-auto max-h-[700px]">
+                {/* Summary bar */}
+                <div className="flex items-center gap-3 bg-[#695be6]/5 rounded-xl p-3 text-xs">
+                  <span className="font-bold text-[#695be6]">{questions.length} Questions</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-600">{questions.reduce((s,q)=>s+(q.max_points||q.marks||1),0)} Total Marks</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-600">{[...new Set(questions.map(q=>q.answer_type||q.type))].join(", ")}</span>
+                </div>
+
+                {questions.map((q, i) => {
+                  const qType = (q.answer_type || q.type || "mcq").toLowerCase();
+                  const isCorrect = (opt) => opt.is_correct;
+                  return (
+                    <div key={q.id || i} className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 border-b border-gray-200">
+                        <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
+                        <span className="text-[10px] font-bold bg-[#695be6]/10 text-[#695be6] px-2 py-0.5 rounded-full">{qType.toUpperCase()}</span>
+                        {q.blooms_level && <span className="text-[10px] text-gray-400">Bloom's: {q.blooms_level}</span>}
+                        {q.difficulty && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto ${q.difficulty==="Easy"?"bg-green-100 text-green-700":q.difficulty==="Hard"?"bg-red-100 text-red-700":"bg-amber-100 text-amber-700"}`}>{q.difficulty}</span>}
+                        <span className="text-[10px] font-bold text-[#695be6] ml-auto">{q.max_points||q.marks||1} pt</span>
+                      </div>
+                      <div className="p-4">
+                        <p className="text-sm font-semibold text-gray-800 mb-3">{q.question_text||q.text}</p>
+                        {/* MCQ options */}
+                        {(q.options||[]).length > 0 && (
+                          <div className="grid grid-cols-1 gap-1.5 mb-3">
+                            {q.options.map((opt, j) => (
+                              <div key={j} className={`text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${isCorrect(opt)?"border-green-300 bg-green-50 text-green-800 font-bold":"border-gray-100 text-gray-600"}`}>
+                                <span className={`size-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isCorrect(opt)?"border-green-500 bg-green-500":"border-gray-300"}`}>
+                                  {isCorrect(opt) && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                                </span>
+                                <span>{opt.label && `${opt.label}. `}{opt.text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Short/Long answer rubric */}
+                        {q.marking_rubric?.length > 0 && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                            <p className="text-xs font-bold text-blue-800 mb-2">Marking Rubric</p>
+                            {q.marking_rubric.map((r, ri) => (
+                              <div key={ri} className="flex items-start gap-2 text-xs mb-1">
+                                <span className="text-blue-600 font-bold flex-shrink-0">{r.marks}m</span>
+                                <span className="text-gray-700">{r.criterion}: {r.descriptor}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {q.sample_answer && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
+                            <p className="text-xs font-bold text-green-800 mb-1">Model Answer</p>
+                            <p className="text-xs text-gray-700">{q.sample_answer}</p>
+                          </div>
+                        )}
+                        {q.explanation && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                            <p className="text-xs font-bold text-amber-800 mb-1">Explanation</p>
+                            <p className="text-xs text-gray-700">{q.explanation}</p>
+                          </div>
+                        )}
+                        {q.hint && <p className="text-xs text-amber-600 flex items-center gap-1 mt-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>}
+                        {q.common_errors?.length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase">Common Errors</p>
+                            {q.common_errors.map((e,ei)=><p key={ei} className="text-xs text-red-600 flex items-start gap-1 mt-0.5"><span className="text-red-400 flex-shrink-0">⚠</span>{e}</p>)}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {q.options?.length > 0 && (
-                      <div className="ml-9 grid grid-cols-2 gap-1.5">
-                        {q.options.map((opt, j) => (
-                          <div key={j} className={`text-xs px-3 py-1.5 rounded-lg border ${opt.is_correct ? "border-green-300 bg-green-50 text-green-700 font-bold" : "border-gray-100 text-gray-600"}`}>
-                            {opt.text}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {q.hint && <p className="ml-9 mt-2 text-xs text-amber-600 flex items-center gap-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

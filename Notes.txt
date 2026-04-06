@@ -1,4 +1,115 @@
-Student: phone 9876543210, OTP 1234
-Parent: 9876543211 / 1234
-Teacher: 9876543212 / 1234
-School Admin: 9876543213 / 1234
+Here are all the test credentials from the seed data:
+
+School Admin
+
+email: admin@school.com / password: admin123
+Teachers
+
+john.doe@school.com / teacher123
+jane.smith@school.com / teacher123
+robert.j@school.com / teacher123
+Parents (email login)
+
+bob.johnson@parent.com / parent123
+diana.brown@parent.com / parent123 (has 3 children)
+frank.wilson@parent.com / parent123
+Students (OTP-based login via phone number)
+
+Alice Johnson → 1111111111
+Charlie Brown → 3333333333
+Emma Wilson → 5555555555
+George Davis → 7777777777
+Ivy Martinez → 9999999999
+Kevin Lee → 1010101010
+Lucy Chen → 1212121212
+Students use phone-based OTP login, not email/password. When running locally with DEBUG=true in .env, the OTP is returned directly in the response as dev_otp.
+
+
+=== RECENT UPDATES ===
+
+STUDENT PAGES - FULLY COMPLETE ✅
+
+1. STUDENTS LIST PAGE (/teacher/students)
+   ✅ Parent button clickable - shows parent's first name
+   ✅ Parent button navigates to /teacher/communication?parent={parent_id}
+   ✅ Parent button disabled with gray styling if no parent
+   ✅ More Actions dropdown working with options:
+      - View Profile
+      - View Submissions
+      - Message Parent
+      - View Learning Gaps
+      - Export Report
+   ✅ Homework button navigates to /teacher/students/{student_id}
+   ✅ Shows student stats: homework completion, avg score, attendance
+
+2. STUDENT DETAIL PAGE (/teacher/students/:studentId)
+   ✅ Fetches actual student profile from backend
+   ✅ Shows student name in header
+   ✅ Assign Homework modal working
+   
+   HOMEWORK TAB:
+   ✅ Shows only that student's homework
+   ✅ Status-based CTAs:
+      - Pending: "View Details" (purple)
+      - Submitted: "Review Submission" (blue)
+      - Graded: "View Grade" (green)
+   
+   SUBMISSIONS TAB:
+   ✅ Shows all student submissions
+   ✅ Displays submission date, status, score
+   ✅ View Submission button
+   ✅ Download files button (if files attached)
+   
+   PROFILE TAB:
+   ✅ Personal Information card
+   ✅ Parent Information card with "Contact Parent" button
+   ✅ Academic Performance with overall stats
+   ✅ Subject-wise performance bars
+   ✅ Learning Gaps list (if any)
+   ✅ Recent Activity timeline
+
+3. ALL SUBMISSIONS PAGE (/teacher/submissions) - NEW!
+   ✅ Shows ALL submissions from ALL students
+   ✅ Filter by: All / Pending Review / Graded
+   ✅ Search by student name or homework title
+   ✅ Each submission card shows:
+      - Student name and avatar
+      - Homework title and subject
+      - Submission date and time
+      - Status badge (Pending/Graded)
+      - Score (if graded)
+      - File attachments count
+   ✅ Actions per submission:
+      - Review Submission / View Grade button
+      - View Student Profile button
+      - Download Files button (if files attached)
+   ✅ Fixed Teacher Home "Submissions" button to navigate here
+
+4. BACKEND ENDPOINTS ADDED
+   ✅ GET /teacher/students/{student_id}/profile
+      - Returns complete student profile
+      - Includes parent info, homework stats, subject performance
+      - Includes learning gaps and recent activity
+   
+   ✅ GET /teacher/students/{student_id}/submissions
+      - Returns all submissions with filtering
+      - Includes homework details, scores, files
+   
+   ✅ GET /teacher/submissions - NEW!
+      - Returns ALL submissions for teacher's homework
+      - Includes student name, homework title, status, scores
+      - Sorted by submission date (newest first)
+   
+   ✅ GET /teacher/students/by-class (enhanced)
+      - Now returns parent_id, parent_name, parent_email
+      - Includes homework stats and avg score
+   
+   ✅ GET /teacher/students/{student_id}/homework (existing)
+      - Returns homework for specific student only
+
+5. SEED DATA FIXED
+   ✅ Changed parent_id to parent_ids (array)
+   ✅ Proper parent-student matching
+   ✅ Re-ran seed successfully
+
+ALL FEATURES WORKING - READY FOR TESTING

@@ -111,6 +111,15 @@ export const updateParent = createAsyncThunk("schoolAdmin/updateParent", async (
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchPerformanceTrends = createAsyncThunk("schoolAdmin/fetchPerformanceTrends", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/schooladmin/performance-trends")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+export const fetchLearningGapsSummary = createAsyncThunk("schoolAdmin/fetchLearningGapsSummary", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/schooladmin/learning-gaps-summary")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 // ── Analytics ─────────────────────────────────────────────────
 export const fetchPerformanceMatrix = createAsyncThunk("schoolAdmin/fetchPerformanceMatrix", async (_, { rejectWithValue }) => {
   try { return (await api.get("/schooladmin/performance-matrix")).data; }
@@ -171,6 +180,8 @@ const schoolAdminSlice = createSlice({
     weakTopics:        [], weakTopicsStatus:    "idle",
     teacherSupport:    [], teacherSupportStatus:"idle",
     auditLogs:         [], auditLogsStatus:     "idle",
+    performanceTrends: [], trendsStatus:        "idle",
+    gapsSummary:       null, gapsSummaryStatus: "idle",
     mutationStatus:    "idle",
     mutationError:     null,
   },
@@ -198,6 +209,8 @@ const schoolAdminSlice = createSlice({
     add(fetchWeakTopics,        "weakTopicsStatus",   "weakTopics");
     add(fetchTeacherSupport,    "teacherSupportStatus","teacherSupport");
     add(fetchAuditLogs,         "auditLogsStatus",    "auditLogs");
+    add(fetchPerformanceTrends, "trendsStatus",       "performanceTrends");
+    add(fetchLearningGapsSummary,"gapsSummaryStatus", "gapsSummary");
 
     // Mutations — update local lists optimistically after success
     [createGrade, updateGrade, deleteGrade,
@@ -234,6 +247,8 @@ export const selectCurriculumTracker = (s) => s.schoolAdmin.curriculumTracker;
 export const selectWeakTopics        = (s) => s.schoolAdmin.weakTopics;
 export const selectTeacherSupport    = (s) => s.schoolAdmin.teacherSupport;
 export const selectAuditLogs         = (s) => s.schoolAdmin.auditLogs;
+export const selectPerformanceTrends = (s) => s.schoolAdmin.performanceTrends;
+export const selectGapsSummary       = (s) => s.schoolAdmin.gapsSummary;
 export const selectMutationStatus    = (s) => s.schoolAdmin.mutationStatus;
 export const selectMutationError     = (s) => s.schoolAdmin.mutationError;
 

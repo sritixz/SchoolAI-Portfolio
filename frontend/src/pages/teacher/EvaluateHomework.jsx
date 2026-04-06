@@ -141,7 +141,33 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
               </a>
             : <p className="text-sm text-gray-400 italic">No file uploaded</p>
         ) : (
-          <p className="text-sm text-gray-700">{answer?.answer || <span className="italic text-gray-400">No answer</span>}</p>
+          <div>
+            {answer?.answer != null ? (
+              <div className="flex items-center gap-2">
+                {/* If MCQ, show the option text */}
+                {q?.options && typeof answer.answer === "number" ? (
+                  <span className="text-sm text-gray-700">
+                    <span className="font-bold text-[#695be6]">Option {answer.answer + 1}:</span>{" "}
+                    {q.options[answer.answer] ?? `Choice ${answer.answer}`}
+                  </span>
+                ) : (
+                  <p className="text-sm text-gray-700">{String(answer.answer)}</p>
+                )}
+                {/* Correct/wrong indicator */}
+                {q?.correct != null && (
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                    answer.answer === q.correct
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}>
+                    {answer.answer === q.correct ? "Correct" : `Correct: Option ${q.correct + 1}`}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="italic text-gray-400 text-sm">No answer</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -286,7 +312,21 @@ export default function EvaluateHomework() {
   const stats = data?.stats || {};
   const qMap = Object.fromEntries((hw?.questions || []).map((q) => [q.id, q]));
   const aiQMap = Object.fromEntries((selected?.ai_analysis?.question_analysis || []).map((q) => [q.question_id, q]));
-  const ansMap = Object.fromEntries((selected?.answers || []).map((a) => [a.question_id, a]));
+  // answers can be an object {qid: chosenIndex} or an array [{question_id, answer}]
+  const rawAnswers = selected?.answers;
+  const ansMap = (() => {
+    if (!rawAnswers) return {};
+    if (Array.isArray(rawAnswers)) {
+      return Object.fromEntries(rawAnswers.map((a) => [a.question_id, a]));
+    }
+    // Plain object: {qid: chosenIndex} — normalize to {qid: {answer: chosenIndex}}
+    return Object.fromEntries(
+      Object.entries(rawAnswers).map(([qid, val]) => [
+        qid,
+        typeof val === "object" && val !== null ? val : { answer: val }
+      ])
+    );
+  })();
 
   return (
     <div className="min-h-screen bg-[#faf9ff]" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -295,7 +335,7 @@ export default function EvaluateHomework() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/teacher/homework")} className="p-2 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-500">arrow_back</span>
             </button>
             <div>

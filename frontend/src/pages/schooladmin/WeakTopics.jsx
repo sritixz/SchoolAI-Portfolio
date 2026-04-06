@@ -13,9 +13,10 @@ export default function WeakTopics() {
     dispatch(fetchWeakTopics());
   }, [dispatch]);
 
-  // weak-topics endpoint returns aggregated pipeline results — array of {_id, count, avg_score}
-  // Fall back to static display if empty
-  const hasData = weakTopicsRaw.length > 0;
+  // API now returns { gap_topics: [...], low_score_topics: [...] }
+  const gapTopics = weakTopicsRaw?.gap_topics || (Array.isArray(weakTopicsRaw) ? weakTopicsRaw : []);
+  const lowScoreTopics = weakTopicsRaw?.low_score_topics || [];
+  const hasData = gapTopics.length > 0 || lowScoreTopics.length > 0;
 
   return (
     <AdminLayout active="/schooladmin/weak-topics">
@@ -41,44 +42,79 @@ export default function WeakTopics() {
                 <p className="text-sm mt-1">Weak topics will appear here once students submit homework.</p>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-gray-100">
-                  <p className="font-bold text-sm">Topics by Struggle Rate</p>
-                </div>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left p-3 text-xs font-bold text-gray-500">TOPIC</th>
-                      <th className="p-3 text-center text-xs font-bold text-gray-500">SUBMISSIONS</th>
-                      <th className="p-3 text-center text-xs font-bold text-gray-500">AVG SCORE</th>
-                      <th className="p-3 text-center text-xs font-bold text-gray-500">STATUS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weakTopicsRaw.map((row, i) => {
-                      const score = Math.round((row.avg_score || 0) * 100);
-                      const status = score < 50 ? "Critical" : score < 70 ? "At Risk" : "OK";
-                      const statusColor = score < 50 ? "bg-red-100 text-red-700" : score < 70 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700";
-                      return (
-                        <tr key={i} className="border-t border-gray-100">
-                          <td className="p-3 font-medium text-[#100e1a]">{row._id || "Unknown"}</td>
-                          <td className="p-3 text-center font-bold">{row.count}</td>
-                          <td className="p-3 text-center">
-                            <div className="flex items-center gap-2 justify-center">
-                              <div className="w-16 h-2 bg-gray-100 rounded-full">
-                                <div className={`h-2 rounded-full ${score < 50 ? "bg-red-400" : score < 70 ? "bg-yellow-400" : "bg-green-400"}`} style={{ width: `${score}%` }} />
-                              </div>
-                              <span className="font-black text-sm">{score}%</span>
-                            </div>
-                          </td>
-                          <td className="p-3 text-center">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>{status}</span>
-                          </td>
+              <div className="space-y-4">
+                {gapTopics.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="font-bold text-sm">Learning Gap Topics</p>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="text-left p-3 text-xs font-bold text-gray-500">TOPIC</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">SUBJECT</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">STUDENTS AFFECTED</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">STATUS</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody>
+                        {gapTopics.map((row, i) => (
+                          <tr key={i} className="border-t border-gray-100">
+                            <td className="p-3 font-medium text-[#100e1a]">{row.topic || "Unknown"}</td>
+                            <td className="p-3 text-center text-gray-500">{row.subject || "—"}</td>
+                            <td className="p-3 text-center font-bold">{row.affected_students}</td>
+                            <td className="p-3 text-center">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${row.affected_students > 5 ? "bg-red-100 text-red-700" : row.affected_students > 2 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
+                                {row.affected_students > 5 ? "Critical" : row.affected_students > 2 ? "At Risk" : "Monitor"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {lowScoreTopics.length > 0 && (
+                  <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="font-bold text-sm">Low Score Topics (from Homework)</p>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="text-left p-3 text-xs font-bold text-gray-500">TOPIC</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">SUBMISSIONS</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">AVG SCORE</th>
+                          <th className="p-3 text-center text-xs font-bold text-gray-500">STATUS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lowScoreTopics.map((row, i) => {
+                          const score = row.avg_score || 0;
+                          const status = score < 50 ? "Critical" : score < 70 ? "At Risk" : "OK";
+                          const statusColor = score < 50 ? "bg-red-100 text-red-700" : score < 70 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700";
+                          return (
+                            <tr key={i} className="border-t border-gray-100">
+                              <td className="p-3 font-medium text-[#100e1a]">{row.topic || "Unknown"}</td>
+                              <td className="p-3 text-center font-bold">{row.count}</td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center gap-2 justify-center">
+                                  <div className="w-16 h-2 bg-gray-100 rounded-full">
+                                    <div className={`h-2 rounded-full ${score < 50 ? "bg-red-400" : score < 70 ? "bg-yellow-400" : "bg-green-400"}`} style={{ width: `${score}%` }} />
+                                  </div>
+                                  <span className="font-black text-sm">{score}%</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}`}>{status}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

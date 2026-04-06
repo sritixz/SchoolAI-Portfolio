@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "../../context/AuthContext";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   conceptExplainerDefaults,
@@ -8,10 +9,13 @@ import {
   explanationStyles,
   includeElementOptions,
 } from "../../data/teacher/conceptExplainerData";
+import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
+import { downloadConceptPdf } from "../../utils/aiPdfExport";
 
 export default function ConceptExplainer() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
+  const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(conceptExplainerDefaults);
@@ -26,9 +30,10 @@ export default function ConceptExplainer() {
       includeElements: { ...p.includeElements, [id]: !p.includeElements[id] },
     }));
 
+  const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
     dispatch(clearAiToolResult());
-    dispatch(runAiTool({
+    runTool({
       tool: "concept",
       subject: "General",
       topic: form.concept,
@@ -38,7 +43,7 @@ export default function ConceptExplainer() {
         simplify: form.simplifyForStruggling,
         include: Object.entries(form.includeElements).filter(([,v]) => v).map(([k]) => k),
       },
-    }));
+    }, { tool: "concept", title: `Concept: ${form.concept}`, topic: form.concept, grade: form.targetAudience });
   };
 
   return (
@@ -60,7 +65,7 @@ export default function ConceptExplainer() {
             <div className="relative p-2 hover:bg-gray-100 rounded-lg cursor-pointer">
               <span className="material-symbols-outlined text-gray-600">notifications</span>
             </div>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">P</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
           </div>
         </div>
       </header>
@@ -227,32 +232,137 @@ export default function ConceptExplainer() {
                 </>
               )}
               {!generating && generated && aiResult && (
-                <div className="text-left w-full space-y-3">
-                  <h3 className="font-black text-lg text-[#695be6]">{form.concept}</h3>
-                  {aiResult.explanation && (
-                    <p className="text-sm text-gray-700 leading-relaxed">
-                      <strong>For {form.targetAudience}:</strong> {aiResult.explanation}
-                    </p>
-                  )}
-                  {aiResult.analogy && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs font-bold text-blue-700 mb-1">Analogy</p>
-                      <p className="text-xs text-gray-600">{aiResult.analogy}</p>
+                <div className="text-left w-full space-y-4 overflow-y-auto max-h-[75vh] pr-1">
+                  {/* Header */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-black text-lg text-[#695be6]">{aiResult.concept || form.concept}</h3>
+                      {aiResult.one_line_summary && <p className="text-xs text-gray-500 italic mt-0.5">{aiResult.one_line_summary}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                        className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-2 py-1 rounded-lg hover:bg-gray-50">
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                      </button>
+                      <button onClick={() => downloadConceptPdf(aiResult)}
+                        className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-[#5a4dd4]">
+                        <span className="material-symbols-outlined text-sm">download</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Plain English */}
+                  {aiResult.plain_english_explanation && (
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-1">Plain English Explanation</p>
+                      <p className="text-sm text-gray-700 leading-relaxed">{aiResult.plain_english_explanation}</p>
                     </div>
                   )}
-                  {aiResult.key_points?.length > 0 && (
+                  {/* Fallback */}
+                  {!aiResult.plain_english_explanation && aiResult.explanation && (
+                    <p className="text-sm text-gray-700 leading-relaxed">{aiResult.explanation}</p>
+                  )}
+
+                  {/* Primary Analogy */}
+                  {(aiResult.primary_analogy || aiResult.analogy) && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-700 mb-1">Primary Analogy</p>
+                      {aiResult.primary_analogy ? (
+                        <>
+                          <p className="text-sm font-semibold text-gray-800 mb-1">{aiResult.primary_analogy.analogy}</p>
+                          <p className="text-xs text-gray-600">{aiResult.primary_analogy.explanation}</p>
+                          {aiResult.primary_analogy.limitations && (
+                            <p className="text-xs text-amber-700 mt-1 italic">⚠ Limitation: {aiResult.primary_analogy.limitations}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-gray-600">{aiResult.analogy}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Real-world examples */}
+                  {aiResult.real_world_examples?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Real-World Examples</p>
+                      <div className="space-y-2">
+                        {aiResult.real_world_examples.map((ex, i) => (
+                          <div key={i} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p className="text-xs font-bold text-green-800">{ex.example}</p>
+                            <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Common Misconceptions */}
+                  {aiResult.common_misconceptions?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Common Misconceptions</p>
+                      <div className="space-y-2">
+                        {aiResult.common_misconceptions.map((m, i) => (
+                          <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
+                            <p className="text-xs text-green-700 font-semibold mb-1">✅ {m.correction}</p>
+                            {m.how_to_address && <p className="text-xs text-gray-600 italic">{m.how_to_address}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key Vocabulary */}
+                  {(aiResult.key_vocabulary?.length > 0 || aiResult.key_points?.length > 0) && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                      <p className="text-xs font-bold text-yellow-700 mb-2">Key Points</p>
+                      <p className="text-xs font-bold text-yellow-700 mb-2">Key Vocabulary / Points</p>
+                      {aiResult.key_vocabulary?.length > 0 ? (
+                        <div className="space-y-1">
+                          {aiResult.key_vocabulary.map((v, i) => (
+                            <p key={i} className="text-xs text-gray-700"><strong className="text-[#695be6]">{v.term}</strong>: {v.definition}</p>
+                          ))}
+                        </div>
+                      ) : (
+                        <ul className="space-y-1">
+                          {aiResult.key_points.map((pt, i) => (
+                            <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
+                              <span className="size-1.5 rounded-full bg-yellow-500 mt-1.5 shrink-0" />{pt}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Discussion Questions */}
+                  {aiResult.discussion_questions?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Discussion Questions</p>
+                      <div className="space-y-1">
+                        {aiResult.discussion_questions.map((q, i) => (
+                          <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                            <span className="text-[#695be6] font-bold flex-shrink-0">Q{i+1}.</span>{q}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Teaching Tips */}
+                  {aiResult.teaching_tips?.length > 0 && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-purple-700 mb-2">Teaching Tips</p>
                       <ul className="space-y-1">
-                        {aiResult.key_points.map((pt, i) => (
+                        {aiResult.teaching_tips.map((t, i) => (
                           <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
-                            <span className="size-1.5 rounded-full bg-yellow-500 mt-1.5 shrink-0" />{pt}
+                            <span className="material-symbols-outlined text-purple-500 text-sm flex-shrink-0">tips_and_updates</span>{t}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {!aiResult.explanation && aiResult.content && (
+
+                  {!aiResult.plain_english_explanation && !aiResult.explanation && aiResult.content && (
                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{aiResult.content}</p>
                   )}
                 </div>

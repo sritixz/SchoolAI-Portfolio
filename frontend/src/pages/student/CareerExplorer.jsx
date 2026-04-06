@@ -1,8 +1,26 @@
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 import { CAREER_DOMAINS } from "../../data/careerData";
+import SearchBar from "../../components/SearchBar";
 
 export default function CareerExplorer() {
   const navigate = useNavigate();
+  const [domains, setDomains] = useState(CAREER_DOMAINS);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    api.get("/career/domains").then((r) => {
+      if (r.data?.length) setDomains(r.data);
+    }).catch(() => {});
+  }, []);
+
+  const filtered = domains.filter(
+    (d) =>
+      !search ||
+      d.label.toLowerCase().includes(search.toLowerCase()) ||
+      (d.description || "").toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -17,10 +35,14 @@ export default function CareerExplorer() {
             <h2 className="text-xl font-extrabold tracking-tight text-[#695be6]">CareerPath AI</h2>
           </div>
           <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#695be6]/60">search</span>
-              <input className="w-full bg-[#695be6]/5 border-none rounded-full py-2.5 pl-12 pr-4 focus:ring-2 focus:ring-[#695be6]/20 text-sm placeholder:text-[#695be6]/40" placeholder="Search industries or roles..." />
-            </div>
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search industries or roles..."
+              resultCount={search ? filtered.length : undefined}
+              className="bg-[#695be6]/5 border-[#695be6]/20 rounded-full"
+              width="w-full"
+            />
           </div>
           <div className="flex items-center gap-3">
             <button className="p-2.5 rounded-full bg-[#695be6]/5 text-[#695be6] hover:bg-[#695be6]/10 transition-colors">
@@ -45,7 +67,7 @@ export default function CareerExplorer() {
 
         {/* Domain grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-          {CAREER_DOMAINS.map((domain) => (
+          {filtered.map((domain) => (
             <Link
               key={domain.id}
               to={`/student/career/${domain.id}`}

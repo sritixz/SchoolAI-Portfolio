@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import GlobalLoader from "./components/GlobalLoader";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
 import StudentHome from "./pages/student/Home";
@@ -14,6 +15,7 @@ import GapRemediation from "./pages/student/GapRemediation";
 import GapQuiz from "./pages/student/GapQuiz";
 import Portfolio from "./pages/student/Portfolio";
 import ExamPrep from "./pages/student/ExamPrep";
+import StudentNotifications from "./pages/student/Notifications";
 import CareerExplorer from "./pages/student/CareerExplorer";
 import CareerCategory from "./pages/student/CareerCategory";
 import CareerDetail from "./pages/student/CareerDetail";
@@ -26,6 +28,7 @@ import ParentSupportAlerts from "./pages/parents/SupportAlerts";
 import ParentGrowthPortfolio from "./pages/parents/GrowthPortfolio";
 import ParentCuriosityPrompts from "./pages/parents/CuriosityPrompts";
 import ParentLearningProfile from "./pages/parents/LearningProfile";
+import ParentRequestMeeting from "./pages/parents/RequestMeeting";
 import TeacherHome from "./pages/teacher/Home";
 import TeacherAIAssistant from "./pages/teacher/AIAssistant";
 import TeacherInterventions from "./pages/teacher/InterventionAlerts";
@@ -39,8 +42,10 @@ import TeacherRootCause from "./pages/teacher/RootCauseAnalysis";
 import TeacherQuizGenerator from "./pages/teacher/QuizGenerator";
 import TeacherWorksheetGenerator from "./pages/teacher/WorksheetGenerator";
 import TeacherCreateTest from "./pages/teacher/CreateTest";
-import TeacherCreateHomework from "./pages/teacher/CreateHomework";
 import TeacherDiffHomework from "./pages/teacher/DifferentiatedHomework";
+import TeacherStudents from "./pages/teacher/Students";
+import TeacherStudentDetail from "./pages/teacher/StudentDetail";
+import TeacherSubmissions from "./pages/teacher/Submissions";
 import TeacherGradingAssistant from "./pages/teacher/GradingAssistant";
 import TeacherLessonPlan from "./pages/teacher/LessonPlanCreator";
 import TeacherConceptExplainer from "./pages/teacher/ConceptExplainer";
@@ -62,6 +67,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <GlobalLoader />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/change-password" element={<ChangePassword />} />
@@ -78,6 +84,7 @@ export default function App() {
           <Route path="/student/learning-gaps/quiz/:quizId"   element={<S><GapQuiz /></S>} />
           <Route path="/student/portfolio"                    element={<S><Portfolio /></S>} />
           <Route path="/student/exam-prep"                    element={<S><ExamPrep /></S>} />
+          <Route path="/student/notifications"               element={<S><StudentNotifications /></S>} />
           <Route path="/student/career"                       element={<S><CareerExplorer /></S>} />
           <Route path="/student/career/:domainId"             element={<S><CareerCategory /></S>} />
           <Route path="/student/career/:domainId/:careerId"   element={<S><CareerDetail /></S>} />
@@ -92,6 +99,7 @@ export default function App() {
           <Route path="/parent/portfolio"           element={<S role="parent"><ParentGrowthPortfolio /></S>} />
           <Route path="/parent/curiosity"           element={<S role="parent"><ParentCuriosityPrompts /></S>} />
           <Route path="/parent/learning-profile"    element={<S role="parent"><ParentLearningProfile /></S>} />
+          <Route path="/parent/meeting"             element={<S role="parent"><ParentRequestMeeting /></S>} />
 
           {/* Teacher */}
           <Route path="/teacher"                          element={<S role="teacher"><TeacherHome /></S>} />
@@ -103,8 +111,10 @@ export default function App() {
           <Route path="/teacher/homework"                 element={<S role="teacher"><TeacherHomeworkLibrary /></S>} />
           <Route path="/teacher/homework/preview/:id"     element={<S role="teacher"><TeacherHomeworkPreview /></S>} />
           <Route path="/teacher/homework/create"          element={<S role="teacher"><TeacherCreateTest /></S>} />
-          <Route path="/teacher/homework/new"             element={<S role="teacher"><TeacherCreateHomework /></S>} />
           <Route path="/teacher/homework/differentiated"  element={<S role="teacher"><TeacherDiffHomework /></S>} />
+          <Route path="/teacher/students"                 element={<S role="teacher"><TeacherStudents /></S>} />
+          <Route path="/teacher/students/:studentId"      element={<S role="teacher"><TeacherStudentDetail /></S>} />
+          <Route path="/teacher/submissions"              element={<S role="teacher"><TeacherSubmissions /></S>} />
           <Route path="/teacher/ai-assistant/grading"     element={<S role="teacher"><TeacherGradingAssistant /></S>} />
           <Route path="/teacher/ai-assistant/lesson-plan" element={<S role="teacher"><TeacherLessonPlan /></S>} />
           <Route path="/teacher/ai-assistant/concept"     element={<S role="teacher"><TeacherConceptExplainer /></S>} />

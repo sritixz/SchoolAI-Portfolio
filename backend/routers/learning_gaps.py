@@ -20,11 +20,24 @@ async def get_gaps(user=Depends(require_role("student")), db=Depends(get_db)):
 
 @router.get("/health")
 async def gap_health(user=Depends(require_role("student")), db=Depends(get_db)):
-    total = await db.learning_gaps.count_documents({"student_id": user["id"]})
+    total    = await db.learning_gaps.count_documents({"student_id": user["id"]})
     resolved = await db.learning_gaps.count_documents({"student_id": user["id"], "resolved": True})
     critical = await db.learning_gaps.count_documents({"student_id": user["id"], "severity": "critical", "resolved": False})
-    score = max(0, 100 - (critical * 15) - ((total - resolved) * 5))
-    return {"score": score, "total": total, "resolved": resolved, "critical": critical}
+    moderate = await db.learning_gaps.count_documents({"student_id": user["id"], "severity": "moderate", "resolved": False})
+    minor    = await db.learning_gaps.count_documents({"student_id": user["id"], "severity": "minor",    "resolved": False})
+    active   = total - resolved
+    score    = max(0, 100 - (critical * 15) - (moderate * 7) - (minor * 3))
+    return {
+        "score":              score,
+        "maxScore":           100,
+        "totalGaps":          active,
+        "totalGapsTrend":     "",
+        "resolvedGaps":       resolved,
+        "resolvedGapsTrend":  "",
+        "trend":              "",
+        "improvementMessage": f"You have {active} active gap{'s' if active != 1 else ''} to work on.",
+        "severity": {"critical": critical, "moderate": moderate, "minor": minor},
+    }
 
 @router.get("/{gap_id}")
 async def get_gap(gap_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
@@ -65,20 +78,26 @@ Return ONLY valid JSON: {{"explanation": "...", "examples": ["..."], "key_points
 
 @router.get("/quiz/{quiz_id}")
 async def get_quiz(quiz_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
-    try:
-        doc = await db.gap_quizzes.find_one({"_id": ObjectId(quiz_id)})
-    except Exception:
-        raise HTTPException(400, "Invalid quiz ID")
+    # Try string id field first (e.g. "quiz001"), then ObjectId
+    doc = await db.gap_quizzes.find_one({"id": quiz_id})
+    if not doc:
+        try:
+            doc = await db.gap_quizzes.find_one({"_id": ObjectId(quiz_id)})
+        except Exception:
+            pass
     if not doc:
         raise HTTPException(404, "Quiz not found")
     return _ser(doc)
 
 @router.post("/quiz/submit")
 async def submit_quiz(body: GapQuizSubmission, user=Depends(require_role("student")), db=Depends(get_db)):
-    try:
-        quiz = await db.gap_quizzes.find_one({"_id": ObjectId(body.quiz_id)})
-    except Exception:
-        raise HTTPException(400, "Invalid quiz ID")
+    # Support both string ids (e.g. "quiz001") and ObjectIds
+    quiz = await db.gap_quizzes.find_one({"id": body.quiz_id})
+    if not quiz:
+        try:
+            quiz = await db.gap_quizzes.find_one({"_id": ObjectId(body.quiz_id)})
+        except Exception:
+            pass
     if not quiz:
         raise HTTPException(404, "Quiz not found")
 

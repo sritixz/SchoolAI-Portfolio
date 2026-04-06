@@ -5,13 +5,20 @@ from models.portfolio import PortfolioEntry
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
+def _ser(doc):
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
 @router.get("/student")
 async def student_portfolio(user=Depends(require_role("student")), db=Depends(get_db)):
-    return await db.portfolio_entries.find({"student_id": user["id"]}).sort("_id", -1).to_list(None)
+    docs = await db.portfolio_entries.find({"student_id": user["id"]}).sort("_id", -1).to_list(None)
+    return [_ser(d) for d in docs]
 
 @router.get("/student/{student_id}")
 async def portfolio_by_id(student_id: str, user=Depends(require_role("teacher", "parent", "schooladmin")), db=Depends(get_db)):
-    return await db.portfolio_entries.find({"student_id": student_id}).sort("_id", -1).to_list(None)
+    docs = await db.portfolio_entries.find({"student_id": student_id}).sort("_id", -1).to_list(None)
+    return [_ser(d) for d in docs]
 
 @router.post("/")
 async def add_entry(entry: PortfolioEntry, user=Depends(require_role("teacher", "parent")), db=Depends(get_db)):

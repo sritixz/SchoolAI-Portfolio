@@ -41,6 +41,16 @@ export const addTask = createAsyncThunk("student/addTask", async ({ title, subje
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchStudentNotifications = createAsyncThunk("student/fetchNotifications", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/student/notifications")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const markStudentNotifRead = createAsyncThunk("student/markNotifRead", async (id, { rejectWithValue }) => {
+  try { await api.patch(`/student/notifications/${id}/read`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 const studentSlice = createSlice({
   name: "student",
   initialState: {
@@ -50,14 +60,13 @@ const studentSlice = createSlice({
     attendance:       null, attendanceStatus: "idle",
     mastery:          null, masteryStatus:    "idle",
     tasks:            [],   tasksStatus:      "idle",
+    notifications:    [],   notifStatus:      "idle",
   },
   reducers: {
-    // Optimistic toggle
     optimisticToggleTask(state, { payload: taskId }) {
       const t = state.tasks.find((t) => t.id === taskId || t._id === taskId);
       if (t) t.done = !t.done;
     },
-    // Optimistic add
     optimisticAddTask(state, { payload }) {
       state.tasks.push(payload);
     },
@@ -77,9 +86,14 @@ const studentSlice = createSlice({
      .addCase(fetchTasks.rejected,  (s) => { s.tasksStatus = "failed"; });
 
     b.addCase(addTask.fulfilled, (s, a) => {
-      // Replace optimistic entry with real one from server
       s.tasks = s.tasks.filter((t) => !t._optimistic);
       s.tasks.push(a.payload);
+    });
+
+    b.addCase(fetchStudentNotifications.fulfilled, (s, a) => { s.notifications = a.payload; s.notifStatus = "succeeded"; });
+    b.addCase(markStudentNotifRead.fulfilled, (s, a) => {
+      const n = s.notifications.find((n) => n._id === a.payload || n.id === a.payload);
+      if (n) n.read = true;
     });
   },
 });
@@ -93,5 +107,6 @@ export const selectAttendance      = (s) => s.student.attendance;
 export const selectMastery         = (s) => s.student.mastery;
 export const selectTasks           = (s) => s.student.tasks;
 export const selectTasksStatus     = (s) => s.student.tasksStatus;
+export const selectStudentNotifications = (s) => s.student.notifications;
 
 export default studentSlice.reducer;

@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 import { getDomainById, getDomainRows } from "../../data/careerData";
 
 // Gradient backgrounds per card index (cycling)
@@ -43,7 +45,19 @@ export default function CareerCategory() {
   const { domainId } = useParams();
   const navigate     = useNavigate();
   const domain       = getDomainById(domainId);
-  const rows         = getDomainRows(domainId);
+  const mockRows     = getDomainRows(domainId);
+  const [apiCareers, setApiCareers] = useState([]);
+
+  useEffect(() => {
+    api.get(`/career/${domainId}`).then((r) => {
+      if (r.data?.length) setApiCareers(r.data);
+    }).catch(() => {});
+  }, [domainId]);
+
+  // Build rows from API data or fall back to mock
+  const rows = apiCareers.length > 0
+    ? [{ id: "api_row", rowTitle: "Careers in this field", careers: apiCareers }]
+    : mockRows;
 
   if (!domain) {
     return (

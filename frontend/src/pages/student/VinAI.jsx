@@ -219,7 +219,7 @@ export default function VinAI() {
 
   const chatHistoryRef = useRef([]);
 
-  const history = historyStatus === "succeeded" && reduxHistory.length ? reduxHistory : DOUBT_HISTORY;
+  const history = historyStatus === "succeeded" ? reduxHistory : (historyStatus === "failed" ? DOUBT_HISTORY : []);
 
   useEffect(() => { dispatch(fetchDoubtHistory()); }, [dispatch]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, status]);

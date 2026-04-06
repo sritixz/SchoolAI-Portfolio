@@ -53,6 +53,11 @@ export const patchHomeworkQuestions = createAsyncThunk("homework/patchQuestions"
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const updateHomework = createAsyncThunk("homework/update", async ({ id, ...payload }, { rejectWithValue }) => {
+  try { return (await api.put(`/homework/${id}`, payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const assignHomework = createAsyncThunk("homework/assign", async (payload, { rejectWithValue }) => {
   try { return (await api.post("/homework/assign", payload)).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
@@ -99,7 +104,17 @@ const homeworkSlice = createSlice({
   },
   extraReducers: (b) => {
     b.addCase(fetchStudentHomework.pending,   (s) => { s.studentStatus = "loading"; })
-     .addCase(fetchStudentHomework.fulfilled, (s, a) => { s.studentStatus = "succeeded"; s.studentList = a.payload; })
+     .addCase(fetchStudentHomework.fulfilled, (s, a) => {
+       s.studentStatus = "succeeded";
+       // Deduplicate by id — backend may return duplicate records
+       const seen = new Set();
+       s.studentList = (a.payload || []).filter((hw) => {
+         const key = hw.id ?? hw._id;
+         if (seen.has(key)) return false;
+         seen.add(key);
+         return true;
+       });
+     })
      .addCase(fetchStudentHomework.rejected,  (s, a) => { s.studentStatus = "failed"; s.studentError = a.payload; });
 
     b.addCase(fetchHomeworkById.pending,   (s) => { s.currentStatus = "loading"; })

@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 
 // ── Portfolio data model (backend-ready) ─────────────────────
 const PORTFOLIO_DATA = {
@@ -110,7 +112,44 @@ const NAV_ITEMS = [
 export default function Portfolio() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const d = PORTFOLIO_DATA;
+  const [entries, setEntries] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const d = profile || PORTFOLIO_DATA;
+
+  useEffect(() => {
+    api.get("/portfolio/student").then((r) => {
+      if (r.data?.length) setEntries(r.data);
+    }).catch(() => {});
+    // Fetch full portfolio summary (grades, attendance, badges, extracurricular, IB profile)
+    api.get("/student/portfolio-summary").then((r) => {
+      if (r.data) setProfile(r.data);
+    }).catch(() => {});
+  }, []);
+
+  // Merge API entries into projects/appreciations
+  const apiProjects = entries.filter((e) => e.type === "project" || e.type === "parent_reflection");
+  const projects = apiProjects.length ? apiProjects.map((e) => ({
+    id: e._id,
+    title: e.title,
+    subject: e.subject || "General",
+    description: e.text || e.description || "",
+    grade: e.grade || "",
+    date: e.created_at ? new Date(e.created_at).toLocaleDateString() : "",
+    tags: e.tags || [],
+  })) : d.projects;
+
+  // Appreciations from API (teacher_note entries) or fall back to mock
+  const apiAppreciations = entries.filter((e) => e.type === "teacher_note" || e.type === "achievement");
+  const appreciations = apiAppreciations.length
+    ? apiAppreciations.map((e) => ({
+        id: e._id,
+        from: e.author || "Teacher",
+        role: e.type === "teacher_note" ? "Teacher" : "Achievement",
+        relativeTime: e.date || (e.created_at ? new Date(e.created_at).toLocaleDateString() : ""),
+        message: e.text || "",
+        stars: 0,
+      }))
+    : d.appreciations;
 
   return (
     <div className="min-h-screen bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -261,7 +300,7 @@ export default function Portfolio() {
                 Projects
               </h3>
               <div className="space-y-4">
-                {d.projects.map((p) => (
+                {projects.map((p) => (
                   <div key={p.id} className="p-4 border border-slate-100 rounded-xl hover:border-[#695be6]/30 transition-colors">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
@@ -332,7 +371,9 @@ export default function Portfolio() {
                 Appreciations
               </h3>
               <div className="space-y-8 relative before:absolute before:inset-y-0 before:left-5 before:w-px before:bg-gray-100">
-                {d.appreciations.map((ap) => (
+                {appreciations.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-4">No appreciations yet</p>
+                ) : appreciations.map((ap) => (
                   <div key={ap.id} className="relative pl-12">
                     {/* Avatar circle */}
                     <div className="absolute left-0 top-0 size-10 rounded-full border-4 border-white bg-[#695be6]/10 z-10 flex items-center justify-center shadow-sm">
@@ -360,10 +401,6 @@ export default function Portfolio() {
                   </div>
                 ))}
               </div>
-              <button className="w-full mt-6 py-2 text-[#695be6] font-bold text-sm hover:underline flex items-center justify-center gap-1">
-                View All Appreciations
-                <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </button>
             </div>
           </div>
         </div>
@@ -375,7 +412,7 @@ export default function Portfolio() {
           <span className="material-symbols-outlined text-[#695be6]">verified</span>
           <p className="text-xs font-medium">Verified by {user?.school}</p>
         </div>
-        <p className="text-xs">Last updated: March 27, 2026 · Academic Year 2025-26</p>
+        <p className="text-xs">Last updated: {new Date().toLocaleDateString()} · Academic Year {new Date().getFullYear() - 1}-{new Date().getFullYear()}</p>
       </footer>
 
       {/* ── Bottom Nav ── */}

@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   rootCauseStats,
   rootCauseTabs,
@@ -11,8 +15,92 @@ import {
 
 export default function RootCauseAnalysis() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const aiResult = useSelector(selectAiToolResult);
+  const aiStatus = useSelector(selectAiToolStatus);
   const [activeTab, setActiveTab] = useState("mapping");
   const [expandedGaps, setExpandedGaps] = useState({ pg1: true });
+
+  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+
+  const handleGenerateAiInsights = () => {
+    dispatch(runAiTool({
+      tool: "classreport",
+      subject: "Math",
+      topic: "Root Cause Analysis",
+      grade: "Grade 9",
+      extra: {
+        grade: "Grade 9",
+        subject: "Math",
+        topics: rootCauseStats.errorDistribution.map((d) => d.type),
+        students: [],
+        class_avg_per_topic: rootCauseStats.errorDistribution.map((d) => 100 - d.percent),
+        overall_avg: rootCauseStats.avgScore,
+        critical_topics: prerequisiteGaps.filter((g) => g.severity === "critical").map((g) => g.title),
+        struggling_topics: prerequisiteGaps.filter((g) => g.severity !== "critical").map((g) => g.title),
+      },
+    }));
+  };
+
+  const handleExport = () => {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth();
+    const PRIMARY = [105, 91, 230];
+
+    // Header
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 0, W, 24, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("Root Cause Analysis Report", 14, 14);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal");
+    doc.text(`Math › Chapter 5: Linear Equations  ·  Generated ${new Date().toLocaleDateString()}`, 14, 21);
+    doc.setTextColor(17, 17, 17);
+
+    let y = 32;
+
+    // Stats
+    autoTable(doc, {
+      startY: y,
+      head: [["Metric", "Value"]],
+      body: [
+        ["Students Analysed", rootCauseStats.studentsAnalysed],
+        ["Questions Reviewed", rootCauseStats.questionsReviewed],
+        ["Error Patterns Found", rootCauseStats.errorPatternsFound],
+        ["Avg Score", `${rootCauseStats.avgScore}%`],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: PRIMARY, textColor: [255,255,255], fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      margin: { left: 14, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Prerequisite Gaps
+    doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("Prerequisite Knowledge Gaps", 14, y); y += 5;
+    autoTable(doc, {
+      startY: y,
+      head: [["Gap", "Affected Students", "Severity", "Description"]],
+      body: prerequisiteGaps.map((g) => [g.title, `${g.affectedStudents} students`, g.severity, g.description]),
+      theme: "striped",
+      headStyles: { fillColor: PRIMARY, textColor: [255,255,255], fontSize: 8 },
+      bodyStyles: { fontSize: 8 },
+      margin: { left: 14, right: 14 },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // AI Insight
+    if (aiInsight) {
+      doc.setFontSize(10); doc.setFont("helvetica", "bold");
+      doc.text("AI Insight", 14, y); y += 5;
+      doc.setFontSize(8.5); doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(aiInsight.text || "", W - 28);
+      doc.text(lines, 14, y);
+    }
+
+    doc.save("root-cause-analysis.pdf");
+  };
   const [expandedIssues, setExpandedIssues] = useState({});
 
   const toggleGap = (id) => setExpandedGaps((p) => ({ ...p, [id]: !p[id] }));
@@ -46,8 +134,13 @@ export default function RootCauseAnalysis() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors">
+            <button onClick={handleExport} className="flex items-center gap-2 bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors">
               <span className="material-symbols-outlined text-base">download</span> Export Analysis Report
+            </button>
+            <button onClick={handleGenerateAiInsights} disabled={aiStatus === "loading"}
+              className="flex items-center gap-2 bg-white border border-[#695be6] text-[#695be6] text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#695be6]/5 transition-colors disabled:opacity-50">
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
+              {aiStatus === "loading" ? "Generating..." : "AI Insights"}
             </button>
             <div className="size-9 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
               <span className="material-symbols-outlined text-gray-400">person</span>
@@ -279,8 +372,18 @@ export default function RootCauseAnalysis() {
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-3">
                 <p className="text-xs text-gray-700">
                   <span className="font-bold text-[#695be6]">AI Insight: </span>
-                  {aiInsight}
+                  {aiResult?.summary || aiResult?.overall_assessment || (typeof aiInsight === "string" ? aiInsight : aiInsight?.text || "")}
                 </p>
+                {aiResult?.recommendations?.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {aiResult.recommendations.slice(0, 3).map((rec, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+                        <span className="material-symbols-outlined text-[#695be6] text-sm mt-0.5">tips_and_updates</span>
+                        {rec}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </div>

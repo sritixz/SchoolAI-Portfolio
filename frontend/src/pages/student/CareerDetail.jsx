@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 import { getCareerDetail, getDomainById } from "../../data/careerData";
 
 const OUTLOOK_COLORS = {
@@ -22,8 +24,15 @@ const SKILL_CATEGORY_COLOR = {
 export default function CareerDetail() {
   const { domainId, careerId } = useParams();
   const navigate = useNavigate();
-  const career   = getCareerDetail(careerId);
-  const domain   = getDomainById(domainId);
+  const mockCareer = getCareerDetail(careerId);
+  const domain     = getDomainById(domainId);
+  const [career, setCareer] = useState(mockCareer);
+
+  useEffect(() => {
+    api.get(`/career/${domainId}/${careerId}`).then((r) => {
+      if (r.data) setCareer(r.data);
+    }).catch(() => {});
+  }, [domainId, careerId]);
 
   if (!career) {
     return (

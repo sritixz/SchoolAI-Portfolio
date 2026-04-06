@@ -10,6 +10,7 @@ import {
   ErrorBox, SuccessBox, Input, Select, PrimaryBtn, DangerBtn,
   Badge, CsvUploadBox,
 } from "./shared";
+import SearchBar from "../../../components/SearchBar";
 
 export default function StudentsTab() {
   const dispatch = useDispatch();
@@ -101,14 +102,13 @@ export default function StudentsTab() {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2 flex-1 max-w-xs">
-          <span className="material-symbols-outlined text-gray-400 text-lg">search</span>
-          <input
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search students…"
-            className="bg-transparent text-sm outline-none w-full"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search students…"
+          resultCount={filtered.length}
+          width="max-w-xs flex-1"
+        />
         <div className="flex items-center gap-2 flex-wrap">
           <div className="w-44">
             <Select

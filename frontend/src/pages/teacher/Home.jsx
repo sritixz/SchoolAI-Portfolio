@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { teacherSchedule, dashboardStats, recentActivity, interventionStudents, recentSubmissions } from "../../data/teacherData";
+import { teacherSchedule, dashboardStats } from "../../data/teacherData";
 import {
   fetchTeacherDashboard, fetchSchedule, fetchInterventions,
   selectTeacherDashboard, selectSchedule, selectInterventions,
@@ -18,7 +18,7 @@ export default function TeacherHome() {
   const apiInterventions = useSelector(selectInterventions);
   const [stats,       setStats]       = useState(dashboardStats);
   const [schedule,    setSchedule]    = useState(teacherSchedule);
-  const [submissions, setSubmissions] = useState(recentSubmissions);
+  const [submissions, setSubmissions] = useState([]);
   const [menuOpen,    setMenuOpen]    = useState(false);
 
   useEffect(() => {
@@ -39,16 +39,17 @@ export default function TeacherHome() {
     // Wire recent submissions from API
     if (reduxDashboard.recent_submissions?.length) {
       setSubmissions(reduxDashboard.recent_submissions.map((s, i) => ({
-        id:         s.submission_id,
-        name:       s.student_name,
-        initials:   s.student_name?.split(" ").map((w) => w[0]).join("").slice(0, 2) || "??",
-        color:      ["orange", "pink", "blue", "purple", "green"][i % 5],
-        title:      s.homework_title,
-        status:     s.status === "graded"
-                      ? `Graded: ${s.auto_score_pct ?? "—"}%`
-                      : s.ai_analysed ? "AI Analysed" : "Needs Review",
-        timeAgo:    s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
-        autoGraded: s.status === "graded",
+        id:          s.submission_id,
+        homework_id: s.homework_id,
+        name:        s.student_name,
+        initials:    s.student_name?.split(" ").map((w) => w[0]).join("").slice(0, 2) || "??",
+        color:       ["orange", "pink", "blue", "purple", "green"][i % 5],
+        title:       s.homework_title,
+        status:      s.status === "graded"
+                       ? `Graded: ${s.auto_score_pct ?? "—"}%`
+                       : s.ai_analysed ? "AI Analysed" : "Needs Review",
+        timeAgo:     s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—",
+        autoGraded:  s.status === "graded",
       })));
     }
   }, [reduxDashboard]);
@@ -57,17 +58,15 @@ export default function TeacherHome() {
     if (Array.isArray(reduxSchedule) && reduxSchedule.length) setSchedule(reduxSchedule);
   }, [reduxSchedule]);
 
-  // Build intervention list: prefer API, fall back to mock
-  const displayInterventions = apiInterventions?.length
-    ? apiInterventions.slice(0, 4).map((a) => ({
-        id:       a._id || a.id,
-        name:     a.student_name || a.student_id,
-        initials: (a.student_name || "??").split(" ").map((w) => w[0]).join("").slice(0, 2),
-        color:    a.priority === "urgent" ? "red" : "orange",
-        priority: a.priority === "urgent" ? "High Priority" : "Medium",
-        issue:    a.message || a.issue || "Needs attention",
-      }))
-    : interventionStudents;
+  // Build intervention list from API data only — no mock fallback
+  const displayInterventions = (apiInterventions || []).slice(0, 4).map((a) => ({
+    id:       a._id || a.id,
+    name:     a.student_name || a.student_id,
+    initials: (a.student_name || "??").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase(),
+    color:    a.priority === "urgent" ? "red" : "orange",
+    priority: a.priority === "urgent" ? "High Priority" : "Medium",
+    issue:    a.issues?.[0] || a.message || "Needs attention",
+  }));
 
   const quickActions = [
     { label: "Create Homework",   icon: "add_circle",    color: "from-[#695be6] to-[#8e82f3]", to: "/teacher/homework/create" },
@@ -91,6 +90,10 @@ export default function TeacherHome() {
             <h2 className="text-lg font-bold tracking-tight">VinSchool</h2>
           </div>
           <div className="flex items-center gap-4">
+            <Link to="/teacher/students"
+              className="flex items-center gap-2 border border-gray-200 text-gray-700 text-sm font-bold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+              <span className="material-symbols-outlined text-base">group</span> Students
+            </Link>
             <Link to="/teacher/homework/create"
               className="flex items-center gap-2 bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors">
               <span className="material-symbols-outlined text-base">add</span> New Homework
@@ -201,6 +204,44 @@ export default function TeacherHome() {
                 </div>
               ))}
             </div>
+
+            {/* My Students Section */}
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold">My Students</h3>
+                <Link to="/teacher/students" className="text-sm text-[#695be6] font-bold hover:underline">
+                  View All →
+                </Link>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+                <p className="text-sm text-gray-600 mb-4">
+                  Quick access to your students' work, submissions, and parent communication
+                </p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => navigate("/teacher/students")}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-[#695be6] hover:bg-[#695be6]/5 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[#695be6] text-2xl">group</span>
+                    <span className="text-xs font-bold text-gray-700">All Students</span>
+                  </button>
+                  <button
+                    onClick={() => navigate("/teacher/submissions")}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-[#695be6] hover:bg-[#695be6]/5 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[#695be6] text-2xl">assignment</span>
+                    <span className="text-xs font-bold text-gray-700">Submissions</span>
+                  </button>
+                  <button
+                    onClick={() => navigate("/teacher/communication")}
+                    className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-[#695be6] hover:bg-[#695be6]/5 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[#695be6] text-2xl">family_restroom</span>
+                    <span className="text-xs font-bold text-gray-700">Parents</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Right sidebar */}
@@ -230,15 +271,19 @@ export default function TeacherHome() {
               ))}
             </div>
 
-            {/* Recent activity */}
+            {/* Recent activity — built from real submissions */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <h3 className="font-bold text-sm mb-3">Recent Activity</h3>
-              {recentActivity.map((a) => (
+              {submissions.length === 0 ? (
+                <p className="text-xs text-gray-400 py-2 text-center">No recent activity</p>
+              ) : submissions.slice(0, 3).map((a) => (
                 <div key={a.id} className="flex items-start gap-3 py-2 border-b border-gray-50 last:border-0">
-                  <span className={`material-symbols-outlined text-${a.color}-500 text-xl shrink-0 mt-0.5`}>{a.icon}</span>
+                  <span className={`material-symbols-outlined text-${a.autoGraded ? "green" : "orange"}-500 text-xl shrink-0 mt-0.5`}>
+                    {a.autoGraded ? "check_circle" : "pending_actions"}
+                  </span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-700 leading-snug">{a.text}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{a.sub}</p>
+                    <p className="text-xs font-medium text-gray-700 leading-snug">{a.name} submitted {a.title}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{a.status}</p>
                   </div>
                   <span className="text-[10px] text-gray-400 shrink-0">{a.timeAgo}</span>
                 </div>

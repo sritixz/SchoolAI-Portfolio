@@ -28,14 +28,69 @@ def _ser(doc):
 
 @router.post("/create")
 async def create_homework(body: HomeworkCreate, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    # Validate that homework has consistent submission type
+    if body.submission_type in ["file_upload", "handwritten"]:
+        # For file/handwritten types, questions should be empty or minimal
+        if body.questions and len(body.questions) > 0:
+            # Check if any question has MCQ or typed answer types
+            for q in body.questions:
+                if q.answer_type in ["mcq", "typed"]:
+                    raise HTTPException(
+                        400, 
+                        f"Homework with submission_type '{body.submission_type}' cannot have MCQ or typed questions. Use 'online_quiz' for interactive questions."
+                    )
+    
     doc = body.dict()
     doc["created_by"]  = user["id"]
     doc["created_at"]  = datetime.utcnow().isoformat()
     doc["status"]      = "draft"
     doc["submission_counts"] = {"submitted": 0, "pending": 0, "graded": 0}
+    doc["ai_assistant_enabled"] = body.ai_assistant_enabled  # Store AI assistant preference
     result = await db.homework.insert_one(doc)
     hw_id = str(result.inserted_id)
     return {"id": hw_id}
+
+@router.put("/{homework_id}")
+async def update_homework(homework_id: str, body: HomeworkCreate,
+                          user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Update an existing homework's details (title, subject, class, etc.)."""
+    try:
+        hw = await db.homework.find_one({"_id": ObjectId(homework_id)})
+    except Exception:
+        raise HTTPException(400, "Invalid ID")
+    if not hw:
+        raise HTTPException(404, "Homework not found")
+    
+    # Validate submission type consistency
+    if body.submission_type in ["file_upload", "handwritten"]:
+        if body.questions and len(body.questions) > 0:
+            for q in body.questions:
+                if q.answer_type in ["mcq", "typed"]:
+                    raise HTTPException(
+                        400, 
+                        f"Homework with submission_type '{body.submission_type}' cannot have MCQ or typed questions."
+                    )
+    
+    update = {
+        "title":                       body.title,
+        "subject":                     body.subject,
+        "description":                 body.description,
+        "assigned_to_class":           body.assigned_to_class,
+        "submission_type":             body.submission_type,
+        "difficulty_level":            body.difficulty_level,
+        "estimated_duration_minutes":  body.estimated_duration_minutes,
+        "instructions":                body.instructions,
+        "tags":                        body.tags,
+        "ai_assistant_enabled":        body.ai_assistant_enabled,  # Update AI assistant preference
+        "updated_at":                  datetime.utcnow().isoformat(),
+    }
+    # Only update questions if provided
+    if body.questions:
+        update["questions"] = [q.dict() for q in body.questions]
+        update["total_marks"] = sum(q.max_points for q in body.questions)
+    
+    await db.homework.update_one({"_id": ObjectId(homework_id)}, {"$set": update})
+    return {"id": homework_id, "updated": True}
 
 @router.patch("/{homework_id}/questions")
 async def patch_questions(homework_id: str, body: QuestionsPatch,
@@ -142,7 +197,61 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
     docs = await db.homework.find(
         {"assigned_students": user["id"], "status": "assigned"}
     ).sort("due_date", 1).to_list(None)
-    return [_ser(d) for d in docs]
+
+    # Fetch all submissions for this student in one query
+    hw_ids = [str(d["_id"]) for d in docs]
+    submissions = await db.homework_submissions.find(
+        {"student_id": user["id"], "homework_id": {"$in": hw_ids}}
+    ).to_list(None)
+    sub_map = {s["homework_id"]: s for s in submissions}
+
+    now = datetime.utcnow().date()
+    result = []
+    for d in docs:
+        d = _ser(d)
+        hw_id = d["_id"]
+        sub = sub_map.get(hw_id)
+
+        # Derive frontend status
+        due_str = d.get("due_date", "")
+        try:
+            due_date = datetime.fromisoformat(due_str).date() if due_str else None
+        except Exception:
+            due_date = None
+
+        if sub:
+            sub_status = sub.get("status", "submitted")
+            if sub_status == "graded":
+                frontend_status = "completed"
+            else:
+                frontend_status = "in_progress"
+        elif due_date and due_date < now:
+            frontend_status = "overdue"
+        else:
+            frontend_status = "pending"
+
+        # Normalize to camelCase for frontend
+        result.append({
+            "id":                       hw_id,
+            "subject":                  d.get("subject", ""),
+            "subjectColor":             d.get("subject_color", d.get("subjectColor", "indigo")),
+            "title":                    d.get("title", ""),
+            "description":              d.get("description", ""),
+            "assignedBy":               d.get("assigned_by_name", d.get("assignedBy", "Teacher")),
+            "assignedDate":             d.get("created_at", ""),
+            "dueDate":                  due_str,
+            "submittedDate":            sub.get("submitted_at") if sub else None,
+            "status":                   frontend_status,
+            "difficultyLevel":          d.get("difficulty_level", d.get("difficultyLevel", "medium")),
+            "estimatedDurationMinutes": d.get("estimated_duration_minutes", d.get("estimatedDurationMinutes", 30)),
+            "progressPercent":          sub.get("progress_percent", 0) if sub and frontend_status == "in_progress" else (100 if frontend_status == "completed" else 0),
+            "grade":                    sub.get("final_grade") if sub else None,
+            "teacherFeedback":          sub.get("teacher_feedback") if sub else None,
+            "attachments":              d.get("attachments", []),
+            "studentSubmissionUrl":     sub.get("submission_file_url") if sub else None,
+            "tags":                     d.get("tags", []),
+        })
+    return result
 
 @router.get("/{homework_id}")
 async def get_homework(homework_id: str, user=Depends(get_current_user), db=Depends(get_db)):

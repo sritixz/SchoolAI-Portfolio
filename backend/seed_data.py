@@ -223,7 +223,7 @@ async def seed_database():
             "grade_number": grade_num,
             "section_name": section_letter,
             "class_name": student_data["section"],
-            "parent_id": parent_ids[student_data["parent"]],
+            "parent_ids": [parent_ids[student_data["parent"]]],  # Array of parent IDs
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
             "created_by": admin_id
@@ -308,7 +308,8 @@ async def seed_database():
             "section_id": sec_6a,
             "assigned_students": [alice_id, charlie_id, emma_id],
             "due_date": "2026-04-05",
-            "status": "active",
+            "status": "assigned",
+            "created_by": john_id,
             "questions": [
                 {"id": "q1", "type": "mcq", "text": "What is 2x + 3 = 7? Solve for x.", "options": ["x=1","x=2","x=3","x=4"], "correct": 1},
                 {"id": "q2", "type": "mcq", "text": "Which is a linear equation?", "options": ["x²=4","2x+1=5","x³=8","√x=2"], "correct": 1},
@@ -323,7 +324,8 @@ async def seed_database():
             "section_id": sec_6b,
             "assigned_students": [george_id, ivy_id],
             "due_date": "2026-04-07",
-            "status": "active",
+            "status": "assigned",
+            "created_by": john_id,
             "questions": [
                 {"id": "q1", "type": "mcq", "text": "Newton's first law is about?", "options": ["Gravity","Inertia","Friction","Momentum"], "correct": 1},
                 {"id": "q2", "type": "mcq", "text": "Unit of force is?", "options": ["Joule","Watt","Newton","Pascal"], "correct": 2},
@@ -338,7 +340,8 @@ async def seed_database():
             "section_id": sec_7a,
             "assigned_students": [kevin_id, lucy_id],
             "due_date": "2026-04-06",
-            "status": "active",
+            "status": "assigned",
+            "created_by": jane_id,
             "questions": [
                 {"id": "q1", "type": "mcq", "text": "Which sentence is in past perfect tense?", "options": ["She runs","She ran","She had run","She will run"], "correct": 2},
                 {"id": "q2", "type": "mcq", "text": "Identify the correct future tense:", "options": ["I go","I went","I will go","I have gone"], "correct": 2},

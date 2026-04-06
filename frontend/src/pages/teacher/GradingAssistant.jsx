@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "../../context/AuthContext";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   assistanceTypes,
@@ -8,10 +9,13 @@ import {
   gradingDefaults,
   sampleEvaluationResult,
 } from "../../data/teacher/gradingAssistantData";
+import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
+import { downloadGradingPdf } from "../../utils/aiPdfExport";
 
 export default function GradingAssistant() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
+  const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(gradingDefaults);
@@ -25,10 +29,11 @@ export default function GradingAssistant() {
   const result = aiResult || sampleEvaluationResult;
   const scorePercent = evaluated ? ((result.score / result.maxScore) * 100) : 0;
 
+  const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
     dispatch(clearAiToolResult());
     setFeedbackText("");
-    dispatch(runAiTool({
+    runTool({
       tool: "grading",
       subject: "General",
       topic: form.question,
@@ -40,7 +45,7 @@ export default function GradingAssistant() {
         feedback_tone: form.feedbackTone,
         assistance_type: form.assistanceType,
       },
-    }));
+    }, { tool: "grading", title: `Grading: ${form.question?.slice(0, 40) || "Response"}` });
   };
 
   // Sync feedback text when result arrives
@@ -70,7 +75,7 @@ export default function GradingAssistant() {
             <button className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600">settings</span>
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">P</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
           </div>
         </div>
       </header>
@@ -181,7 +186,7 @@ export default function GradingAssistant() {
           </div>
 
           {/* Right: Results Panel */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 overflow-y-auto max-h-[85vh]">
             {generating && (
               <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
                 <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
@@ -190,52 +195,136 @@ export default function GradingAssistant() {
             )}
             {!generating && evaluated ? (
               <>
-                <div className="flex items-start justify-between mb-4">
+                {/* Header + Score */}
+                <div className="flex items-start justify-between mb-5">
                   <div>
                     <h3 className="font-black text-lg">Evaluation Results</h3>
-                    <p className="text-xs text-gray-400">Based on student's response accuracy and clarity.</p>
+                    <p className="text-xs text-gray-400">Analytic rubric assessment</p>
                   </div>
-                  {/* Score Donut */}
-                  <div className="flex flex-col items-center">
-                    <div className="relative size-16">
-                      <svg viewBox="0 0 36 36" className="size-16 -rotate-90">
-                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f3f4f6" strokeWidth="3" />
-                        <circle
-                          cx="18" cy="18" r="15.9" fill="none"
-                          stroke="#695be6" strokeWidth="3"
-                          strokeDasharray={`${scorePercent} ${100 - scorePercent}`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-sm font-black leading-none">{result.score}</span>
-                        <span className="text-[9px] text-gray-400">/ {result.maxScore}</span>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => downloadGradingPdf(result, feedbackText)}
+                      className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#5a4dd4]">
+                      <span className="material-symbols-outlined text-sm">download</span> Download PDF
+                    </button>
+                    {/* Score Donut */}
+                    <div className="flex flex-col items-center">
+                      <div className="relative size-16">
+                        <svg viewBox="0 0 36 36" className="size-16 -rotate-90">
+                          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15.9" fill="none" stroke="#695be6" strokeWidth="3"
+                            strokeDasharray={`${scorePercent} ${100 - scorePercent}`} strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-sm font-black leading-none">{result.score}</span>
+                          <span className="text-[9px] text-gray-400">/ {result.max_score||result.maxScore}</span>
+                        </div>
                       </div>
+                      <p className="text-[10px] font-bold text-[#695be6] mt-1">AI SCORE</p>
                     </div>
-                    <p className="text-[10px] font-bold text-[#695be6] mt-1">AI SUGGESTED SCORE</p>
                   </div>
                 </div>
 
-                {/* Evaluation Summary */}
-                {result.summary?.length > 0 && (
+                {/* Performance Level */}
+                {(result.performance_level || result.grade_letter) && (
+                  <div className="flex items-center gap-3 bg-[#695be6]/5 rounded-xl p-3 mb-4">
+                    {result.grade_letter && <span className="text-2xl font-black text-[#695be6]">{result.grade_letter}</span>}
+                    {result.performance_level && <span className="text-sm font-bold text-gray-700">{result.performance_level}</span>}
+                    {result.percentage != null && <span className="text-sm text-gray-500 ml-auto">{result.percentage}%</span>}
+                  </div>
+                )}
+
+                {/* Rubric Criteria Table */}
+                {result.rubric_criteria?.length > 0 && (
                   <div className="mb-4">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Evaluation Summary</p>
-                    <div className="border-l-4 border-[#695be6] pl-3 space-y-2">
-                      {result.summary.map((item, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <span className={`material-symbols-outlined text-sm flex-shrink-0 mt-0.5 ${
-                            item.type === "pass" ? "text-green-500" : "text-orange-400"
-                          }`}>
-                            {item.type === "pass" ? "check_circle" : "info"}
-                          </span>
-                          <p className="text-xs text-gray-600">{item.text}</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Analytic Rubric Assessment</p>
+                    <div className="space-y-2">
+                      {result.rubric_criteria.map((c, i) => (
+                        <div key={i} className="border border-gray-200 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-bold text-gray-700">{c.criterion}</span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                c.level==="Exceeding"?"bg-green-100 text-green-700":
+                                c.level==="Meeting"?"bg-blue-100 text-blue-700":
+                                c.level==="Approaching"?"bg-amber-100 text-amber-700":
+                                "bg-red-100 text-red-700"
+                              }`}>{c.level}</span>
+                              <span className="text-xs font-bold text-[#695be6]">{c.marks_awarded}/{c.max_marks}</span>
+                            </div>
+                          </div>
+                          {c.descriptor && <p className="text-xs text-gray-600">{c.descriptor}</p>}
+                          {c.evidence && <p className="text-xs text-gray-500 italic mt-1">"{c.evidence}"</p>}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
-                {/* Suggestions from API */}
-                {result.suggestions?.length > 0 && (
+
+                {/* Strengths */}
+                {result.strengths?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Strengths</p>
+                    <div className="space-y-1">
+                      {result.strengths.map((s, i) => (
+                        <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                          <span className="material-symbols-outlined text-green-500 text-sm flex-shrink-0">check_circle</span>{s}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Areas for Improvement */}
+                {result.areas_for_improvement?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Areas for Improvement</p>
+                    <div className="space-y-1">
+                      {result.areas_for_improvement.map((a, i) => (
+                        <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                          <span className="material-symbols-outlined text-amber-500 text-sm flex-shrink-0">arrow_upward</span>{a}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Feedback Draft */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Feedback Draft</p>
+                    <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">EDITABLE</span>
+                  </div>
+                  <textarea
+                    value={feedbackText || result.feedback || ""}
+                    onChange={(e) => setFeedbackText(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-28"
+                  />
+                </div>
+
+                {/* Next Steps */}
+                {result.next_steps?.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Next Steps for Student</p>
+                    <ol className="space-y-1">
+                      {result.next_steps.map((s, i) => (
+                        <li key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                          <span className="size-4 rounded-full bg-[#695be6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>{s}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* Parent Summary */}
+                {result.parent_friendly_summary && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+                    <p className="text-[10px] font-bold text-blue-700 mb-1">Parent-Friendly Summary</p>
+                    <p className="text-xs text-gray-700">{result.parent_friendly_summary}</p>
+                  </div>
+                )}
+
+                {/* Suggestions fallback */}
+                {result.suggestions?.length > 0 && !result.areas_for_improvement?.length && (
                   <div className="mb-4">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide mb-2">Suggestions</p>
                     <ul className="space-y-1">
@@ -248,32 +337,17 @@ export default function GradingAssistant() {
                   </div>
                 )}
 
-                {/* Feedback Draft */}
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Feedback Draft</p>
-                    <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">EDITABLE</span>
-                  </div>
-                  <textarea
-                    value={feedbackText || result.feedbackDraft || result.feedback || ""}
-                    onChange={(e) => setFeedbackText(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-28"
-                  />
-                </div>
-
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <button className="flex items-center justify-center gap-2 bg-[#695be6] text-white font-bold py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors text-sm">
-                      <span className="material-symbols-outlined text-base">send</span> Accept & Send Feedback
+                      <span className="material-symbols-outlined text-base">send</span> Accept & Send
                     </button>
                     <button className="flex items-center justify-center gap-2 border border-gray-200 font-bold py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm">
                       <span className="material-symbols-outlined text-base">edit</span> Edit Manually
                     </button>
                   </div>
-                  <button
-                    onClick={handleGenerate}
-                    className="w-full flex items-center justify-center gap-2 border border-gray-200 font-bold py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm"
-                  >
+                  <button onClick={handleGenerate}
+                    className="w-full flex items-center justify-center gap-2 border border-gray-200 font-bold py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm">
                     <span className="material-symbols-outlined text-base">refresh</span> Regenerate
                   </button>
                 </div>
@@ -282,6 +356,7 @@ export default function GradingAssistant() {
               <div className="flex flex-col items-center justify-center h-full py-16 text-center text-gray-400">
                 <span className="material-symbols-outlined text-5xl mb-3">grading</span>
                 <p className="font-semibold">Fill in the details and click Generate Evaluation</p>
+                <p className="text-xs mt-1">Get analytic rubric scoring, strengths, improvement areas, and parent-ready feedback</p>
               </div>
             )}
           </div>

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
-import { users } from "../../data/mockData";
 import {
   fetchTasks, fetchStudentDashboard,
   optimisticToggleTask, optimisticAddTask,
@@ -21,12 +20,11 @@ export default function StudentHome() {
   const { user, logout } = useAuth();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const mockStudent = users.find((u) => u.role === "student");
   const reduxTasks    = useSelector(selectTasks);
   const tasksStatus   = useSelector(selectTasksStatus);
   const reduxHomework = useSelector(selectStudentHomework);
-  const [tasks,    setTasks]    = useState(mockStudent?.todayTasks || []);
-  const [homework, setHomework] = useState(mockStudent?.homework || []);
+  const [tasks,    setTasks]    = useState([]);
+  const [homework, setHomework] = useState([]);
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [addingTask,    setAddingTask]    = useState(false);
   const [newTaskTitle,  setNewTaskTitle]  = useState("");
@@ -84,7 +82,7 @@ export default function StudentHome() {
             </div>
           </div>
           <div className="flex items-center gap-5">
-            <div className="relative cursor-pointer p-2 hover:bg-gray-100 rounded-lg">
+            <div onClick={() => navigate("/student/notifications")} className="relative cursor-pointer p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600">notifications</span>
               <span className="absolute top-2 right-2 size-2.5 bg-red-500 border-2 border-white rounded-full"></span>
             </div>

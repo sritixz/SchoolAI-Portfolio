@@ -1,11 +1,31 @@
+import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchLearningGaps, fetchGapHealth, selectGaps, selectGapHealth } from "../../store/slices/learningGapsSlice";
 import { LEARNING_GAPS } from "../../data/learningGapData";
 
 export default function LearningGapHub() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const criticalCount = LEARNING_GAPS.filter((g) => g.severity === "critical").length;
+  const dispatch = useDispatch();
+  const apiGaps = useSelector(selectGaps);
+  const health = useSelector(selectGapHealth);
+
+  useEffect(() => {
+    dispatch(fetchLearningGaps());
+    dispatch(fetchGapHealth());
+  }, [dispatch]);
+
+  const gaps = apiGaps.length ? apiGaps : LEARNING_GAPS;
+  const criticalCount = gaps.filter((g) => g.severity === "critical").length;
+  const healthScore = health?.score ?? 100;
+
+  // Use the first gap's quiz_id if available, otherwise fall back to the mock quiz id
+  const firstGap = gaps[0];
+  const quizLink = firstGap?.quiz_id
+    ? `/student/learning-gaps/quiz/${firstGap.quiz_id}`
+    : `/student/learning-gaps/quiz/quiz001`;
 
   return (
     <div className="min-h-screen bg-[#f6f6f8] flex flex-col" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -62,6 +82,10 @@ export default function LearningGapHub() {
                   <span className="material-symbols-outlined text-sm">priority_high</span>
                   {criticalCount} Critical gaps identified
                 </div>
+                <div className="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#685ae7]/10 text-[#685ae7] text-sm font-medium w-fit">
+                  <span className="material-symbols-outlined text-sm">health_and_safety</span>
+                  Health Score: {healthScore}%
+                </div>
               </div>
               <Link
                 to="/student/learning-gaps/gaps"
@@ -88,7 +112,7 @@ export default function LearningGapHub() {
                 </div>
               </div>
               <Link
-                to="/student/learning-gaps/quiz/quiz001"
+                to={quizLink}
                 className="w-full flex items-center justify-center gap-2 rounded-xl h-12 px-6 bg-[#685ae7] text-white font-bold hover:bg-[#685ae7]/90 transition-all shadow-lg shadow-[#685ae7]/20"
               >
                 <span>Take a Quiz</span>

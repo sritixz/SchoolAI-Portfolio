@@ -1,11 +1,17 @@
 import axios from "axios";
+import { requestStarted, requestFinished } from "./store/slices/loadingSlice";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8001",
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach Bearer token from localStorage before every request
+// Lazy store reference to avoid circular imports at module init time
+let _store = null;
+export function injectStore(store) { _store = store; }
+const dispatch = (action) => _store?.dispatch(action);
+
+// Attach Bearer token + start global loader
 api.interceptors.request.use((config) => {
   try {
     const stored = localStorage.getItem("vin_auth");
@@ -14,7 +20,14 @@ api.interceptors.request.use((config) => {
   } catch {
     // ignore parse errors
   }
+  dispatch(requestStarted());
   return config;
 });
+
+// Stop global loader on response or error
+api.interceptors.response.use(
+  (response) => { dispatch(requestFinished()); return response; },
+  (error)    => { dispatch(requestFinished()); return Promise.reject(error); }
+);
 
 export default api;

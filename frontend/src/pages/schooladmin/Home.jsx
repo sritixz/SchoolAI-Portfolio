@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchAdminDashboard, selectAdminDashboard } from "../../store/slices/schoolAdminSlice";
+import {
+  fetchAdminDashboard, selectAdminDashboard,
+  fetchPerformanceTrends, selectPerformanceTrends,
+  fetchLearningGapsSummary, selectGapsSummary,
+} from "../../store/slices/schoolAdminSlice";
 
 const NAV = [
   { section: "OVERVIEW", items: [
@@ -44,8 +48,8 @@ export function AdminLayout({ children, active }) {
               {user?.school?.[0] || "D"}
             </div>
             <div>
-              <p className="text-xs font-black text-[#100e1a] leading-tight">{user?.school || "DPS Patna"}</p>
-              <p className="text-[10px] text-gray-500">2023-2024</p>
+              <p className="text-xs font-black text-[#100e1a] leading-tight">{user?.school || user?.school_name || "School"}</p>
+              <p className="text-[10px] text-gray-500">{new Date().getFullYear() - 1}-{new Date().getFullYear()}</p>
             </div>
           </div>
         </div>
@@ -78,8 +82,8 @@ export function AdminLayout({ children, active }) {
               {user?.name?.[0] || "D"}
             </div>
             <div>
-              <p className="text-xs font-bold text-[#100e1a]">{user?.name || "Dr. Kumar"}</p>
-              <p className="text-[10px] text-gray-500">{user?.designation || "Principal"}</p>
+              <p className="text-xs font-bold text-[#100e1a]">{user?.name || "Admin"}</p>
+              <p className="text-[10px] text-gray-500">{user?.designation || "School Admin"}</p>
             </div>
           </div>
           <button
@@ -104,29 +108,38 @@ export default function SchoolAdminHome() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const dashboard = useSelector(selectAdminDashboard);
+  const trends = useSelector(selectPerformanceTrends);
+  const gapsSummary = useSelector(selectGapsSummary);
 
   useEffect(() => {
     dispatch(fetchAdminDashboard());
+    dispatch(fetchPerformanceTrends());
+    dispatch(fetchLearningGapsSummary());
   }, [dispatch]);
 
+  const counts = dashboard?.counts || {};
   const stats = dashboard?.stats || user?.stats || {};
 
+  // Use real trend data or fallback to static
+  const trendData = trends.length >= 2
+    ? trends.map((t) => ({ value: t.avg_score, label: t.month?.slice(5) || "" }))
+    : [55, 60, 58, 65, 70, 68].map((v, i) => ({ value: v, label: ["Oct","Nov","Dec","Jan","Feb","Mar"][i] }));
+
+  // Priority items — built from real gap summary data
+  const criticalGapCount = gapsSummary?.critical ?? 0;
   const priorityItems = [
-    { title: "Grade 8 Physics - Thermodynamics Gap", desc: "Class 8B & 8C showing 45% below average comprehension.", badge: "High Severity", badgeColor: "bg-red-500 text-white", action: "Take Action", borderColor: "border-l-red-500", route: "/schooladmin/gaps" },
-    { title: "Grade 9 Math - Algebra Delay", desc: "Curriculum schedule is 2 weeks behind planned timeline.", badge: "Warning", badgeColor: "bg-amber-400 text-white", action: "View Details", borderColor: "border-l-amber-400", route: "/schooladmin/curriculum" },
-    { title: "Teacher Support Request - Biology", desc: "Mrs. Sharma requested resources for lab equipment.", badge: "Resource", badgeColor: "bg-[#695be6] text-white", action: "Review", borderColor: "border-l-[#695be6]", route: "/schooladmin/teacher-support" },
+    ...(criticalGapCount > 0 ? [{ title: `${criticalGapCount} Critical Learning Gap${criticalGapCount > 1 ? "s" : ""} Detected`, desc: `${gapsSummary?.top_gap_topics?.[0]?.topic ? `Top gap: ${gapsSummary.top_gap_topics[0].topic}` : "Students need immediate remediation support."}`, badge: "High Severity", badgeColor: "bg-red-500 text-white", action: "Take Action", borderColor: "border-l-red-500", route: "/schooladmin/gaps" }] : []),
+    { title: "Curriculum Coverage Review", desc: "Check which sections are behind on curriculum timeline.", badge: "Planning", badgeColor: "bg-amber-400 text-white", action: "View Details", borderColor: "border-l-amber-400", route: "/schooladmin/curriculum" },
+    { title: "Teacher Support & Engagement", desc: "Review teacher workload and pending grading queues.", badge: "Support", badgeColor: "bg-[#695be6] text-white", action: "Review", borderColor: "border-l-[#695be6]", route: "/schooladmin/teacher-support" },
   ];
 
-  const topSections = [
-    { code: "9A", label: "Grade 9 - Sec A", sub: "Science Leader", score: 92, color: "bg-green-100 text-green-700" },
-    { code: "10C", label: "Grade 10 - Sec C", sub: "Math Leader", score: 89, color: "bg-blue-100 text-blue-700" },
-    { code: "6B", label: "Grade 6 - Sec B", sub: "English Leader", score: 88, color: "bg-purple-100 text-purple-700" },
-  ];
+  // Top sections — from real data if available, otherwise show placeholder
+  const topSections = [];
 
   const recentActions = [
-    { label: "Intervention Assigned", sub: "Grade 5 Math - 2 hours ago" },
-    { label: "Report Generated", sub: "Q2 Analysis - 5 hours ago" },
-    { label: "Meeting Scheduled", sub: "With Dept. Heads - Yesterday" },
+    { label: "Onboarding", sub: "Manage students, teachers & sections", route: "/schooladmin/onboarding" },
+    { label: "Performance Matrix", sub: "View class-wise subject scores", route: "/schooladmin/matrix" },
+    { label: "Gap Heatmap", sub: "Identify learning gap patterns", route: "/schooladmin/gaps" },
   ];
 
   return (
@@ -134,15 +147,31 @@ export default function SchoolAdminHome() {
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <span className="material-symbols-outlined text-gray-400">home</span>
-          <span className="material-symbols-outlined text-gray-400">notifications</span>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-gray-400">home</span>
+            <span className="text-sm text-gray-500 font-medium">Dashboard</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate("/schooladmin/onboarding")}
+              className="flex items-center gap-1.5 text-xs font-bold bg-[#695be6] text-white px-3 py-1.5 rounded-lg hover:bg-[#5a4dd4] transition-colors">
+              <span className="material-symbols-outlined text-sm">group_add</span> Onboarding
+            </button>
+            <button className="relative p-2 hover:bg-gray-100 rounded-lg">
+              <span className="material-symbols-outlined text-gray-500">notifications</span>
+              <span className="absolute top-1.5 right-1.5 size-2 bg-red-500 rounded-full" />
+            </button>
+          </div>
         </div>
 
         {/* Welcome Banner */}
         <div className="bg-[#695be6] rounded-2xl p-6 text-white mb-6">
-          <h1 className="text-2xl font-black">Good Morning, {user?.name?.split(" ").pop() || "Dr. Kumar"}!</h1>
+          <h1 className="text-2xl font-black">Good Morning, {user?.name?.split(" ").pop() || user?.name || "Admin"}!</h1>
           <p className="text-white/80 text-sm mt-1">
-            You have <span className="font-bold text-white">3 critical learning gaps</span> that require your immediate attention today. Overall attendance is steady at {stats.attendanceToday || 94}%.
+            {criticalGapCount > 0
+              ? <>You have <span className="font-bold text-white">{criticalGapCount} critical learning gap{criticalGapCount > 1 ? "s" : ""}</span> that require your immediate attention today.</>
+              : "Welcome to your school dashboard. All systems are running smoothly."
+            }
+            {counts.students ? ` Managing ${counts.students} students across ${counts.sections || "—"} sections.` : ""}
           </p>
         </div>
 
@@ -150,20 +179,23 @@ export default function SchoolAdminHome() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">Learning Gaps</p>
-            <p className="text-3xl font-black text-[#100e1a]">127</p>
-            <span className="inline-block mt-2 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">12 Critical Priority</span>
+            <p className="text-3xl font-black text-[#100e1a]">{gapsSummary?.total ?? 127}</p>
+            <span className="inline-block mt-2 bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">
+              {gapsSummary?.critical ?? 12} Critical Priority
+            </span>
           </div>
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <p className="text-xs text-gray-500 mb-1">Curriculum Progress</p>
-            <div className="flex items-center gap-3">
-              <p className="text-3xl font-black text-[#100e1a]">68%</p>
-              <svg viewBox="0 0 36 36" className="size-12">
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#695be6" strokeWidth="3"
-                  strokeDasharray="68 32" strokeDashoffset="25" strokeLinecap="round" />
-              </svg>
+            <p className="text-xs text-gray-500 mb-1">School Overview</p>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <div>
+                <p className="text-2xl font-black">{counts.students ?? "—"}</p>
+                <p className="text-[10px] text-gray-400">Students</p>
+              </div>
+              <div>
+                <p className="text-2xl font-black">{counts.teachers ?? "—"}</p>
+                <p className="text-[10px] text-gray-400">Teachers</p>
+              </div>
             </div>
-            <p className="text-xs text-gray-400">On track for Term 2</p>
           </div>
         </div>
 
@@ -197,41 +229,41 @@ export default function SchoolAdminHome() {
           <div className="flex flex-col gap-4">
             {/* Top Sections */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <p className="font-bold text-sm mb-3">Top Performing Sections</p>
+              <p className="font-bold text-sm mb-3">Quick Navigation</p>
               <div className="flex flex-col gap-2">
-                {topSections.map((s) => (
-                  <div key={s.code} className="flex items-center gap-2">
-                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${s.color}`}>{s.code}</span>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold">{s.label}</p>
-                      <p className="text-[10px] text-gray-400">{s.sub}</p>
-                    </div>
-                    <span className="text-sm font-black text-[#695be6]">{s.score}%</span>
-                  </div>
+                {[
+                  { label: "Performance Matrix", icon: "grid_view", route: "/schooladmin/matrix", color: "text-[#695be6]" },
+                  { label: "Gap Heatmap", icon: "warning", route: "/schooladmin/gaps", color: "text-red-500" },
+                  { label: "Cross-Class Compare", icon: "compare_arrows", route: "/schooladmin/cross-class", color: "text-blue-500" },
+                ].map((s) => (
+                  <button key={s.label} onClick={() => navigate(s.route)} className="flex items-center gap-2 hover:bg-gray-50 rounded-lg p-1.5 transition-colors text-left">
+                    <span className={`material-symbols-outlined text-base ${s.color}`}>{s.icon}</span>
+                    <p className="text-xs font-bold">{s.label}</p>
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* Recent Actions */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <p className="font-bold text-sm mb-3">Recent Actions</p>
+              <p className="font-bold text-sm mb-3">Quick Actions</p>
               <div className="flex flex-col gap-2">
                 {recentActions.map((a) => (
-                  <div key={a.label} className="flex items-start gap-2">
+                  <button key={a.label} onClick={() => navigate(a.route || "/schooladmin")} className="flex items-start gap-2 hover:bg-gray-50 rounded-lg p-1.5 transition-colors text-left">
                     <div className="size-2 bg-[#695be6] rounded-full mt-1.5 shrink-0" />
                     <div>
                       <p className="text-xs font-bold">{a.label}</p>
                       <p className="text-[10px] text-gray-400">{a.sub}</p>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
-              <button onClick={() => navigate("/schooladmin/matrix")} className="text-xs text-[#695be6] font-medium mt-3">View Full Timeline</button>
+              <button onClick={() => navigate("/schooladmin/matrix")} className="text-xs text-[#695be6] font-medium mt-3">View Analytics</button>
             </div>
           </div>
         </div>
 
-        {/* 6-Month Trend placeholder */}
+        {/* 6-Month Trend */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mt-4">
           <div className="flex justify-between items-center mb-3">
             <p className="font-bold text-sm">6-Month Performance Trend</p>
@@ -242,15 +274,21 @@ export default function SchoolAdminHome() {
             </select>
           </div>
           <div className="h-24 flex items-end gap-2">
-            {[55, 60, 58, 65, 70, 68].map((v, i) => (
+            {trendData.map((item, i) => (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full bg-[#695be6]/20 rounded-t" style={{ height: `${v}%` }}>
-                  <div className="w-full bg-[#695be6] rounded-t" style={{ height: `${v}%` }} />
+                <div className="w-full rounded-t overflow-hidden" style={{ height: "80px" }}>
+                  <div className="w-full bg-[#695be6] rounded-t transition-all"
+                    style={{ height: `${item.value}%`, marginTop: `${100 - item.value}%` }} />
                 </div>
-                <span className="text-[9px] text-gray-400">{["Oct","Nov","Dec","Jan","Feb","Mar"][i]}</span>
+                <span className="text-[9px] text-gray-400">{item.label}</span>
               </div>
             ))}
           </div>
+          {trends.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-right">
+              Latest avg: <strong className="text-[#695be6]">{trendData[trendData.length - 1]?.value?.toFixed(1)}%</strong>
+            </p>
+          )}
         </div>
       </div>
     </AdminLayout>

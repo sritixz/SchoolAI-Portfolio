@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { users } from "../../data/mockData";
 import { fetchStudentHomework, selectStudentHomework, selectStudentHwStatus } from "../../store/slices/homeworkSlice";
 
 // ── Status config ────────────────────────────────────────────
@@ -49,16 +48,16 @@ function formatDueDate(dateStr, status) {
 function HomeworkCard({ hw }) {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const sc = STATUS_CONFIG[hw.status];
+  const sc = STATUS_CONFIG[hw.status] ?? STATUS_CONFIG["pending"];
   const subjectCls = SUBJECT_COLORS[hw.subjectColor] || "bg-gray-100 text-gray-600";
   const dueInfo = formatDueDate(hw.dueDate, hw.status);
 
-  const actionBtn = {
+  const actionBtn = ({
     pending:     { label: "Start Homework",    cls: "bg-[#6B5CE7] hover:bg-[#5a4dd4] text-white shadow-lg shadow-[#6B5CE7]/20" },
     in_progress: { label: "Continue Homework", cls: "bg-[#6B5CE7]/10 hover:bg-[#6B5CE7]/20 text-[#6B5CE7]" },
     overdue:     { label: "Complete Now",      cls: "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20" },
     completed:   { label: "View Feedback",     cls: "bg-gray-100 hover:bg-gray-200 text-gray-700" },
-  }[hw.status];
+  })[hw.status] ?? { label: "Open", cls: "bg-gray-100 text-gray-700" };
 
   return (
     <div className={`bg-white p-8 rounded-xl shadow-sm border border-l-4 ${sc.border} hover:shadow-lg transition-shadow ${hw.status === "overdue" ? "opacity-90 hover:opacity-100" : ""}`}>
@@ -184,10 +183,9 @@ export default function StudentHomework() {
   const { user } = useAuth();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const mockStudent = users.find((u) => u.role === "student");
   const reduxHomework = useSelector(selectStudentHomework);
   const hwStatus      = useSelector(selectStudentHwStatus);
-  const [allHomework, setAllHomework] = useState(mockStudent?.homework || []);
+  const [allHomework, setAllHomework] = useState([]);
 
   const [activeStatus, setActiveStatus] = useState(null);
   const [activeSubject, setActiveSubject] = useState(null);
@@ -247,7 +245,9 @@ export default function StudentHomework() {
         </div>
 
         {/* Vin AI */}
-        <button className="w-full flex items-center justify-center gap-2 mb-8 px-4 py-3 bg-[#6B5CE7] text-white font-bold rounded-xl shadow-lg shadow-[#6B5CE7]/20 hover:scale-[1.02] transition-transform">
+        <button
+          onClick={() => window.open("/student/vin-ai", "_blank")}
+          className="w-full flex items-center justify-center gap-2 mb-8 px-4 py-3 bg-[#6B5CE7] text-white font-bold rounded-xl shadow-lg shadow-[#6B5CE7]/20 hover:scale-[1.02] transition-transform">
           <span className="material-symbols-outlined text-xl">auto_awesome</span>
           <span>Vin AI Chat</span>
         </button>
@@ -334,7 +334,7 @@ export default function StudentHomework() {
             </div>
           ) : (
             <div className="space-y-6">
-              {filtered.map((hw) => <HomeworkCard key={hw.id} hw={hw} />)}
+              {filtered.map((hw, i) => <HomeworkCard key={hw.id ?? hw._id ?? i} hw={hw} />)}
             </div>
           )}
         </div>
@@ -346,7 +346,9 @@ export default function StudentHomework() {
           <p className="text-sm font-medium text-[#2D2D2D]">Stuck? Ask me anything!</p>
           <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white rotate-45 border-r border-b border-gray-100"></div>
         </div>
-        <button className="size-16 bg-[#6B5CE7] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform relative">
+        <button
+          onClick={() => window.open("/student/vin-ai", "_blank")}
+          className="size-16 bg-[#6B5CE7] text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform relative">
           <span className="material-symbols-outlined text-3xl">auto_awesome</span>
           <span className="absolute -top-1 -right-1 flex size-4">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 
-// Static exam prep data — model ready for backend
+// Static exam prep data — fallback when API is empty
 const EXAM_DATA = {
   upcomingExams: [
     {
@@ -57,10 +58,42 @@ const PRIORITY_COLORS = {
 export default function ExamPrep() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tasks, setTasks] = useState(EXAM_DATA.revisionTasks);
+  const [tasks,      setTasks]      = useState([]);
+  const [exams,      setExams]      = useState([]);
+  const [studyStats, setStudyStats] = useState({
+    studyStreak: EXAM_DATA.studyStreak,
+    totalStudyHoursThisWeek: EXAM_DATA.totalStudyHoursThisWeek,
+  });
 
-  const toggleTask = (id) =>
+  // Load real data from API, fall back to mock if empty
+  useEffect(() => {
+    api.get("/student/exams").then((r) => {
+      if (r.data?.length) setExams(r.data);
+      else setExams(EXAM_DATA.upcomingExams);
+    }).catch(() => setExams(EXAM_DATA.upcomingExams));
+
+    api.get("/student/revision-tasks").then((r) => {
+      if (r.data?.length) setTasks(r.data);
+      else setTasks(EXAM_DATA.revisionTasks);
+    }).catch(() => setTasks(EXAM_DATA.revisionTasks));
+
+    api.get("/student/study-stats").then((r) => {
+      if (r.data) setStudyStats(r.data);
+    }).catch(() => {});
+  }, []);
+
+  const toggleTask = async (id) => {
+    // Optimistic update
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    // Persist to API (revision tasks use different endpoint than regular tasks)
+    try {
+      if (id.startsWith("rt")) {
+        await api.patch(`/student/revision-tasks/${id}/toggle`);
+      } else {
+        await api.patch(`/student/tasks/${id}/toggle`);
+      }
+    } catch { /* silent — optimistic update already applied */ }
+  };
 
   const doneCount = tasks.filter((t) => t.done).length;
 
@@ -73,7 +106,7 @@ export default function ExamPrep() {
           </button>
           <div>
             <h1 className="font-bold text-base">Exam Preparation</h1>
-            <p className="text-xs text-slate-400">{EXAM_DATA.upcomingExams.length} exams coming up</p>
+            <p className="text-xs text-slate-400">{exams.length} exams coming up</p>
           </div>
         </div>
       </header>
@@ -82,8 +115,8 @@ export default function ExamPrep() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Study Streak",   value: `${EXAM_DATA.studyStreak} days`,  icon: "local_fire_department", color: "text-orange-500" },
-            { label: "Hours This Week",value: `${EXAM_DATA.totalStudyHoursThisWeek}h`, icon: "schedule", color: "text-[#695be6]" },
+            { label: "Study Streak",   value: `${studyStats.studyStreak} days`,             icon: "local_fire_department", color: "text-orange-500" },
+            { label: "Hours This Week",value: `${studyStats.totalStudyHoursThisWeek}h`,      icon: "schedule",              color: "text-[#695be6]" },
             { label: "Tasks Done",     value: `${doneCount}/${tasks.length}`,   icon: "task_alt",  color: "text-green-500" },
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-center">
@@ -98,7 +131,7 @@ export default function ExamPrep() {
         <div>
           <h3 className="text-lg font-bold mb-3">Upcoming Exams</h3>
           <div className="space-y-3">
-            {EXAM_DATA.upcomingExams.map((exam) => (
+            {exams.map((exam) => (
               <div key={exam.id} className={`bg-gradient-to-r ${exam.color} rounded-xl p-5 text-white shadow-md`}>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
@@ -177,8 +210,8 @@ export default function ExamPrep() {
             { icon: "home", label: "Home", to: "/student" },
             { icon: "description", label: "Homework", to: "/student/homework" },
             { icon: "auto_awesome", label: "Vin AI", to: "/student/vin-ai", fab: true },
-            { icon: "bar_chart", label: "Progress", to: "#", active: true },
-            { icon: "person", label: "Profile", to: "#" },
+            { icon: "bar_chart", label: "Progress", to: "/student/learning-gaps", active: true },
+            { icon: "person", label: "Profile", to: "/student" },
           ].map((item) =>
             item.fab ? (
               <Link key={item.label} to={item.to} className="flex flex-col items-center -mt-6 bg-[#695be6] text-white size-14 rounded-full shadow-lg shadow-[#695be6]/40 justify-center">

@@ -73,23 +73,13 @@ export default function HomeworkPreview() {
               <p className="text-xs text-[#695be6]">{hw.subject} | {hw.chapter}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/teacher/homework")}
-              className="border border-gray-200 text-sm font-bold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button className="bg-[#695be6] text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors">
-              Use This Template
-            </button>
-            <button
-              onClick={() => navigate("/teacher/homework")}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <span className="material-symbols-outlined text-gray-400">close</span>
-            </button>
-          </div>
+          {/* Close button only — CTAs are in the footer */}
+          <button
+            onClick={() => navigate(-1)}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <span className="material-symbols-outlined text-gray-400">close</span>
+          </button>
         </div>
       </header>
 
@@ -204,20 +194,20 @@ export default function HomeworkPreview() {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
         <div className="max-w-[1100px] mx-auto flex items-center justify-between">
           <button
-            onClick={() => navigate("/teacher/homework/new")}
+            onClick={() => navigate(`/teacher/homework/create?edit=${id}`)}
             className="flex items-center gap-2 border border-gray-200 text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
           >
             <span className="material-symbols-outlined text-base">edit</span> Edit This Homework
           </button>
           <div className="flex gap-3">
             <button
-              onClick={() => navigate("/teacher/homework")}
+              onClick={() => navigate(-1)}
               className="border border-gray-200 text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              onClick={() => navigate("/teacher/homework/new")}
+              onClick={() => navigate(`/teacher/homework/create?from=${id}`)}
               className="bg-[#695be6] text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors"
             >
               Use This Template

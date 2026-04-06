@@ -56,6 +56,26 @@ export const updateLearningProfile = createAsyncThunk("parent/updateLearningProf
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchParentTeacherMessages = createAsyncThunk("parent/fetchTeacherMessages", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/parent/messages")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const markTeacherMessageRead = createAsyncThunk("parent/markTeacherMessageRead", async (id, { rejectWithValue }) => {
+  try { await api.patch(`/parent/messages/${id}/read`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const fetchParentMeetingRequests = createAsyncThunk("parent/fetchMeetingRequests", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/parent/meeting-requests")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const createParentMeetingRequest = createAsyncThunk("parent/createMeetingRequest", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/parent/meeting-requests", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 const parentSlice = createSlice({
   name: "parent",
   initialState: {
@@ -68,11 +88,17 @@ const parentSlice = createSlice({
     supportAlerts:      [], alertsStatus:          "idle",
     portfolio:          [], portfolioStatus:       "idle",
     learningProfile:    null, profileStatus:       "idle",
+    teacherMessages:    [], teacherMessagesStatus: "idle",
+    meetingRequests:    [], meetingRequestsStatus: "idle",
   },
   reducers: {
     optimisticMarkNotifRead(s, { payload: id }) {
       const n = s.notifications.find((n) => n.id === id || n._id === id);
       if (n) n.read = true;
+    },
+    optimisticMarkMessageRead(s, { payload: id }) {
+      const m = s.teacherMessages.find((m) => m._id === id || m.id === id);
+      if (m) m.read = true;
     },
   },
   extraReducers: (b) => {
@@ -100,10 +126,22 @@ const parentSlice = createSlice({
     b.addCase(fetchSupportAlerts.fulfilled,  (s, a) => { s.supportAlerts = a.payload; s.alertsStatus = "succeeded"; });
     b.addCase(fetchGrowthPortfolio.fulfilled,(s, a) => { s.portfolio = a.payload; s.portfolioStatus = "succeeded"; });
     b.addCase(fetchLearningProfile.fulfilled,(s, a) => { s.learningProfile = a.payload; s.profileStatus = "succeeded"; });
+
+    b.addCase(fetchParentTeacherMessages.fulfilled, (s, a) => {
+      s.teacherMessages = a.payload;
+      s.teacherMessagesStatus = "succeeded";
+    });
+    b.addCase(markTeacherMessageRead.fulfilled, (s, a) => {
+      const m = s.teacherMessages.find((m) => m._id === a.payload || m.id === a.payload);
+      if (m) m.read = true;
+    });
+
+    b.addCase(fetchParentMeetingRequests.fulfilled, (s, a) => { s.meetingRequests = a.payload; s.meetingRequestsStatus = "succeeded"; });
+    b.addCase(createParentMeetingRequest.fulfilled, (s, a) => { s.meetingRequests = [a.payload, ...s.meetingRequests]; });
   },
 });
 
-export const { optimisticMarkNotifRead } = parentSlice.actions;
+export const { optimisticMarkNotifRead, optimisticMarkMessageRead } = parentSlice.actions;
 
 export const selectParentDashboard    = (s) => s.parent.dashboard;
 export const selectChildren           = (s) => s.parent.children;
@@ -115,5 +153,8 @@ export const selectUnreadCount        = (s) => s.parent.notifications.filter((n)
 export const selectSupportAlerts      = (s) => s.parent.supportAlerts;
 export const selectPortfolio          = (s) => s.parent.portfolio;
 export const selectLearningProfile    = (s) => s.parent.learningProfile;
+export const selectTeacherMessages    = (s) => s.parent.teacherMessages;
+export const selectUnreadMessages     = (s) => s.parent.teacherMessages.filter((m) => !m.read).length;
+export const selectParentMeetingRequests = (s) => s.parent.meetingRequests;
 
 export default parentSlice.reducer;

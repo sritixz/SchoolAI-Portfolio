@@ -9,9 +9,6 @@ import {
   selectUnreadCount,
   selectParentNotifications,
 } from "../../store/slices/parentSlice";
-import { parentDashboardData } from "../../data/parentData";
-
-const { insight } = parentDashboardData;
 
 const MORE_OPTIONS = [
   { label: "Learning Profile", icon: "manage_accounts", path: "/parent/learning-profile" },
@@ -47,6 +44,7 @@ export default function ParentHome() {
     { label: "Notifications", icon: "notifications_active", badge: unreadCount > 0 ? `${unreadCount} NEW` : null, badgeColor: "bg-red-100 text-red-600", sub: "School updates & alerts", bg: "bg-[#fff0f0]", path: "/parent/notifications" },
     { label: "Support Needed", icon: "psychology", badge: null, sub: overdueCount > 0 ? `${overdueCount} patterns detected` : "No active alerts", bg: "bg-[#ffe8e8]", path: "/parent/support", alert: overdueCount > 0 },
     { label: "Curiosity Prompts", icon: "auto_awesome", badge: "NEW PROMPTS", badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: "Connect learning at home", bg: "bg-[#e8f4ff]", path: "/parent/curiosity" },
+    { label: "Request Meeting", icon: "calendar_month", badge: null, sub: "Schedule a teacher meeting", bg: "bg-[#f0f4ff]", path: "/parent/meeting" },
   ];
 
   return (
@@ -131,7 +129,9 @@ export default function ParentHome() {
           </div>
           <div>
             <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">Insight of the Week</p>
-            <p className="text-sm text-gray-700 mt-0.5">{insight.text}</p>
+            <p className="text-sm text-gray-700 mt-0.5">
+              {child ? `Track ${child.name}'s learning patterns and consistency to help them perform at their best.` : "Track your child's learning patterns and consistency to help them perform at their best."}
+            </p>
             <button onClick={() => navigate("/parent/learning-profile")} className="text-xs text-amber-600 font-bold mt-1">Learn More &gt;</button>
           </div>
         </div>

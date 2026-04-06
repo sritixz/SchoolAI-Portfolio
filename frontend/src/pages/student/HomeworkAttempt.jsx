@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
-import { getHomeworkQuestions } from "../../data/mockData";
+import VinSidePanel from "../../components/VinSidePanel";
 import {
   fetchHomeworkById, fetchHomeworkQuestions,
   uploadSubmissionFile, submitHomework,
@@ -48,32 +48,119 @@ function MCQInput({ options, selected, onChange }) {
 
 // ── Typed — toolbar + textarea ───────────────────────────────
 function TypedInput({ value, onChange }) {
+  const textareaRef = useRef(null);
+  const [history, setHistory] = useState([value]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const applyFormat = (format) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = value.substring(start, end);
+    
+    if (!selectedText) return;
+
+    let formattedText = "";
+    if (format === "bold") {
+      formattedText = `**${selectedText}**`;
+    } else if (format === "italic") {
+      formattedText = `*${selectedText}*`;
+    }
+
+    const newValue = value.substring(0, start) + formattedText + value.substring(end);
+    onChange(newValue);
+    
+    // Update history
+    setHistory([...history.slice(0, historyIndex + 1), newValue]);
+    setHistoryIndex(historyIndex + 1);
+
+    // Restore cursor position
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
+    }, 0);
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      onChange(history[historyIndex - 1]);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      onChange(history[historyIndex + 1]);
+    }
+  };
+
   return (
     <div className="rounded-xl border-2 border-slate-100 overflow-hidden focus-within:border-[#5b69e6] transition-all bg-white">
       <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-slate-100">
-        <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-600">
+        <button 
+          onClick={() => applyFormat("bold")}
+          className="p-2 hover:bg-white rounded-full transition-colors text-slate-600"
+          title="Bold (select text first)"
+          type="button"
+        >
           <span className="material-symbols-outlined text-[20px]">format_bold</span>
         </button>
-        <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-600">
+        <button 
+          onClick={() => applyFormat("italic")}
+          className="p-2 hover:bg-white rounded-full transition-colors text-slate-600"
+          title="Italic (select text first)"
+          type="button"
+        >
           <span className="material-symbols-outlined text-[20px]">format_italic</span>
         </button>
         <div className="h-6 w-px bg-slate-200 mx-1" />
-        <button className="p-2 hover:bg-white rounded-full transition-colors flex items-center gap-1.5 px-3 text-slate-600">
+        <button 
+          onClick={() => {
+            const equation = prompt("Enter your equation (e.g., x^2 + 2x + 1):");
+            if (equation) {
+              onChange(value + ` ${equation} `);
+            }
+          }}
+          className="p-2 hover:bg-white rounded-full transition-colors flex items-center gap-1.5 px-3 text-slate-600"
+          title="Insert equation"
+          type="button"
+        >
           <span className="material-symbols-outlined text-[20px] text-[#5b69e6]">functions</span>
           <span className="text-xs font-bold uppercase tracking-tight">Equation Editor</span>
         </button>
         <div className="ml-auto flex gap-1">
-          <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
+          <button 
+            onClick={undo}
+            disabled={historyIndex === 0}
+            className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30"
+            title="Undo"
+            type="button"
+          >
             <span className="material-symbols-outlined text-[20px]">undo</span>
           </button>
-          <button className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
+          <button 
+            onClick={redo}
+            disabled={historyIndex === history.length - 1}
+            className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30"
+            title="Redo"
+            type="button"
+          >
             <span className="material-symbols-outlined text-[20px]">redo</span>
           </button>
         </div>
       </div>
       <textarea
+        ref={textareaRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          onChange(newValue);
+          setHistory([...history.slice(0, historyIndex + 1), newValue]);
+          setHistoryIndex(historyIndex + 1);
+        }}
         className="w-full min-h-[260px] p-6 text-base border-none focus:ring-0 bg-transparent placeholder:text-slate-300 resize-none"
         placeholder="Let's work through this... Start typing your thoughts and Vin will help refine them."
       />
@@ -82,10 +169,18 @@ function TypedInput({ value, onChange }) {
 }
 
 // ── Upload — centered drag-drop zone ────────────────────────
-function UploadInput({ file, onFile }) {
+function UploadInput({ file, onFile, uploading }) {
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
   const handleDrop = (e) => {
     e.preventDefault();
     const f = e.dataTransfer.files[0];
+    if (f) onFile(f);
+  };
+
+  const handleFileSelect = (e) => {
+    const f = e.target.files[0];
     if (f) onFile(f);
   };
 
@@ -93,15 +188,23 @@ function UploadInput({ file, onFile }) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[320px] border-4 border-dashed border-green-300 rounded-xl bg-green-50 p-8 gap-4">
         <div className="size-20 rounded-full bg-green-100 flex items-center justify-center">
-          <span className="material-symbols-outlined text-4xl text-green-600">check_circle</span>
+          {uploading ? (
+            <span className="size-8 border-4 border-green-400/40 border-t-green-500 rounded-full animate-spin" />
+          ) : (
+            <span className="material-symbols-outlined text-4xl text-green-600">check_circle</span>
+          )}
         </div>
         <div className="text-center">
           <p className="font-bold text-slate-800">{file.name}</p>
-          <p className="text-sm text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+          <p className="text-sm text-slate-500 mt-1">
+            {(file.size / 1024).toFixed(1)} KB · {uploading ? "Uploading..." : "Ready to submit"}
+          </p>
         </div>
-        <button onClick={() => onFile(null)} className="text-sm text-red-500 hover:underline">
-          Remove & re-upload
-        </button>
+        {!uploading && (
+          <button onClick={() => onFile(null)} className="text-sm text-red-500 hover:underline">
+            Remove & re-upload
+          </button>
+        )}
       </div>
     );
   }
@@ -127,16 +230,37 @@ function UploadInput({ file, onFile }) {
         Drag & drop your files here or browse from your device gallery
       </p>
       <div className="flex flex-wrap justify-center gap-3">
-        <label className="flex items-center gap-2 px-6 h-12 rounded-full bg-[#5b69e6] text-white font-bold hover:brightness-110 shadow-lg shadow-[#5b69e6]/20 transition-all cursor-pointer">
+        <button
+          onClick={() => cameraInputRef.current?.click()}
+          className="flex items-center gap-2 px-6 h-12 rounded-full bg-[#5b69e6] text-white font-bold hover:brightness-110 shadow-lg shadow-[#5b69e6]/20 transition-all"
+          type="button"
+        >
           <span className="material-symbols-outlined">photo_camera</span>
           Take Photo
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.target.files[0])} />
-        </label>
-        <label className="flex items-center gap-2 px-6 h-12 rounded-full bg-white border border-[#5b69e6]/30 text-[#5b69e6] font-bold hover:bg-[#5b69e6]/5 transition-all cursor-pointer">
+        </button>
+        <input 
+          ref={cameraInputRef}
+          type="file" 
+          accept="image/*" 
+          capture="environment" 
+          className="hidden" 
+          onChange={handleFileSelect} 
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-2 px-6 h-12 rounded-full bg-white border border-[#5b69e6]/30 text-[#5b69e6] font-bold hover:bg-[#5b69e6]/5 transition-all"
+          type="button"
+        >
           <span className="material-symbols-outlined">file_upload</span>
           Browse Files
-          <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => onFile(e.target.files[0])} />
-        </label>
+        </button>
+        <input 
+          ref={fileInputRef}
+          type="file" 
+          accept=".jpg,.jpeg,.png,.pdf" 
+          className="hidden" 
+          onChange={handleFileSelect} 
+        />
       </div>
       <p className="text-xs text-slate-400 uppercase tracking-tight mt-4">
         Accepted: JPG, PNG, PDF · Max 20MB
@@ -180,7 +304,7 @@ export default function HomeworkAttempt() {
   const submitResult = useSelector(selectSubmitResult);
   const submitStatus = useSelector(selectSubmitStatus);
 
-  const [questionSet,    setQuestionSet]    = useState(() => getHomeworkQuestions(homeworkId));
+  const [questionSet,    setQuestionSet]    = useState(null);
   const [submissionType, setSubmissionType] = useState("online_quiz");
   const [submitting,     setSubmitting]     = useState(false);
   const [uploadFile,     setUploadFile]     = useState(null);
@@ -196,6 +320,10 @@ export default function HomeworkAttempt() {
   useEffect(() => {
     if (!currentHw) return;
     if (currentHw.submission_type) setSubmissionType(currentHw.submission_type);
+    // Set AI assistant enabled state from homework settings
+    if (currentHw.ai_assistant_enabled !== undefined) {
+      setAiAssistantEnabled(currentHw.ai_assistant_enabled);
+    }
     if (currentHw.questions?.length) {
       setQuestionSet((prev) => prev
         ? { ...prev, questions: currentHw.questions }
@@ -208,13 +336,26 @@ export default function HomeworkAttempt() {
   const handleFileUpload = async (file) => {
     setUploadFile(file);
     setUploading(true);
-    await dispatch(uploadSubmissionFile(file));
-    setUploading(false);
+    try {
+      await dispatch(uploadSubmissionFile(file));
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const openVinPanel = (context = null) => {
+    setVinContext(context);
+    setVinPanelOpen(true);
   };
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers]       = useState({});
   const [activeType, setActiveType] = useState({});
+  const [vinPanelOpen, setVinPanelOpen] = useState(false);
+  const [vinContext, setVinContext] = useState(null);
+  const [aiAssistantEnabled, setAiAssistantEnabled] = useState(true); // Default to true
 
   if (!questionSet) {
     return (
@@ -272,9 +413,9 @@ export default function HomeworkAttempt() {
                   )}
                   <label className="flex items-center gap-2 px-6 py-3 border-2 border-[#5b69e6] text-[#5b69e6] font-bold rounded-xl cursor-pointer hover:bg-[#5b69e6]/5 transition-colors">
                     <span className="material-symbols-outlined">file_upload</span> Browse Files
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.heic" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
                   </label>
-                  <p className="text-xs text-slate-400">JPG, PNG, PDF · Max 20MB</p>
+                  <p className="text-xs text-slate-400">JPG, PNG, PDF, HEIC · Max 20MB</p>
                 </div>
               </div>
             ) : (
@@ -289,9 +430,11 @@ export default function HomeworkAttempt() {
                   <p className="font-bold text-slate-800">{uploadFile.name}</p>
                   <p className="text-xs text-slate-400">{(uploadFile.size / 1024).toFixed(1)} KB · {uploading ? "Uploading..." : uploadUrl ? "Uploaded ✓" : "Ready to submit"}</p>
                 </div>
-                <button onClick={() => { setUploadFile(null); setUploadUrl(null); }} className="text-red-400 hover:text-red-600">
-                  <span className="material-symbols-outlined">delete</span>
-                </button>
+                {!uploading && (
+                  <button onClick={() => { setUploadFile(null); dispatch(clearUpload()); }} className="text-red-400 hover:text-red-600">
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
+                )}
               </div>
             )}
             <button
@@ -383,10 +526,15 @@ export default function HomeworkAttempt() {
             <h1 className="font-bold text-base leading-tight tracking-tight">{questionSet.unitTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-              Ask Vin
-            </button>
+            {aiAssistantEnabled && (
+              <button 
+                onClick={() => openVinPanel(q?.questionText ? `Help me with: ${q.questionText}` : null)}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">smart_toy</span>
+                Ask Vin
+              </button>
+            )}
             <button
               onClick={() => navigate("/student/homework")}
               className="bg-[#5b69e6]/10 hover:bg-[#5b69e6]/20 text-[#5b69e6] px-4 py-2 rounded-full text-sm font-semibold transition-colors"
@@ -514,10 +662,20 @@ export default function HomeworkAttempt() {
             <UploadInput
               file={currentAnswer || null}
               onFile={(f) => setAnswer(q.id, f)}
+              uploading={false}
             />
           )}
         </div>
       </main>
+
+      {/* ── Vin Side Panel ── */}
+      {aiAssistantEnabled && (
+        <VinSidePanel 
+          isOpen={vinPanelOpen} 
+          onClose={() => setVinPanelOpen(false)}
+          context={vinContext}
+        />
+      )}
 
       {/* ── Footer ── */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-200 p-4">

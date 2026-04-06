@@ -31,6 +31,11 @@ export const fetchInterventions = createAsyncThunk("teacher/fetchInterventions",
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchInterventionStats = createAsyncThunk("teacher/fetchInterventionStats", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/teacher/interventions/stats")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const fetchTopicMastery = createAsyncThunk("teacher/fetchTopicMastery", async (classId, { rejectWithValue }) => {
   try { return (await api.get("/teacher/topic-mastery", { params: { class_id: classId } })).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
@@ -56,6 +61,47 @@ export const runAiTool = createAsyncThunk("teacher/runAiTool", async (payload, {
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchMeetingRequests = createAsyncThunk("teacher/fetchMeetingRequests", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/teacher/meeting-requests")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const createMeetingRequest = createAsyncThunk("teacher/createMeetingRequest", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/meeting-requests", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const confirmMeetingRequest = createAsyncThunk("teacher/confirmMeetingRequest", async ({ reqId, timeIndex }, { rejectWithValue }) => {
+  try { return (await api.patch(`/teacher/meeting-requests/${reqId}/confirm`, null, { params: { time_index: timeIndex } })).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+// ── Student Groups ────────────────────────────────────────────
+export const fetchGroups = createAsyncThunk("teacher/fetchGroups", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/teacher/groups")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const createGroup = createAsyncThunk("teacher/createGroup", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/groups", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const bulkSaveGroups = createAsyncThunk("teacher/bulkSaveGroups", async (payload, { rejectWithValue }) => {
+  try { return (await api.put("/teacher/groups/bulk", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const updateGroup = createAsyncThunk("teacher/updateGroup", async ({ id, ...body }, { rejectWithValue }) => {
+  try { return (await api.patch(`/teacher/groups/${id}`, body)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const deleteGroup = createAsyncThunk("teacher/deleteGroup", async (id, { rejectWithValue }) => {
+  try { await api.delete(`/teacher/groups/${id}`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 const teacherSlice = createSlice({
   name: "teacher",
   initialState: {
@@ -65,15 +111,26 @@ const teacherSlice = createSlice({
     studentsByClass:    [], studentsByClassStatus:"idle",
     schedule:           [], scheduleStatus:     "idle",
     interventions:      [], interventionsStatus:"idle",
+    interventionStats:  null,
     topicMastery:       [], topicMasteryStatus: "idle",
     parentMessages:     [], parentMessagesStatus:"idle",
     generatedQuestions: [], generateStatus:     "idle", generateError: null,
     aiToolResult:       null, aiToolStatus:      "idle", aiToolError:   null,
-  },
-  reducers: {
+    meetingRequests:    [], meetingRequestsStatus: "idle",
+    // Backend-persisted student groups (single source of truth)
+    groups:             [], groupsStatus: "idle",
+    // Differentiated homework session state (persists across navigation)
+    diffGroups:         [],
+    diffContext:        null,
+    diffAssignments:    [],
+  },  reducers: {
     clearGeneratedQuestions(s) { s.generatedQuestions = []; s.generateStatus = "idle"; s.generateError = null; },
     clearAiToolResult(s)       { s.aiToolResult = null; s.aiToolStatus = "idle"; s.aiToolError = null; },
     appendGeneratedQuestions(s, { payload }) { s.generatedQuestions = [...s.generatedQuestions, ...payload]; },
+    setDiffGroups(s, { payload }) { s.diffGroups = payload; },
+    setDiffContext(s, { payload }) { s.diffContext = payload; },
+    clearDiffSession(s) { s.diffGroups = []; s.diffContext = null; },
+    addDiffAssignment(s, { payload }) { s.diffAssignments = [payload, ...s.diffAssignments.slice(0, 9)]; },
   },
   extraReducers: (b) => {
     b.addCase(fetchTeacherDashboard.pending,   (s) => { s.dashboardStatus = "loading"; })
@@ -92,6 +149,7 @@ const teacherSlice = createSlice({
 
     b.addCase(fetchSchedule.fulfilled,     (s, a) => { s.schedule = a.payload; });
     b.addCase(fetchInterventions.fulfilled,(s, a) => { s.interventions = a.payload; });
+    b.addCase(fetchInterventionStats.fulfilled,(s, a) => { s.interventionStats = a.payload; });
     b.addCase(fetchTopicMastery.fulfilled, (s, a) => { s.topicMastery = a.payload; });
 
     b.addCase(fetchParentMessages.fulfilled, (s, a) => { s.parentMessages = a.payload; s.parentMessagesStatus = "succeeded"; });
@@ -103,10 +161,33 @@ const teacherSlice = createSlice({
     b.addCase(runAiTool.pending,   (s) => { s.aiToolStatus = "loading"; s.aiToolError = null; })
      .addCase(runAiTool.fulfilled, (s, a) => { s.aiToolStatus = "succeeded"; s.aiToolResult = a.payload; })
      .addCase(runAiTool.rejected,  (s, a) => { s.aiToolStatus = "failed"; s.aiToolError = a.payload; });
+
+    b.addCase(fetchMeetingRequests.fulfilled, (s, a) => { s.meetingRequests = a.payload; s.meetingRequestsStatus = "succeeded"; });
+    b.addCase(createMeetingRequest.fulfilled, (s, a) => { s.meetingRequests = [a.payload, ...s.meetingRequests]; });
+
+    // Groups
+    b.addCase(fetchGroups.pending,   (s) => { s.groupsStatus = "loading"; })
+     .addCase(fetchGroups.fulfilled, (s, a) => { s.groupsStatus = "succeeded"; s.groups = a.payload; s.diffGroups = a.payload; })
+     .addCase(fetchGroups.rejected,  (s) => { s.groupsStatus = "failed"; });
+
+    b.addCase(createGroup.fulfilled, (s, a) => { s.groups = [...s.groups, a.payload]; s.diffGroups = s.groups; });
+
+    b.addCase(bulkSaveGroups.fulfilled, (s, a) => { s.groups = a.payload; s.diffGroups = a.payload; s.groupsStatus = "succeeded"; });
+
+    b.addCase(updateGroup.fulfilled, (s, a) => {
+      s.groups = s.groups.map((g) => (g._id === a.payload._id ? a.payload : g));
+      s.diffGroups = s.groups;
+    });
+
+    b.addCase(deleteGroup.fulfilled, (s, a) => {
+      s.groups = s.groups.filter((g) => g._id !== a.payload);
+      s.diffGroups = s.groups;
+    });
   },
 });
 
-export const { clearGeneratedQuestions, clearAiToolResult, appendGeneratedQuestions } = teacherSlice.actions;
+export const { clearGeneratedQuestions, clearAiToolResult, appendGeneratedQuestions,
+               setDiffGroups, setDiffContext, clearDiffSession, addDiffAssignment } = teacherSlice.actions;
 
 export const selectTeacherDashboard    = (s) => s.teacher.dashboard;
 export const selectMyStudents          = (s) => s.teacher.myStudents;
@@ -115,6 +196,7 @@ export const selectStudentsByClass     = (s) => s.teacher.studentsByClass;
 export const selectStudentsByClassStatus=(s) => s.teacher.studentsByClassStatus;
 export const selectSchedule            = (s) => s.teacher.schedule;
 export const selectInterventions       = (s) => s.teacher.interventions;
+export const selectInterventionStats   = (s) => s.teacher.interventionStats;
 export const selectTopicMastery        = (s) => s.teacher.topicMastery;
 export const selectParentMessages      = (s) => s.teacher.parentMessages;
 export const selectGeneratedQuestions  = (s) => s.teacher.generatedQuestions;
@@ -122,5 +204,11 @@ export const selectGenerateStatus      = (s) => s.teacher.generateStatus;
 export const selectGenerateError       = (s) => s.teacher.generateError;
 export const selectAiToolResult        = (s) => s.teacher.aiToolResult;
 export const selectAiToolStatus        = (s) => s.teacher.aiToolStatus;
+export const selectMeetingRequests     = (s) => s.teacher.meetingRequests;
+export const selectDiffGroups          = (s) => s.teacher.diffGroups;
+export const selectDiffContext         = (s) => s.teacher.diffContext;
+export const selectDiffAssignments     = (s) => s.teacher.diffAssignments;
+export const selectGroups              = (s) => s.teacher.groups;
+export const selectGroupsStatus        = (s) => s.teacher.groupsStatus;
 
 export default teacherSlice.reducer;

@@ -1,16 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "../../context/AuthContext";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   presentationVisualStyles,
   presentationPurposes,
   presentationDefaults,
 } from "../../data/teacher/presentationCreatorData";
+import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
+import { downloadPresentationPdf } from "../../utils/aiPdfExport";
 
 export default function PresentationCreator() {
   const navigate  = useNavigate();
   const dispatch  = useDispatch();
+  const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(presentationDefaults);
@@ -18,9 +22,10 @@ export default function PresentationCreator() {
 
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
 
+  const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
     dispatch(clearAiToolResult());
-    dispatch(runAiTool({
+    runTool({
       tool: "presentation",
       subject: form.subject,
       topic: form.topic,
@@ -31,7 +36,7 @@ export default function PresentationCreator() {
         purpose: form.purpose,
         visual_style: form.visualStyle,
       },
-    }));
+    }, { tool: "presentation", title: `Presentation: ${form.topic}`, subject: form.subject, topic: form.topic, grade: form.classLevel });
   };
 
   return (
@@ -58,7 +63,7 @@ export default function PresentationCreator() {
             <button className="flex items-center gap-1.5 border border-[#695be6] text-[#695be6] text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#695be6]/5">
               <span className="material-symbols-outlined text-sm">bolt</span> Pro Plan
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">JD</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
           </div>
         </div>
       </header>
@@ -246,34 +251,97 @@ export default function PresentationCreator() {
             </div>
           )}
           {!generating && aiResult && (
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-2xl overflow-y-auto max-h-[80vh]">
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="font-black text-base">{form.topic} — {form.numSlides} Slides</h2>
-                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
-                  className="text-xs text-[#695be6] font-bold hover:underline flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">content_copy</span> Copy
-                </button>
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-2xl overflow-y-auto max-h-[85vh]">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-[#695be6] to-[#8b5cf6] rounded-t-2xl">
+                <div>
+                  <h2 className="font-black text-base text-white">{aiResult.title || form.topic}</h2>
+                  <p className="text-xs text-white/70">{aiResult.total_slides || (aiResult.slides||[]).length} slides · {aiResult.duration_minutes} min · {aiResult.grade}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                    className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                    <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                  </button>
+                  <button onClick={() => downloadPresentationPdf(aiResult)}
+                    className="flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                    <span className="material-symbols-outlined text-sm">download</span> Download PDF
+                  </button>
+                </div>
               </div>
+
+              {/* Learning Objectives */}
+              {aiResult.learning_objectives?.length > 0 && (
+                <div className="px-5 pt-4 pb-2">
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Learning Objectives</p>
+                  <div className="space-y-1">
+                    {aiResult.learning_objectives.map((o,i)=>(
+                      <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                        <span className="material-symbols-outlined text-[#695be6] text-sm mt-0.5">check_circle</span>{o}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="p-5 space-y-3">
                 {(aiResult.slides || []).map((slide, i) => (
-                  <div key={i} className="border border-gray-100 rounded-xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center shrink-0">{slide.number || i+1}</span>
-                      <p className="font-bold text-sm">{slide.title}</p>
+                  <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                      <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{slide.number || i+1}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        slide.type==="title"?"bg-purple-100 text-purple-700":
+                        slide.type==="hook"?"bg-orange-100 text-orange-700":
+                        slide.type==="activity"?"bg-green-100 text-green-700":
+                        slide.type==="assessment"?"bg-red-100 text-red-700":
+                        "bg-blue-100 text-blue-700"
+                      }`}>{(slide.type||"content").toUpperCase()}</span>
+                      <p className="font-bold text-sm flex-1">{slide.title}</p>
+                      {slide.duration_minutes && <span className="text-[10px] text-gray-400">{slide.duration_minutes}m</span>}
                     </div>
-                    {slide.bullets?.length > 0 && (
-                      <ul className="ml-8 space-y-1">
-                        {slide.bullets.map((b, j) => (
-                          <li key={j} className="text-xs text-gray-600 flex items-start gap-1.5">
-                            <span className="size-1.5 rounded-full bg-[#695be6]/40 mt-1.5 shrink-0" />{b}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    <div className="p-3 space-y-2">
+                      {slide.subtitle && <p className="text-xs text-gray-500 italic">{slide.subtitle}</p>}
+                      {slide.content && <p className="text-xs text-gray-700">{slide.content}</p>}
+                      {slide.bullets?.length > 0 && (
+                        <ul className="space-y-1">
+                          {slide.bullets.map((b, j) => (
+                            <li key={j} className="text-xs text-gray-700 flex items-start gap-1.5">
+                              <span className="size-1.5 rounded-full bg-[#695be6]/50 mt-1.5 shrink-0" />{b}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {slide.steps?.length > 0 && (
+                        <ol className="space-y-1">
+                          {slide.steps.map((s,j)=>(
+                            <li key={j} className="text-xs text-gray-700 flex items-start gap-2">
+                              <span className="font-bold text-[#695be6] flex-shrink-0">{j+1}.</span>{s}
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {slide.speaker_notes && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-amber-700 mb-1">Speaker Notes</p>
+                          <p className="text-xs text-gray-700">{slide.speaker_notes}</p>
+                        </div>
+                      )}
+                      {slide.engagement_prompt && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <p className="text-[10px] font-bold text-green-700 mb-1">Engagement Prompt</p>
+                          <p className="text-xs text-gray-700">{slide.engagement_prompt}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
                 {!aiResult.slides && aiResult.content && (
                   <p className="text-sm text-gray-700 whitespace-pre-wrap p-2">{aiResult.content}</p>
+                )}
+                {aiResult.teacher_preparation_notes && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p className="text-xs font-bold text-blue-800 mb-1">Teacher Preparation Notes</p>
+                    <p className="text-xs text-gray-700">{aiResult.teacher_preparation_notes}</p>
+                  </div>
                 )}
               </div>
             </div>

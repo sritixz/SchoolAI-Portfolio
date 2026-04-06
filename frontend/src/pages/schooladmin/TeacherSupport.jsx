@@ -22,17 +22,25 @@ export default function TeacherSupport() {
     dispatch(fetchTeacherSupport());
   }, [dispatch]);
 
-  const d = teacherSupportData[0] || {};
-  const teachers = d.teachers || [];
-  const suggestedPD = d.suggestedPD || [];
+  // API now returns array of teacher objects directly
+  const teachers = Array.isArray(teacherSupportData) ? teacherSupportData : (teacherSupportData[0]?.teachers || []);
+  const suggestedPD = [
+    { type: "Workshop", duration: "2 hours", title: "AI Tools for Teachers", desc: "Learn to use AI tools for lesson planning and grading.", rating: "4.8" },
+    { type: "Course", duration: "4 weeks", title: "Differentiated Instruction", desc: "Strategies for teaching mixed-ability classrooms.", rating: "4.6" },
+    { type: "Resource", duration: "Self-paced", title: "Data-Driven Teaching", desc: "Using student performance data to improve outcomes.", fileInfo: "PDF + Video" },
+  ];
 
-  if (!teacherSupportData.length) {
+  const avgEngagement = teachers.length
+    ? Math.round(teachers.reduce((sum, t) => sum + (t.homework_created || 0), 0) / teachers.length * 10)
+    : 0;
+
+  if (!teachers.length) {
     return (
       <AdminLayout active="/schooladmin/teacher-support">
         <div className="p-6 flex items-center justify-center h-64">
           <div className="text-center text-gray-400">
-            <span className="material-symbols-outlined text-4xl mb-2">hourglass_empty</span>
-            <p>Loading teacher data...</p>
+            <span className="material-symbols-outlined text-4xl mb-2">person</span>
+            <p>No teacher data available yet</p>
           </div>
         </div>
       </AdminLayout>
@@ -79,49 +87,45 @@ export default function TeacherSupport() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
               <div className="grid grid-cols-3 gap-4 items-center">
                 <div>
-                  <p className="text-xs text-gray-500">Avg Engagement</p>
-                  <p className="text-2xl font-black text-[#100e1a]">{d.avgEngagement || 0}<span className="text-sm font-normal text-gray-400">/100</span></p>
+                  <p className="text-xs text-gray-500">Avg HW Created</p>
+                  <p className="text-2xl font-black text-[#100e1a]">{avgEngagement}<span className="text-sm font-normal text-gray-400"> avg</span></p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Active Teachers</p>
-                  <p className="text-2xl font-black text-[#100e1a]">{d.activeTeachers || 0}</p>
+                  <p className="text-2xl font-black text-[#100e1a]">{teachers.length}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Support Opportunities</p>
-                  <p className="text-2xl font-black text-[#695be6]">{String(d.supportOpps || 0).padStart(2, "0")}</p>
+                  <p className="text-xs text-gray-500">Pending Grading</p>
+                  <p className="text-2xl font-black text-[#695be6]">{teachers.reduce((sum, t) => sum + (t.pending_grading || 0), 0)}</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               {teachers
-                .filter((t) => subject === "All" || t.subject.includes(subject))
-                .filter((t) => grade === "All" || t.grade.includes(grade))
+                .filter((t) => subject === "All" || (t.subjects || []).some((s) => s.toLowerCase().includes(subject.toLowerCase())))
                 .map((t) => {
-                  const cfg = statusConfig[t.status] || statusConfig.steady;
+                  const hwScore = Math.min(100, (t.homework_created || 0) * 10);
+                  const status = hwScore >= 70 ? "excellent" : hwScore >= 40 ? "steady" : "opportunity";
+                  const cfg = statusConfig[status];
                   return (
-                    <div key={t.name} className={`bg-white rounded-xl border ${cfg.bg} shadow-sm p-4`}>
+                    <div key={t._id} className={`bg-white rounded-xl border ${cfg.bg} shadow-sm p-4`}>
                       <div className="flex items-center gap-2 mb-3">
                         <div className="size-10 bg-gray-200 rounded-full flex items-center justify-center">
                           <span className="material-symbols-outlined text-gray-400">person</span>
                         </div>
                         <div className="flex-1">
                           <p className="font-bold text-sm">{t.name}</p>
-                          <p className="text-[10px] text-gray-500">{t.subject} • {t.grade}</p>
+                          <p className="text-[10px] text-gray-500">{(t.subjects || []).join(", ")} • {t.section_count} sections</p>
                         </div>
                         <div className="size-8 border-2 border-[#695be6] rounded-full flex items-center justify-center">
-                          <span className="text-xs font-black text-[#695be6]">{t.score}</span>
+                          <span className="text-xs font-black text-[#695be6]">{hwScore}</span>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                        <div><p className="text-[9px] text-gray-400">HW</p><p className="text-sm font-black">{t.hw}%</p></div>
-                        <div>
-                          <p className="text-[9px] text-gray-400">AI USE</p>
-                          <span className={`text-xs font-black px-2 py-0.5 rounded-lg ${t.aiUse === "High" ? "bg-green-100 text-green-700" : t.aiUse === "Low" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>
-                            {t.aiUse}
-                          </span>
-                        </div>
-                        <div><p className="text-[9px] text-gray-400">INTRV</p><p className="text-sm font-black">{String(t.intrv).padStart(2, "0")}</p></div>
+                        <div><p className="text-[9px] text-gray-400">HW</p><p className="text-sm font-black">{t.homework_created || 0}</p></div>
+                        <div><p className="text-[9px] text-gray-400">SECTIONS</p><p className="text-sm font-black">{t.section_count || 0}</p></div>
+                        <div><p className="text-[9px] text-gray-400">PENDING</p><p className="text-sm font-black">{t.pending_grading || 0}</p></div>
                       </div>
                       <div className={`flex items-center gap-1 text-xs font-bold ${cfg.color}`}>
                         <div className={`size-2 rounded-full ${cfg.dot}`} />
