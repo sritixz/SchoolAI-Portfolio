@@ -275,7 +275,27 @@ async def get_questions(homework_id: str, user=Depends(require_role("student")),
         raise HTTPException(400, "Invalid homework ID")
     if not hw:
         raise HTTPException(404, "Homework not found")
-    return hw.get("questions", [])
+
+    raw = hw.get("questions", [])
+
+    # Normalise to camelCase so HomeworkAttempt.jsx works regardless of how
+    # questions were stored (AI-generated snake_case vs legacy format)
+    def normalise(q, idx):
+        if not isinstance(q, dict):
+            return q
+        return {
+            "id":              q.get("id") or q.get("_id") or f"q{idx+1}",
+            "questionNumber":  q.get("question_number") or q.get("questionNumber") or idx + 1,
+            "questionText":    q.get("question_text")   or q.get("questionText")   or q.get("text", ""),
+            "answerType":      q.get("answer_type")     or q.get("answerType")     or q.get("type", "mcq"),
+            "options":         q.get("options", []),
+            "hint":            q.get("hint"),
+            "vinNudge":        q.get("vin_nudge")       or q.get("vinNudge"),
+            "maxPoints":       q.get("max_points")      or q.get("maxPoints", 1),
+            "sampleAnswer":    q.get("sample_answer")   or q.get("sampleAnswer"),
+        }
+
+    return [normalise(q, i) for i in range(len(raw)) for q in [raw[i]]]
 
 @router.post("/submit")
 async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,

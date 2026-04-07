@@ -7,7 +7,7 @@ import {
   fetchHomeworkById, fetchHomeworkQuestions,
   uploadSubmissionFile, submitHomework,
   selectCurrentHomework, selectUploadUrl, selectUploadStatus, selectSubmitResult, selectSubmitStatus,
-  clearUpload, clearSubmitResult,
+  clearUpload, clearSubmitResult, clearCurrent,
 } from "../../store/slices/homeworkSlice";
 
 const ANSWER_TYPES = [
@@ -312,6 +312,8 @@ export default function HomeworkAttempt() {
 
   // Load homework metadata + questions from Redux
   useEffect(() => {
+    dispatch(clearCurrent()); // clear stale homework before fetching new one
+    setQuestionSet(null);     // reset so old title never shows
     dispatch(fetchHomeworkById(homeworkId));
     dispatch(fetchHomeworkQuestions(homeworkId));
     return () => { dispatch(clearUpload()); dispatch(clearSubmitResult()); };
@@ -320,14 +322,25 @@ export default function HomeworkAttempt() {
   useEffect(() => {
     if (!currentHw) return;
     if (currentHw.submission_type) setSubmissionType(currentHw.submission_type);
-    // Set AI assistant enabled state from homework settings
     if (currentHw.ai_assistant_enabled !== undefined) {
       setAiAssistantEnabled(currentHw.ai_assistant_enabled);
     }
     if (currentHw.questions?.length) {
+      const normalise = (q, idx) => ({
+        id:             q.id || q._id || `q${idx+1}`,
+        questionNumber: q.question_number || q.questionNumber || idx + 1,
+        questionText:   q.question_text   || q.questionText   || q.text || "",
+        answerType:     q.answer_type     || q.answerType     || q.type || "mcq",
+        options:        q.options || [],
+        hint:           q.hint,
+        vinNudge:       q.vin_nudge || q.vinNudge,
+        maxPoints:      q.max_points || q.maxPoints || 1,
+        sampleAnswer:   q.sample_answer || q.sampleAnswer,
+      });
+      const normalised = currentHw.questions.map((q, i) => normalise(q, i));
       setQuestionSet((prev) => prev
-        ? { ...prev, questions: currentHw.questions }
-        : { questions: currentHw.questions, tags: [], unitTitle: currentHw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
+        ? { ...prev, questions: normalised }
+        : { questions: normalised, tags: [], unitTitle: currentHw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
       );
     }
   }, [currentHw]);

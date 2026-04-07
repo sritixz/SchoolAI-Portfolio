@@ -5,7 +5,7 @@ Hierarchy:
   School → Grade → Section → Students
                            → SubjectAssignments (teacher per subject)
 """
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 from enum import Enum
 
@@ -42,13 +42,20 @@ class SubjectAssignmentUpdate(BaseModel):
 # ── Student onboarding ────────────────────────────────────────
 class StudentCreate(BaseModel):
     name: str
-    phone: str                  # login credential
+    phone: str                  # login credential — must be exactly 10 digits
     roll_no: Optional[str] = None
-    section_id: str             # which class they belong to
-    # Parent info — creates parent account if email provided
+    section_id: str
     parent_name: Optional[str] = None
     parent_email: Optional[EmailStr] = None
     parent_phone: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def phone_must_be_10_digits(cls, v):
+        digits = v.strip()
+        if not digits.isdigit() or len(digits) != 10:
+            raise ValueError("Phone must be exactly 10 digits")
+        return digits
 
 class StudentUpdate(BaseModel):
     name: Optional[str] = None

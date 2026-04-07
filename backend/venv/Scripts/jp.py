@@ -1,4 +1,4 @@
-#!C:\Users\IQDynamo\Desktop\Bawan_Project_code\backend\venv\Scripts\python.exe
+#!C:\Users\sriti\OneDrive\Desktop\VaniAgent\schoolai\backend\venv\Scripts\python.exe
 
 import sys
 import json

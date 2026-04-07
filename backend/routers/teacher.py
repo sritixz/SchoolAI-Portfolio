@@ -221,6 +221,22 @@ async def students_by_class(class_name: str, user=Depends(require_role("teacher"
     
     return result
 
+class StudentIdsRequest(BaseModel):
+    student_ids: List[str]
+
+@router.post("/students/by-ids")
+async def students_by_ids(body: StudentIdsRequest, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Resolve a list of student IDs to name + id pairs."""
+    result = []
+    for sid in body.student_ids:
+        try:
+            doc = await db.users.find_one({"_id": ObjectId(sid)}, {"name": 1, "roll_no": 1, "class_name": 1})
+            if doc:
+                result.append({"id": sid, "name": doc.get("name", ""), "class_name": doc.get("class_name", ""), "roll_no": doc.get("roll_no")})
+        except Exception:
+            pass
+    return result
+
 @router.get("/students/{student_id}/homework")
 async def student_homework(student_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
     """Get all homework assigned to a specific student with submission status."""
