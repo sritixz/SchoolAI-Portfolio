@@ -21,6 +21,11 @@ export const fetchStudentsByClass = createAsyncThunk("teacher/fetchStudentsByCla
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const fetchStudentsByIds = createAsyncThunk("teacher/fetchStudentsByIds", async (studentIds, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/students/by-ids", { student_ids: studentIds })).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const fetchSchedule = createAsyncThunk("teacher/fetchSchedule", async (_, { rejectWithValue }) => {
   try { return (await api.get("/teacher/schedule")).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
@@ -114,6 +119,7 @@ const teacherSlice = createSlice({
     myStudents:         [], myStudentsStatus:   "idle",
     mySections:         [], mySectionsStatus:   "idle",
     studentsByClass:    [], studentsByClassStatus:"idle",
+    studentsByIds:      [], studentsByIdsStatus: "idle",
     schedule:           [], scheduleStatus:     "idle",
     interventions:      [], interventionsStatus:"idle",
     interventionStats:  null,
@@ -151,6 +157,10 @@ const teacherSlice = createSlice({
     b.addCase(fetchStudentsByClass.pending,   (s) => { s.studentsByClassStatus = "loading"; })
      .addCase(fetchStudentsByClass.fulfilled, (s, a) => { s.studentsByClassStatus = "succeeded"; s.studentsByClass = a.payload; })
      .addCase(fetchStudentsByClass.rejected,  (s) => { s.studentsByClassStatus = "failed"; });
+
+    b.addCase(fetchStudentsByIds.pending,   (s) => { s.studentsByIdsStatus = "loading"; })
+     .addCase(fetchStudentsByIds.fulfilled, (s, a) => { s.studentsByIdsStatus = "succeeded"; s.studentsByIds = a.payload; })
+     .addCase(fetchStudentsByIds.rejected,  (s) => { s.studentsByIdsStatus = "failed"; });
 
     b.addCase(fetchSchedule.fulfilled,     (s, a) => { s.schedule = a.payload; });
     b.addCase(fetchInterventions.fulfilled,(s, a) => { s.interventions = a.payload; });
@@ -199,6 +209,8 @@ export const selectMyStudents          = (s) => s.teacher.myStudents;
 export const selectMySections          = (s) => s.teacher.mySections;
 export const selectStudentsByClass     = (s) => s.teacher.studentsByClass;
 export const selectStudentsByClassStatus=(s) => s.teacher.studentsByClassStatus;
+export const selectStudentsByIds       = (s) => s.teacher.studentsByIds;
+export const selectStudentsByIdsStatus = (s) => s.teacher.studentsByIdsStatus;
 export const selectSchedule            = (s) => s.teacher.schedule;
 export const selectInterventions       = (s) => s.teacher.interventions;
 export const selectInterventionStats   = (s) => s.teacher.interventionStats;

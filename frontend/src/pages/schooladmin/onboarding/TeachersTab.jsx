@@ -29,7 +29,15 @@ export default function TeachersTab() {
 
   const saving = mutationStatus === "loading";
 
-  useEffect(() => { dispatch(fetchTeachers()); }, [dispatch]);
+  useEffect(() => {
+    dispatch(fetchTeachers());
+    // Re-fetch every 30s so "Awaiting login" clears once teacher logs in
+    const interval = setInterval(() => dispatch(fetchTeachers()), 30_000);
+    // Also re-fetch when tab regains focus
+    const onFocus = () => dispatch(fetchTeachers());
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [dispatch]);
 
   const handleAdd = async () => {
     if (!form.name || !form.email) { setError("Name and email required"); return; }

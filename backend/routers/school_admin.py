@@ -531,6 +531,20 @@ async def _create_or_link_parent(parent_name, parent_email, parent_phone,
 @router.post("/reset-credentials")
 async def reset_credentials(body: ResetCredentials,
                              user=Depends(require_role("schooladmin")), db=Depends(get_db)):
+    target = await db.users.find_one({"_id": ObjectId(body.user_id)}, {"role": 1})
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    # Students use phone+OTP — they have no password to reset
+    if target.get("role") == "student":
+        # Clear any stale OTP so next login request generates a fresh one
+        await db.users.update_one(
+            {"_id": ObjectId(body.user_id)},
+            {"$unset": {"otp_hash": "", "otp_expires": ""}},
+        )
+        return {"new_password": None, "must_change_password": False,
+                "message": "Student uses phone OTP to login. No password needed."}
+
     new_pw = body.new_password or _gen_password()
     await db.users.update_one(
         {"_id": ObjectId(body.user_id)},

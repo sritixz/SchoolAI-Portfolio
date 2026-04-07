@@ -42,10 +42,11 @@ export default function StudentsTab() {
 
   const handleAdd = async () => {
     if (!form.name || !form.phone || !form.section_id) { setError("Name, phone and section required"); return; }
+    if (!/^\d{10}$/.test(form.phone)) { setError("Phone must be exactly 10 digits"); return; }
     setError(""); setSuccess("");
     try {
       const d = await dispatch(createStudent(form)).unwrap();
-      setSuccess(`${form.name} added${d.parent_id ? " with parent account" : ""}`);
+      setSuccess(`${form.name} added. They can login with phone ${form.phone} using OTP.`);
       setForm({ name: "", phone: "", roll_no: "", section_id: "", parent_name: "", parent_email: "", parent_phone: "" });
       setMode("list");
       dispatch(fetchStudents(filterSec ? { section_id: filterSec } : {}));
@@ -147,7 +148,7 @@ export default function StudentsTab() {
           <h3 className="font-black text-sm mb-4">New Student — login via phone number</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
             <Input label="Full Name" value={form.name} onChange={(v) => setForm((p) => ({ ...p, name: v }))} required />
-            <Input label="Phone (login)" value={form.phone} onChange={(v) => setForm((p) => ({ ...p, phone: v }))} required />
+            <Input label="Phone (login)" value={form.phone} onChange={(v) => setForm((p) => ({ ...p, phone: v.replace(/\D/g, "").slice(0, 10) }))} required />
             <Input label="Roll No" value={form.roll_no} onChange={(v) => setForm((p) => ({ ...p, roll_no: v }))} />
             <Select
               label="Section" value={form.section_id}
@@ -230,14 +231,10 @@ export default function StudentsTab() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {resetPw[s._id] && (
-                    <span className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded-lg font-mono">
-                      {resetPw[s._id]}
-                    </span>
-                  )}
-                  <button onClick={() => handleReset(s._id)} className="text-xs text-gray-400 hover:text-[#695be6] font-bold flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">lock_reset</span>Reset
-                  </button>
+                  <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-2 py-1 rounded-lg font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs">phone_iphone</span>OTP Login
+                  </span>
+                  {/* No reset button for students — they use phone OTP, not passwords */}
                   <button
                     onClick={() => { setEditId(s._id); setEditForm({ name: s.name, phone: s.phone, roll_no: s.roll_no }); }}
                     className="text-xs text-[#695be6] font-bold flex items-center gap-1"

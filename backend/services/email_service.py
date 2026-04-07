@@ -15,6 +15,9 @@ def _send(to: str, subject: str, html: str, text: str = ""):
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD:
         logger.warning("SMTP not configured — skipping email to %s", to)
         return False
+    if settings.DEBUG:
+        logger.info("DEV MODE — skipping email to %s (subject: %s)", to, subject)
+        return True
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
