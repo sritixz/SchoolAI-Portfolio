@@ -255,12 +255,18 @@ export default function CreateTest() {
       } else {
         // Create new homework
         const data = await dispatch(createHomework(payload)).unwrap();
-        if (!data.id) throw new Error(data.detail || "No ID returned");
+        if (!data?.id) throw new Error(data?.detail || "No ID returned");
         setHwId(data.id);
         setStep(1);
       }
     } catch (e) {
-      setError(e.message || "Could not save homework. Is the backend running?");
+      // e may be a plain object from rejectWithValue (e.g. {detail: "Insufficient permissions"})
+      const detail = e?.detail ?? e?.message ?? (typeof e === "string" ? e : null);
+      if (detail === "Insufficient permissions") {
+        setError("Permission denied (403). Please log out and log back in as Teacher.");
+      } else {
+        setError(detail || "Could not save homework. Is the backend running?");
+      }
     } finally {
       setSavingShell(false);
     }
@@ -305,8 +311,33 @@ export default function CreateTest() {
     setStep(2);
   };
 
-  // ── Step 2: assign ─────────────────────────────────────────
+  // ── Step 2: assign or save ─────────────────────────────────
   const handleAssign = async () => {
+    if (isEditing) {
+      // Edit mode: just save the questions + details, no re-assign needed
+      setSavingShell(true);
+      setError("");
+      try {
+        const payload = {
+          title:                       form.title,
+          subject:                     form.subject,
+          assigned_to_class:           form.class_level,
+          description:                 form.instructions || "",
+          submission_type:             form.submission_type,
+          difficulty_level:            form.difficulty_level,
+          estimated_duration_minutes:  +form.estimated_duration_minutes,
+          instructions:                form.instructions,
+        };
+        await dispatch(updateHomework({ id: hwId, ...payload })).unwrap();
+        await dispatch(patchHomeworkQuestions({ id: hwId, questions })).unwrap();
+        navigate(-1);
+      } catch {
+        setError("Could not save changes. Check backend.");
+      } finally {
+        setSavingShell(false);
+      }
+      return;
+    }
     if (!dueDate) { setError("Set a due date"); return; }
     if (selectedStu.length === 0) { setError("Select at least one student"); return; }
     setAssigning(true);
@@ -374,9 +405,14 @@ export default function CreateTest() {
             </button>
           )}
           {step === 2 && (
-            <button onClick={handleAssign} disabled={assigning}
+            <button onClick={handleAssign} disabled={assigning || savingShell}
               className="bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] disabled:opacity-50 transition-colors flex items-center gap-2">
-              {assigning ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Assigning...</> : <><span className="material-symbols-outlined text-sm">send</span>Assign</>}
+              {(assigning || savingShell)
+                ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>{isEditing ? "Saving..." : "Assigning..."}</>
+                : isEditing
+                  ? <><span className="material-symbols-outlined text-sm">save</span>Save Changes</>
+                  : <><span className="material-symbols-outlined text-sm">send</span>Assign</>
+              }
             </button>
           )}
         </div>
@@ -516,6 +552,12 @@ export default function CreateTest() {
                 {questions.length > 0 && (
                   <button onClick={() => setQuestions([])} className="w-full text-xs text-red-400 hover:underline">Clear all questions</button>
                 )}
+                {isEditing && questions.length > 0 && (
+                  <button onClick={handleQuestionsNext}
+                    className="w-full flex items-center justify-center gap-2 border-2 border-[#695be6] text-[#695be6] font-bold py-2.5 rounded-xl hover:bg-[#695be6]/5 transition-colors text-sm">
+                    <span className="material-symbols-outlined text-sm">save</span>Save & Review
+                  </button>
+                )}
               </div>
             </div>
 
@@ -538,18 +580,20 @@ export default function CreateTest() {
           </div>
         )}
 
-        {/* ── STEP 2: Assign ── */}
+        {/* ── STEP 2: Assign or Save ── */}
         {step === 2 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-3xl mx-auto">
 
             {/* Left: summary */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="size-12 rounded-xl bg-green-100 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-green-600">check_circle</span>
+                <div className={`size-12 rounded-xl flex items-center justify-center ${isEditing ? "bg-blue-100" : "bg-green-100"}`}>
+                  <span className={`material-symbols-outlined ${isEditing ? "text-blue-600" : "text-green-600"}`}>
+                    {isEditing ? "edit" : "check_circle"}
+                  </span>
                 </div>
                 <div>
-                  <h3 className="font-black">Homework Ready</h3>
+                  <h3 className="font-black">{isEditing ? "Review Changes" : "Homework Ready"}</h3>
                   <p className="text-xs text-gray-400">{questions.length} questions · {questions.reduce((s,q)=>s+(q.max_points||1),0)} marks</p>
                 </div>
               </div>
@@ -562,35 +606,49 @@ export default function CreateTest() {
                 <p><span className="font-bold">Duration:</span> {form.estimated_duration_minutes} min</p>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Due Date *</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
-              </div>
+              {!isEditing && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Due Date *</label>
+                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
+                </div>
+              )}
 
               <div className="pt-2 border-t border-gray-100">
-                <p className="text-xs text-gray-500 mb-2">
-                  <span className="font-bold text-[#695be6]">{selectedStu.length}</span> student{selectedStu.length!==1?"s":""} selected
-                </p>
-                <button onClick={handleAssign} disabled={assigning || !dueDate || selectedStu.length===0}
+                {!isEditing && (
+                  <p className="text-xs text-gray-500 mb-2">
+                    <span className="font-bold text-[#695be6]">{selectedStu.length}</span> student{selectedStu.length!==1?"s":""} selected
+                  </p>
+                )}
+                <button onClick={handleAssign} disabled={assigning || savingShell || (!isEditing && (!dueDate || selectedStu.length===0))}
                   className="w-full flex items-center justify-center gap-2 bg-[#695be6] text-white font-bold py-3.5 rounded-xl hover:bg-[#5a4dd4] disabled:opacity-50 transition-colors shadow-lg shadow-[#695be6]/20">
-                  {assigning
-                    ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>Assigning...</>
-                    : <><span className="material-symbols-outlined">send</span>Assign to {selectedStu.length} Student{selectedStu.length!==1?"s":""}</>
+                  {(assigning || savingShell)
+                    ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin"/>{isEditing ? "Saving..." : "Assigning..."}</>
+                    : isEditing
+                      ? <><span className="material-symbols-outlined">save</span>Save Changes</>
+                      : <><span className="material-symbols-outlined">send</span>Assign to {selectedStu.length} Student{selectedStu.length!==1?"s":""}</>
                   }
                 </button>
               </div>
             </div>
 
-            {/* Right: student picker */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-black text-sm mb-4">Select Students — {form.class_level}</h3>
-              <StudentPicker
-                classLevel={form.class_level}
-                selected={selectedStu}
-                onToggle={toggleStudent}
-              />
-            </div>
+            {/* Right: student picker (new assignment only) */}
+            {!isEditing ? (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+                <h3 className="font-black text-sm mb-4">Select Students — {form.class_level}</h3>
+                <StudentPicker
+                  classLevel={form.class_level}
+                  selected={selectedStu}
+                  onToggle={toggleStudent}
+                />
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 flex flex-col items-center justify-center text-center gap-3">
+                <span className="material-symbols-outlined text-4xl text-[#695be6]/40">info</span>
+                <p className="font-bold text-sm text-gray-600">Saving will update the question set for this homework.</p>
+                <p className="text-xs text-gray-400">Students who haven't started yet will see the updated questions. Already-submitted attempts are not affected.</p>
+              </div>
+            )}
           </div>
         )}
 

@@ -230,7 +230,7 @@ export default function EvaluateHomework() {
   const [aiLoading,  setAiLoading]  = useState(false);
   const [error,      setError]      = useState("");
 
-  const loading = evaluateStatus === "loading" || evaluateStatus === "idle";
+  const loading = evaluateStatus === "loading";
   const data    = evaluateData;
 
   const load = () => dispatch(fetchEvaluateList(homeworkId));

@@ -105,8 +105,8 @@ const NAV_ITEMS = [
   { icon: "home",         label: "Home",     to: "/student" },
   { icon: "description",  label: "Homework", to: "/student/homework" },
   { icon: "auto_awesome", label: "Vin AI",   to: "/student/vin-ai", fab: true },
-  { icon: "bar_chart",    label: "Progress", to: "#" },
-  { icon: "person",       label: "Profile",  to: "#", active: true },
+  { icon: "bar_chart",    label: "Progress", to: "/student/learning-gaps" },
+  { icon: "person",       label: "Profile",  to: "/student/portfolio", active: true },
 ];
 
 export default function Portfolio() {
@@ -156,27 +156,27 @@ export default function Portfolio() {
 
       {/* ── Header ── */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => navigate("/student")}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0"
             >
               <span className="material-symbols-outlined text-gray-500">arrow_back</span>
             </button>
-            <div className="bg-[#695be6] p-2 rounded-lg flex items-center justify-center text-white">
+            <div className="bg-[#695be6] p-2 rounded-lg flex items-center justify-center text-white flex-shrink-0">
               <span className="material-symbols-outlined">auto_stories</span>
             </div>
-            <h1 className="text-xl font-bold tracking-tight">My Portfolio</h1>
+            <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">My Portfolio</h1>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm">
+          <div className="flex items-center gap-2">
+            <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm">
               <span className="material-symbols-outlined text-[20px]">edit</span>
-              <span className="hidden sm:inline">Edit Profile</span>
+              <span>Edit Profile</span>
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-[#695be6] text-white hover:bg-[#5a4dd4] rounded-lg font-semibold shadow-lg shadow-[#695be6]/20 transition-all text-sm">
+            <button className="flex items-center gap-2 px-3 py-2 bg-[#695be6] text-white hover:bg-[#5a4dd4] rounded-lg font-semibold shadow-lg shadow-[#695be6]/20 transition-all text-sm">
               <span className="material-symbols-outlined text-[20px]">share</span>
-              <span className="hidden sm:inline">Share Portfolio</span>
+              <span>Share Portfolio</span>
             </button>
           </div>
         </div>

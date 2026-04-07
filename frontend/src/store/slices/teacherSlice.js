@@ -31,6 +31,11 @@ export const fetchInterventions = createAsyncThunk("teacher/fetchInterventions",
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const createIntervention = createAsyncThunk("teacher/createIntervention", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/interventions", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const fetchInterventionStats = createAsyncThunk("teacher/fetchInterventionStats", async (_, { rejectWithValue }) => {
   try { return (await api.get("/teacher/interventions/stats")).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }

@@ -13,6 +13,7 @@ import LearningGapHub from "./pages/student/LearningGapHub";
 import LearningGaps from "./pages/student/LearningGaps";
 import GapRemediation from "./pages/student/GapRemediation";
 import GapQuiz from "./pages/student/GapQuiz";
+import QuizSelector from "./pages/student/QuizSelector";
 import Portfolio from "./pages/student/Portfolio";
 import ExamPrep from "./pages/student/ExamPrep";
 import StudentNotifications from "./pages/student/Notifications";
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/student/learning-gaps"                element={<S><LearningGapHub /></S>} />
           <Route path="/student/learning-gaps/gaps"           element={<S><LearningGaps /></S>} />
           <Route path="/student/learning-gaps/gaps/:gapId"    element={<S><GapRemediation /></S>} />
+          <Route path="/student/learning-gaps/quizzes"        element={<S><QuizSelector /></S>} />
           <Route path="/student/learning-gaps/quiz/:quizId"   element={<S><GapQuiz /></S>} />
           <Route path="/student/portfolio"                    element={<S><Portfolio /></S>} />
           <Route path="/student/exam-prep"                    element={<S><ExamPrep /></S>} />

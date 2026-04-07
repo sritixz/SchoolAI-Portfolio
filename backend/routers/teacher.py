@@ -1458,6 +1458,57 @@ async def get_ai_history(user=Depends(require_role("teacher")), db=Depends(get_d
 class InterventionNoteRequest(BaseModel):
     note: str
 
+class InterventionCreateRequest(BaseModel):
+    student_id: str
+    student_name: str
+    student_class: Optional[str] = ""
+    priority: str = "important"   # urgent | important | monitor
+    issues: List[str] = []
+    message: Optional[str] = ""
+    tags: List[str] = []
+
+@router.post("/interventions")
+async def create_intervention(body: InterventionCreateRequest, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Manually add a student to the intervention group from any page (e.g. Topic Mastery)."""
+    # Avoid duplicates — update if already exists for this teacher+student
+    existing = await db.interventions.find_one({
+        "teacher_id": user["id"],
+        "student_id": body.student_id,
+        "resolved": False,
+    })
+    if existing:
+        # Merge new issues into existing record
+        merged_issues = list(set(existing.get("issues", []) + body.issues))
+        merged_tags   = list(set(existing.get("tags", []) + body.tags))
+        await db.interventions.update_one(
+            {"_id": existing["_id"]},
+            {"$set": {
+                "issues":     merged_issues,
+                "tags":       merged_tags,
+                "priority":   body.priority if body.priority == "urgent" else existing.get("priority", body.priority),
+                "updated_at": datetime.utcnow().isoformat(),
+            }}
+        )
+        return {"id": str(existing["_id"]), "updated": True}
+
+    doc = {
+        "teacher_id":    user["id"],
+        "student_id":    body.student_id,
+        "student_name":  body.student_name,
+        "student_class": body.student_class,
+        "priority":      body.priority,
+        "issues":        body.issues,
+        "message":       body.message or (body.issues[0] if body.issues else "Added to intervention group"),
+        "tags":          body.tags,
+        "status":        "New",
+        "resolved":      False,
+        "performance_drop": 0,
+        "score_history": [],
+        "created_at":    datetime.utcnow().isoformat(),
+    }
+    result = await db.interventions.insert_one(doc)
+    return {"id": str(result.inserted_id), "updated": False}
+
 @router.patch("/interventions/{intervention_id}/snooze")
 async def snooze_intervention(intervention_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
     try:

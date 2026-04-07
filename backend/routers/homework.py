@@ -120,10 +120,14 @@ async def assign_homework(body: HomeworkAssign, user=Depends(require_role("teach
         raise HTTPException(404, "Homework not found or not yours")
 
     update: dict = {"status": "assigned"}
-    if body.student_ids:
-        update["assigned_students"] = body.student_ids
     if body.due_date:
         update["due_date"] = body.due_date
+
+    # Merge new student_ids with existing ones (avoid overwriting other groups)
+    if body.student_ids:
+        existing = hw.get("assigned_students", [])
+        merged = list(set(existing + body.student_ids))
+        update["assigned_students"] = merged
 
     await db.homework.update_one({"_id": ObjectId(body.homework_id)}, {"$set": update})
     return {"assigned": len(body.student_ids)}

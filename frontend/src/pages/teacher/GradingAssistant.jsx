@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { selectAiHistory } from "../../store/slices/aiHistorySlice";
 import {
   assistanceTypes,
   feedbackTones,
@@ -11,6 +12,7 @@ import {
 } from "../../data/teacher/gradingAssistantData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadGradingPdf } from "../../utils/aiPdfExport";
+import { uploadSubmissionFile, selectUploadStatus, selectUploadUrl, clearUpload } from "../../store/slices/homeworkSlice";
 
 export default function GradingAssistant() {
   const navigate  = useNavigate();
@@ -18,12 +20,30 @@ export default function GradingAssistant() {
   const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
+  const uploadStatus = useSelector(selectUploadStatus);
+  const uploadedUrl  = useSelector(selectUploadUrl);
+  const history      = useSelector(selectAiHistory);
+  const fileInputRef = useRef(null);
+
   const [form, setForm] = useState(gradingDefaults);
   const [feedbackText, setFeedbackText] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
+
   const generating = aiStatus === "loading";
   const evaluated  = !!aiResult && !generating;
+  const uploading  = uploadStatus === "loading";
 
-  useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+  useEffect(() => () => { dispatch(clearAiToolResult()); dispatch(clearUpload()); }, [dispatch]);
+
+  // When a file is uploaded, append the URL to the student response
+  useEffect(() => {
+    if (uploadedUrl) {
+      setForm((f) => ({ ...f, studentResponse: f.studentResponse ? `${f.studentResponse}\n[Uploaded: ${uploadedUrl}]` : `[Uploaded: ${uploadedUrl}]` }));
+      dispatch(clearUpload());
+    }
+  }, [uploadedUrl, dispatch]);
 
   // Map API result to display shape
   const result = aiResult || sampleEvaluationResult;
@@ -33,6 +53,8 @@ export default function GradingAssistant() {
   const handleGenerate = () => {
     dispatch(clearAiToolResult());
     setFeedbackText("");
+    setEditMode(false);
+    setSendSuccess(false);
     runTool({
       tool: "grading",
       subject: "General",
@@ -52,6 +74,24 @@ export default function GradingAssistant() {
   if (aiResult && !feedbackText && aiResult.feedback) {
     setFeedbackText(aiResult.feedback);
   }
+
+  const handleUploadHandwriting = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    dispatch(uploadSubmissionFile(file));
+    e.target.value = "";
+  };
+
+  const handleAcceptAndSend = () => {
+    // Copy final feedback to clipboard and show success
+    const text = `Score: ${result.score}/${result.max_score || result.maxScore}\n\nFeedback:\n${feedbackText || result.feedback}`;
+    navigator.clipboard?.writeText(text).catch(() => {});
+    setSendSuccess(true);
+    setTimeout(() => setSendSuccess(false), 3000);
+  };
+
+  // History filtered to grading tool only
+  const gradingHistory = history.filter((h) => h.tool === "grading").slice(0, 20);
 
   return (
     <div className="bg-[#fff5f8] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -91,10 +131,13 @@ export default function GradingAssistant() {
             </button>
             <h2 className="font-black text-xl">Grading Workspace</h2>
           </div>
-          <button className="flex items-center gap-1.5 border border-gray-200 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+          <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 border border-gray-200 text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-50 transition-colors">
             <span className="material-symbols-outlined text-base">history</span> View History
           </button>
         </div>
+
+        {/* Hidden file input for handwriting upload */}
+        <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleUploadHandwriting} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -141,8 +184,12 @@ export default function GradingAssistant() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Student Response</p>
-                <button className="flex items-center gap-1 text-xs text-[#695be6] font-semibold hover:underline">
-                  <span className="material-symbols-outlined text-sm">upload</span> Upload Handwriting
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="flex items-center gap-1 text-xs text-[#695be6] font-semibold hover:underline disabled:opacity-50">
+                  <span className="material-symbols-outlined text-sm">{uploading ? "hourglass_empty" : "upload"}</span>
+                  {uploading ? "Uploading..." : "Upload Handwriting"}
                 </button>
               </div>
               <textarea
@@ -292,12 +339,18 @@ export default function GradingAssistant() {
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Feedback Draft</p>
-                    <span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded">EDITABLE</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${editMode ? "bg-[#695be6] text-white" : "bg-blue-100 text-blue-600"}`}>
+                      {editMode ? "EDITING" : "EDITABLE"}
+                    </span>
                   </div>
                   <textarea
                     value={feedbackText || result.feedback || ""}
                     onChange={(e) => setFeedbackText(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6] resize-none h-28"
+                    readOnly={!editMode}
+                    onClick={() => !editMode && setEditMode(true)}
+                    className={`w-full border rounded-xl px-4 py-3 text-sm outline-none resize-none h-28 transition-colors ${
+                      editMode ? "border-[#695be6] focus:border-[#695be6]" : "border-gray-200 cursor-pointer hover:border-gray-300 bg-gray-50"
+                    }`}
                   />
                 </div>
 
@@ -338,12 +391,23 @@ export default function GradingAssistant() {
                 )}
 
                 <div className="space-y-2">
+                  {sendSuccess && (
+                    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                      <span className="material-symbols-outlined text-green-600 text-base">check_circle</span>
+                      <p className="text-xs text-green-700 font-medium">Feedback copied to clipboard</p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
-                    <button className="flex items-center justify-center gap-2 bg-[#695be6] text-white font-bold py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors text-sm">
+                    <button
+                      onClick={handleAcceptAndSend}
+                      className="flex items-center justify-center gap-2 bg-[#695be6] text-white font-bold py-2.5 rounded-xl hover:bg-[#5a4dd4] transition-colors text-sm">
                       <span className="material-symbols-outlined text-base">send</span> Accept & Send
                     </button>
-                    <button className="flex items-center justify-center gap-2 border border-gray-200 font-bold py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-sm">
-                      <span className="material-symbols-outlined text-base">edit</span> Edit Manually
+                    <button
+                      onClick={() => setEditMode((v) => !v)}
+                      className={`flex items-center justify-center gap-2 border font-bold py-2.5 rounded-xl transition-colors text-sm ${editMode ? "border-[#695be6] bg-[#695be6]/5 text-[#695be6]" : "border-gray-200 hover:bg-gray-50"}`}>
+                      <span className="material-symbols-outlined text-base">{editMode ? "check" : "edit"}</span>
+                      {editMode ? "Done Editing" : "Edit Manually"}
                     </button>
                   </div>
                   <button onClick={handleGenerate}
@@ -362,6 +426,39 @@ export default function GradingAssistant() {
           </div>
         </div>
       </div>
+
+      {/* History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowHistory(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-black text-base">Grading History</h3>
+              <button onClick={() => setShowHistory(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <span className="material-symbols-outlined text-gray-500">close</span>
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-4 space-y-3">
+              {gradingHistory.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">history</span>
+                  <p className="text-sm">No grading history yet</p>
+                </div>
+              ) : gradingHistory.map((item) => (
+                <button key={item.id} onClick={() => { setShowHistory(false); }}
+                  className="w-full text-left bg-gray-50 hover:bg-[#695be6]/5 border border-gray-100 hover:border-[#695be6]/30 rounded-xl p-3 transition-all">
+                  <p className="text-sm font-bold truncate">{item.title}</p>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleDateString()}</span>
+                    {item.result?.score != null && (
+                      <span className="text-xs font-bold text-[#695be6]">{item.result.score}/{item.result.max_score || item.result.maxScore}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -22,8 +22,9 @@ const DIFFICULTY_COLORS = {
 
 // homeworkId: existing library hw id, or null if AI-generated
 function normaliseGroup(g) {
+  const stableId = g._id || g.id || `local-${Math.random().toString(36).slice(2)}`;
   return {
-    id: g._id || g.id,
+    id: stableId,
     _id: g._id,
     label: g.label,
     difficulty: g.difficulty || "Foundation",
@@ -103,21 +104,21 @@ export default function DifferentiatedHomework() {
     dispatch(fetchGroups());
   }, [dispatch]);
 
-  // When backend groups load, hydrate local state and jump to correct step
+  // When backend groups load or change, hydrate local state
   useEffect(() => {
     if (groupsStatus === "succeeded") {
       const normalised = savedGroups.map(normaliseGroup);
       setGroups(normalised);
       if (normalised.length > 0) {
-        setActiveGroupId(normalised[0].id);
-        setCurrentStep(1);
+        setActiveGroupId((prev) => prev || normalised[0].id);
         if (normalised[0].subject) setSubject(normalised[0].subject);
         if (normalised[0].chapter) setChapter(normalised[0].chapter);
       }
     }
-  }, [groupsStatus, savedGroups.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupsStatus, savedGroups]);
 
-  // Parse AI grouping result and save to backend
+  // Parse AI grouping result and save to backend — run only once per new result
   useEffect(() => {
     if (!aiResult || generating) return;
     const raw = aiResult.groups || aiResult.suggested_groups || [];
@@ -140,8 +141,10 @@ export default function DifferentiatedHomework() {
         chapter,
       };
     });
-    // Save to backend as single source of truth
+    // Save to backend as single source of truth, then clear result to prevent re-processing
     dispatch(bulkSaveGroups({ groups: parsed, subject, chapter }));
+    dispatch(clearAiToolResult());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiResult, generating]);
 
   const runAiGrouping = () => {
@@ -304,21 +307,31 @@ export default function DifferentiatedHomework() {
           });
         } else {
           // AI-generated questions mode — create new homework
+          const totalQs = g.aiQuestions.length;
           const questions = g.aiQuestions.map((q, i) => ({
-            id: q.id,
+            id: q.id || `q-${i}-${Date.now()}`,
             question_number: i + 1,
-            question_text: q.text,
-            answer_type: "mcq",
-            max_points: q.marks || 5,
+            total_questions: totalQs,
+            question_text: q.text || q.question_text || "",
+            answer_type: "typed",   // typed avoids MCQ-options validation
             options: [],
+            max_points: q.marks || 5,
+            hint: q.hint || null,
+            sample_answer: q.sample_answer || null,
           }));
+          const diffMap = { Foundation: "low", Intermediate: "medium", Advanced: "high" };
           const createRes = await api.post("/homework/create", {
             title: g.homeworkTitle || `${subject} – ${chapter} (${g.label})`,
             subject,
-            chapter,
-            difficulty_level: g.difficulty.toLowerCase(),
+            description: `${g.difficulty} level homework for ${chapter}`,
+            assigned_to_class: "",
+            assigned_students: g.studentIds,
+            due_date: g.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            difficulty_level: diffMap[g.difficulty] || "medium",
             submission_type: "online_quiz",
+            estimated_duration_minutes: 30,
             tags: [subject, chapter, g.difficulty],
+            total_marks: questions.reduce((s, q) => s + q.max_points, 0),
             questions,
           });
           hwId = createRes.data.id;
@@ -342,7 +355,11 @@ export default function DifferentiatedHomework() {
       showToastMsg(`Homework assigned to ${results.length} group(s) successfully!`);
       setTimeout(() => navigate(-1), 1800);
     } catch (err) {
-      showToastMsg("Failed to assign homework. Please try again.", "error");
+      const detail = err.response?.data?.detail;
+      const msg = typeof detail === "string" ? detail
+        : Array.isArray(detail) ? detail.map((d) => d.msg).join(", ")
+        : "Failed to assign homework. Please try again.";
+      showToastMsg(msg, "error");
     } finally {
       setAssigning(false);
     }

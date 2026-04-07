@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
-import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult, fetchTopicMastery, selectTopicMastery, fetchMySections, selectMySections, setDiffContext } from "../../store/slices/teacherSlice";
+import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult, fetchTopicMastery, selectTopicMastery, fetchMySections, selectMySections, setDiffContext, createIntervention } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
 import { masteryTopics, masteryStudents } from "../../data/teacherData";
 import jsPDF from "jspdf";
@@ -48,6 +48,7 @@ export default function TopicMastery() {
   const [search,          setSearch]           = useState("");
   const [reportOpen,      setReportOpen]       = useState(false);
   const [sortBy,          setSortBy]           = useState("name"); // name | avg_asc | avg_desc
+  const [interventionToast, setInterventionToast] = useState(null);
 
   useEffect(() => {
     dispatch(fetchMySections());
@@ -228,8 +229,48 @@ export default function TopicMastery() {
     doc.save(`class-report-${gradeFilter.replace(/\s/g, "-")}.pdf`);
   };
 
+  // ── Add to Intervention Group ────────────────────────────
+  const handleAddToIntervention = async () => {
+    if (!selectedStudent) return;
+    const topic = displayTopics[selectedTopic] || "";
+    const score = selectedStudent.scores[selectedTopic] ?? 0;
+    const priority = score < 35 ? "urgent" : score < 50 ? "important" : "monitor";
+    const issues = [`Gap in ${topic} (score: ${score}%)`];
+    const tags = score < 50 ? ["LEARNING GAPS", "TOPIC MASTERY"] : ["TOPIC MASTERY"];
+
+    const result = await dispatch(createIntervention({
+      student_id:    selectedStudent.id,
+      student_name:  selectedStudent.name,
+      student_class: gradeFilter,
+      priority,
+      issues,
+      message:       `${selectedStudent.name} scored ${score}% in ${topic} — added from Topic Mastery Heatmap`,
+      tags,
+    }));
+
+    if (result.meta.requestStatus === "fulfilled") {
+      const wasUpdated = result.payload?.updated;
+      setInterventionToast(wasUpdated
+        ? `${selectedStudent.name} already in group — record updated`
+        : `${selectedStudent.name} added to intervention group`
+      );
+      setTimeout(() => setInterventionToast(null), 3500);
+    } else {
+      setInterventionToast("Failed to add to intervention group");
+      setTimeout(() => setInterventionToast(null), 3500);
+    }
+  };
+
   return (
     <div className="bg-[#f8f7ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
+
+      {/* ── Intervention toast ───────────────────────────────── */}
+      {interventionToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold bg-[#695be6] text-white">
+          <span className="material-symbols-outlined text-base">group_add</span>
+          {interventionToast}
+        </div>
+      )}
 
       {/* ── Report Modal ─────────────────────────────────────── */}
       {reportOpen && (
@@ -590,7 +631,7 @@ export default function TopicMastery() {
                 <span className="material-symbols-outlined text-sm">assignment</span>
                 Assign Targeted Practice
               </button>
-              <button onClick={() => navigate("/teacher/interventions")}
+              <button onClick={handleAddToIntervention}
                 className="w-full border border-[#695be6] text-[#695be6] text-xs font-bold py-2.5 rounded-xl hover:bg-[#695be6]/5 transition-colors flex items-center justify-center gap-1.5">
                 <span className="material-symbols-outlined text-sm">group_add</span>
                 Add to Intervention Group

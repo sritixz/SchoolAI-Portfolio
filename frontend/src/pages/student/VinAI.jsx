@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../api";
 import {
   VIN_AVATAR, QUICK_ACTIONS, DOUBT_HISTORY,
   SUBJECT_BADGE, SIDEBAR_SUBJECTS,
@@ -216,7 +217,11 @@ export default function VinAI() {
   const [status, setStatus] = useState("idle"); // idle | thinking | streaming
   const [subjFilter, setSubjFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("idle"); // idle | uploading | error
+  const [showMobileHistory, setShowMobileHistory] = useState(false);
 
+  const fileInputRef = useRef(null);
+  const sidebarRef = useRef(null);
   const chatHistoryRef = useRef([]);
 
   const history = historyStatus === "succeeded" ? reduxHistory : (historyStatus === "failed" ? DOUBT_HISTORY : []);
@@ -305,6 +310,44 @@ export default function VinAI() {
   const toggleStar = (id) => {
     dispatch(optimisticToggleStar(id));
     dispatch(toggleDoubtStar(id));
+  };
+
+  // ─── QUICK ACTION HANDLERS ──────────────────────────────────
+  const handleUploadProblem = () => fileInputRef.current?.click();
+
+  const handleFileChange = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // reset so same file can be re-selected
+    setUploadStatus("uploading");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "vin-problems");
+      const { data } = await api.post("/storage/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setUploadStatus("idle");
+      sendMessage(`I've uploaded a problem image. Please help me solve it. Image URL: ${data.url}`);
+    } catch {
+      setUploadStatus("error");
+      setTimeout(() => setUploadStatus("idle"), 3000);
+    }
+  }, [sendMessage]);
+
+  const handleFormulaHelp = () => {
+    setInput("Can you show me the key formulas I need to know for this topic and explain how to use them?");
+    textareaRef.current?.focus();
+  };
+
+  const handlePastLessons = () => {
+    if (sidebarRef.current) {
+      // Desktop: sidebar is visible, scroll it to top
+      sidebarRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      // Mobile: open the history drawer
+      setShowMobileHistory(true);
+    }
   };
 
   const filteredHistory = history.filter((h) => {
@@ -409,13 +452,40 @@ export default function VinAI() {
 
         <footer className="bg-white border-t border-slate-200 p-4 shrink-0">
           <div className="max-w-4xl mx-auto space-y-3">
+            {/* Hidden file input for Upload Problem */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={handleFileChange}
+            />
             <div className="flex gap-2 flex-wrap">
-              {QUICK_ACTIONS.map((qa) => (
-                <button key={qa.id}
-                  className="bg-[#695be6]/10 text-[#695be6] px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 hover:bg-[#695be6]/20 transition-colors">
-                  <span className="material-symbols-outlined text-sm">{qa.icon}</span>{qa.label}
-                </button>
-              ))}
+              {QUICK_ACTIONS.map((qa) => {
+                const isUploading = qa.id === "qa1" && uploadStatus === "uploading";
+                const isError     = qa.id === "qa1" && uploadStatus === "error";
+                const handler =
+                  qa.id === "qa1" ? handleUploadProblem :
+                  qa.id === "qa2" ? handleFormulaHelp :
+                  handlePastLessons;
+                return (
+                  <button
+                    key={qa.id}
+                    onClick={handler}
+                    disabled={isUploading}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 transition-colors
+                      ${isError
+                        ? "bg-red-100 text-red-600"
+                        : "bg-[#695be6]/10 text-[#695be6] hover:bg-[#695be6]/20"
+                      } disabled:opacity-50`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {isUploading ? "progress_activity" : isError ? "error" : qa.icon}
+                    </span>
+                    {isUploading ? "Uploading..." : isError ? "Upload failed" : qa.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 pr-3">
               <textarea
@@ -439,7 +509,7 @@ export default function VinAI() {
       </div>
 
       {/* ── History Sidebar ── */}
-      <aside className="w-[360px] h-full bg-white shrink-0 z-20 flex-col border-l border-slate-200 hidden lg:flex"
+      <aside ref={sidebarRef} className="w-[360px] h-full bg-white shrink-0 z-20 flex-col border-l border-slate-200 hidden lg:flex"
         style={{ boxShadow: "-4px 0 15px rgba(0,0,0,0.05)" }}>
         <div className="h-16 flex items-center px-6 border-b border-slate-100 shrink-0">
           <h2 className="text-[#2D2D2D] font-semibold text-lg">Doubt History</h2>
@@ -474,6 +544,47 @@ export default function VinAI() {
           )}
         </div>
       </aside>
+
+      {/* ── Mobile History Drawer ── */}
+      {showMobileHistory && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowMobileHistory(false)} />
+          <div className="relative ml-auto w-[320px] h-full bg-white flex flex-col shadow-2xl">
+            <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 shrink-0">
+              <h2 className="text-[#2D2D2D] font-semibold text-lg">Doubt History</h2>
+              <button onClick={() => setShowMobileHistory(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                <span className="material-symbols-outlined text-slate-500">close</span>
+              </button>
+            </div>
+            <div className="p-4 space-y-3 shrink-0">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">search</span>
+                <input value={search} onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-full text-sm focus:ring-2 focus:ring-[#6B5CE7]/20"
+                  placeholder="Search your doubts..." />
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 whitespace-nowrap" style={{ scrollbarWidth: "none" }}>
+                {SIDEBAR_SUBJECTS.map((s) => (
+                  <button key={s} onClick={() => setSubjFilter(s)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors shrink-0 ${
+                      subjFilter === s ? "bg-[#6B5CE7] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3" style={{ scrollbarWidth: "thin" }}>
+              {filteredHistory.length === 0
+                ? <p className="text-center text-slate-400 text-sm py-8">No doubts found</p>
+                : filteredHistory.map((item) => (
+                    <HistoryCard key={item._id || item.id} item={item} onStar={toggleStar} />
+                  ))
+              }
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

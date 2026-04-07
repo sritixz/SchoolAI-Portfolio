@@ -21,11 +21,8 @@ export default function LearningGapHub() {
   const criticalCount = gaps.filter((g) => g.severity === "critical").length;
   const healthScore = health?.score ?? 100;
 
-  // Use the first gap's quiz_id if available, otherwise fall back to the mock quiz id
-  const firstGap = gaps[0];
-  const quizLink = firstGap?.quiz_id
-    ? `/student/learning-gaps/quiz/${firstGap.quiz_id}`
-    : `/student/learning-gaps/quiz/quiz001`;
+  // "Take a Quiz" always goes to the quiz selector so students can pick any quiz
+  const quizLink = "/student/learning-gaps/quizzes";
 
   return (
     <div className="min-h-screen bg-[#f6f6f8] flex flex-col" style={{ fontFamily: "'Lexend', sans-serif" }}>

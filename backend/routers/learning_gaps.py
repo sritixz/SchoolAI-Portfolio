@@ -76,6 +76,11 @@ Return ONLY valid JSON: {{"explanation": "...", "examples": ["..."], "key_points
     await db.remediation_cache.insert_one({"gap_id": gap_id, "content": content})
     return {"gap": _ser(gap), "remediation": content}
 
+@router.get("/quizzes")
+async def list_quizzes(user=Depends(require_role("student")), db=Depends(get_db)):
+    docs = await db.gap_quizzes.find({}, {"questions": 0}).to_list(None)
+    return [_ser(d) for d in docs]
+
 @router.get("/quiz/{quiz_id}")
 async def get_quiz(quiz_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
     # Try string id field first (e.g. "quiz001"), then ObjectId
