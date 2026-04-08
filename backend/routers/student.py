@@ -236,3 +236,326 @@ async def mark_student_notif_read(notif_id: str, user=Depends(require_role("stud
     except Exception:
         raise HTTPException(400, "Invalid notification ID")
     return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────
+# EXAM PREP MODULE
+# ─────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel
+from typing import List, Optional
+import json as _json
+from services.llm import chat_completion
+from datetime import date, timedelta
+
+class SubjectSetup(BaseModel):
+    name: str
+    examDate: str
+    daysLeft: int
+    syllabusMode: str
+    topics: List[str]
+    pattern: str
+    confidence: str
+
+class ExamPrepSetupRequest(BaseModel):
+    class_val: str = ""
+    board: str = "CBSE"
+    subjects: List[SubjectSetup]
+    dailyStudyMinutes: int = 60
+
+    model_config = {"populate_by_name": True}
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        if isinstance(obj, dict) and "class" in obj:
+            obj = dict(obj)
+            obj["class_val"] = obj.pop("class")
+        return super().model_validate(obj, *args, **kwargs)
+
+@router.post("/exam-prep/setup")
+async def exam_prep_setup(body: ExamPrepSetupRequest, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Save exam prep profile and generate AI study plan + readiness scores."""
+    subjects_info = "\n".join([
+        f"- {s.name}: exam on {s.examDate} ({s.daysLeft} days left), "
+        f"pattern={s.pattern}, confidence={s.confidence}, "
+        f"syllabus={'full' if s.syllabusMode == 'full' else ', '.join(s.topics) or 'full'}"
+        for s in body.subjects
+    ])
+    today_str = date.today().isoformat()
+    class_label = body.class_val or "8"
+    prompt = f"""You are a smart AI study planner for a Class {class_label} student ({body.board} board).
+
+STUDENT PROFILE:
+- Daily study time: {body.dailyStudyMinutes} minutes
+- Subjects and exams:
+{subjects_info}
+- Today: {today_str}
+
+Generate a personalized study plan. Return ONLY valid JSON (no markdown):
+{{
+  "readiness": {{
+    "<SubjectName>": <integer 30-90 based on confidence and days left>
+  }},
+  "aiInsights": [
+    "Short motivational insight about the student's preparation (max 3 insights)"
+  ],
+  "studyPlan": [
+    {{
+      "day": 1,
+      "date": "{today_str}",
+      "totalMinutes": {body.dailyStudyMinutes},
+      "sessions": [
+        {{
+          "subject": "<subject name>",
+          "topic": "<specific topic to study>",
+          "type": "Learn",
+          "duration": <minutes as integer>,
+          "done": false
+        }}
+      ]
+    }}
+  ]
+}}
+
+RULES:
+- studyPlan must cover from today until the nearest exam date (max 14 days shown)
+- Each day's total session minutes must equal dailyStudyMinutes
+- Max 3 subjects per day
+- Prioritize subjects with low confidence and near exam dates
+- type must be one of: Learn, Practice, Revise
+- Last 3 days before any exam: switch to Revise type only
+- readiness: low confidence + few days = lower score; high confidence + many days = higher score
+- aiInsights: 2-3 short smart messages like "Science needs attention — only 5 days left"
+"""
+    try:
+        raw = await chat_completion([{"role": "user", "content": prompt}])
+        # Strip markdown fences if present
+        clean = raw.strip()
+        if clean.startswith("```"):
+            clean = clean.split("```")[1]
+            if clean.startswith("json"):
+                clean = clean[4:]
+        result = _json.loads(clean.strip())
+    except Exception:
+        # Fallback plan
+        result = {
+            "readiness": {s.name: 50 for s in body.subjects},
+            "aiInsights": ["Keep studying consistently to improve your readiness!"],
+            "studyPlan": [{
+                "day": 1, "date": today_str, "totalMinutes": body.dailyStudyMinutes,
+                "sessions": [{"subject": body.subjects[0].name if body.subjects else "Maths", "topic": "Chapter Review", "type": "Learn", "duration": body.dailyStudyMinutes, "done": False}]
+            }]
+        }
+
+    # Persist profile to DB
+    profile_doc = {
+        "student_id": user["id"],
+        "class": class_label,
+        "board": body.board,
+        "subjects": [s.dict() for s in body.subjects],
+        "dailyStudyMinutes": body.dailyStudyMinutes,
+        "studyPlan": result.get("studyPlan", []),
+        "readiness": result.get("readiness", {}),
+        "aiInsights": result.get("aiInsights", []),
+        "updatedAt": today_str,
+    }
+    await db.exam_prep_profiles.update_one(
+        {"student_id": user["id"]},
+        {"$set": profile_doc},
+        upsert=True,
+    )
+    return {
+        "class": class_label,
+        "board": body.board,
+        "subjects": [s.dict() for s in body.subjects],
+        "dailyStudyMinutes": body.dailyStudyMinutes,
+        **result,
+    }
+
+
+@router.get("/exam-prep/profile")
+async def get_exam_prep_profile(user=Depends(require_role("student")), db=Depends(get_db)):
+    """Return saved exam prep profile for this student."""
+    doc = await db.exam_prep_profiles.find_one({"student_id": user["id"]})
+    if not doc:
+        return {}
+    doc = _ser(doc)
+    return doc
+
+
+@router.get("/exam-prep/plan")
+async def get_exam_prep_plan(user=Depends(require_role("student")), db=Depends(get_db)):
+    """Return the study plan from the saved profile."""
+    doc = await db.exam_prep_profiles.find_one({"student_id": user["id"]})
+    if not doc:
+        return {"studyPlan": [], "readiness": {}, "aiInsights": []}
+    return {
+        "studyPlan": doc.get("studyPlan", []),
+        "readiness": doc.get("readiness", {}),
+        "aiInsights": doc.get("aiInsights", []),
+    }
+
+
+class PracticeQuestionsRequest(BaseModel):
+    subject: str
+    class_val: str = ""
+    board: str = "CBSE"
+    topics: List[str] = []
+    pattern: str = "mixed"
+    confidence: str = "medium"
+
+    model_config = {"populate_by_name": True}
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        if isinstance(obj, dict) and "class" in obj:
+            obj = dict(obj)
+            obj["class_val"] = obj.pop("class")
+        return super().model_validate(obj, *args, **kwargs)
+
+@router.post("/exam-prep/practice-questions")
+async def generate_practice_questions(body: PracticeQuestionsRequest, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Generate AI practice questions for a subject."""
+    topics_str = ", ".join(body.topics) if body.topics else "general topics"
+    difficulty = "easy" if body.confidence == "low" else "medium" if body.confidence == "medium" else "hard"
+    class_label = body.class_val or "8"
+    prompt = f"""Generate 5 practice questions for a Class {class_label} {body.subject} student ({body.board} board).
+Topics: {topics_str}
+Exam pattern: {body.pattern}
+Difficulty: {difficulty}
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "questions": [
+    {{
+      "id": "q1",
+      "question": "Question text here",
+      "options": [
+        {{"id": "A", "text": "Option A", "is_correct": false}},
+        {{"id": "B", "text": "Option B", "is_correct": true}},
+        {{"id": "C", "text": "Option C", "is_correct": false}},
+        {{"id": "D", "text": "Option D", "is_correct": false}}
+      ],
+      "explanation": "Why the correct answer is right",
+      "trick": "A quick memory trick or shortcut"
+    }}
+  ]
+}}
+
+RULES:
+- All 5 questions must be MCQ with exactly 4 options
+- Exactly one option must have is_correct: true
+- Questions must be relevant to {body.subject} Class {class_label} {body.board} syllabus
+- explanation must be clear and educational
+"""
+    try:
+        raw = await chat_completion([{"role": "user", "content": prompt}])
+        clean = raw.strip()
+        if "```" in clean:
+            parts = clean.split("```")
+            inner = parts[1] if len(parts) > 1 else clean
+            if inner.startswith("json"):
+                inner = inner[4:]
+            clean = inner.strip()
+        return _json.loads(clean)
+    except Exception:
+        return {"questions": []}
+
+
+class NotesRequest(BaseModel):
+    subject: str
+    note_type: str  # short | ultrashort | questions | formulas
+    class_val: str = ""
+    board: str = "CBSE"
+    topics: List[str] = []
+    pattern: str = "mixed"
+    days_left: int = 10
+
+    model_config = {"populate_by_name": True}
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        if isinstance(obj, dict) and "class" in obj:
+            obj = dict(obj)
+            obj["class_val"] = obj.pop("class")
+        return super().model_validate(obj, *args, **kwargs)
+
+@router.post("/exam-prep/notes")
+async def generate_notes(body: NotesRequest, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Generate AI notes for a subject."""
+    class_label = body.class_val or "8"
+    topics_str = ", ".join(body.topics) if body.topics else "all major topics"
+
+    if body.note_type in ("short", "ultrashort"):
+        brevity = "ultra-concise 2-3 bullet points per topic" if body.note_type == "ultrashort" else "5-7 clear bullet points per topic"
+        prompt = f"""Generate revision notes for Class {class_label} {body.subject} ({body.board} board).
+Topics: {topics_str}
+Style: {brevity}
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "sections": [
+    {{
+      "topic": "Topic Name",
+      "points": ["Key point 1", "Key point 2", "Key point 3"],
+      "formula": null
+    }}
+  ]
+}}
+Generate notes for 4-5 most important topics. formula field is a string or null."""
+
+    elif body.note_type == "questions":
+        prompt = f"""Generate important exam questions for Class {class_label} {body.subject} ({body.board} board).
+Topics: {topics_str}
+Exam pattern: {body.pattern}
+Days left: {body.days_left}
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "questions": [
+    {{
+      "question": "Question text",
+      "marks": 2,
+      "type": "Short Answer",
+      "hint": "Brief hint for answering"
+    }}
+  ]
+}}
+Generate 8-10 high-probability exam questions."""
+
+    else:  # formulas
+        prompt = f"""Generate a formula sheet for Class {class_label} {body.subject} ({body.board} board).
+Topics: {topics_str}
+
+Return ONLY valid JSON (no markdown fences):
+{{
+  "sections": [
+    {{
+      "topic": "Topic Name",
+      "formulas": [
+        {{
+          "name": "Formula name",
+          "formula": "The formula expression",
+          "note": "When to use this formula"
+        }}
+      ]
+    }}
+  ]
+}}
+Cover all major formulas across 3-5 topics."""
+
+    try:
+        raw = await chat_completion([{"role": "user", "content": prompt}])
+        # Strip any markdown code fences robustly
+        clean = raw.strip()
+        if "```" in clean:
+            # Extract content between first ``` and last ```
+            parts = clean.split("```")
+            # parts[1] is the content (may start with "json\n")
+            inner = parts[1] if len(parts) > 1 else clean
+            if inner.startswith("json"):
+                inner = inner[4:]
+            clean = inner.strip()
+        return _json.loads(clean)
+    except Exception as e:
+        return {"sections": [], "questions": [], "error": str(e)}

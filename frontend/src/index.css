@@ -3,8 +3,14 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
-body {
+html, body, #root {
+  width: 100%;
+  min-height: 100vh;
   margin: 0;
+  padding: 0;
+}
+
+body {
   font-family: 'Lexend', sans-serif;
   background-color: #faf8ff;
   color: #1a1530;
