@@ -8,6 +8,10 @@ export const quizGeneratorDefaults = {
   classLevel: "Grade 8",
   questionTypes: { mcq: true, shortAnswer: true, numerical: false, caseBased: false },
   difficulty: { easy: 30, medium: 50, hard: 20 },
+  board: "CBSE",
+  chapter: "",
+  learningObjective: "Concept Understanding",
+  specialInstructions: "",
 };
 
 export const subjectOptions = ["Math", "Physics", "Chemistry", "Biology", "English", "History"];
@@ -19,3 +23,5 @@ export const questionTypeOptions = [
   { id: "numerical",   label: "Numerical" },
   { id: "caseBased",   label: "Case-based" },
 ];
+
+export { boardOptions, learningObjectiveOptions, difficultyStructureOptions } from "./worksheetGeneratorData";

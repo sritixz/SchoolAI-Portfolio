@@ -8,11 +8,22 @@ export const lessonPlanDefaults = {
   topic: "Quadratic Equations",
   classLevel: "Grade 8A",
   durationMinutes: 45,
-  standards: "CCSS.MATH.CONTENT.HSA.REI.B.4",
+  numberOfClasses: 1,
+  board: "CBSE",
+  chapter: "",
+  standards: "",
+  lessonType: "standard",
+  focusAreas: ["concept_understanding"],
+  includeOptions: {
+    assessmentQuestions: true,
+    homework: true,
+    realLifeExamples: true,
+    differentiation: true,
+  },
   objectives: [
-    { id: "lo1", text: "Students will be able to identify and write quadratic equations in standard form (ax² + bx + c = 0)", selected: true },
-    { id: "lo2", text: "Students will be able to solve quadratic equations using the factorization method with 80% accuracy", selected: true },
-    { id: "lo3", text: "Students will be able to identify and explain the role of coefficients a, b, and c in quadratic equations", selected: false },
+    { id: "lo1", text: "Students will be able to identify and write quadratic equations in standard form (ax² + bx + c = 0)", selected: true, tag: "concept" },
+    { id: "lo2", text: "Students will be able to solve quadratic equations using the factorization method with 80% accuracy", selected: true, tag: "skill" },
+    { id: "lo3", text: "Students will be able to identify and explain the role of coefficients a, b, and c in quadratic equations", selected: false, tag: "application" },
   ],
   instructionalMethods: ["Direct Instruction", "Guided Practice", "Collaborative Learning"],
   resources: ["Whiteboard/Smartboard", "Algebra Tiles", "Graphing Calculator", "Worksheets"],
@@ -30,8 +41,32 @@ export const lessonPlanDefaults = {
     support: "Provide equation templates, use manipulatives, pair with peer tutors",
     enrichment: "Challenge problems with real-world applications, explore graphing connections",
     modifications: "Reduce number of problems, provide formula sheet, allow calculator use"
-  }
+  },
+  referenceDocument: null, // { name, content } for uploaded doc
 };
+
+export const boardOptions = ["CBSE", "ICSE", "State Board", "IB", "Cambridge"];
+
+export const lessonTypeOptions = [
+  { value: "standard",   label: "Standard Lesson Plan" },
+  { value: "activity",   label: "Activity-Based" },
+  { value: "inquiry",    label: "Inquiry-Based" },
+  { value: "5e",         label: "5E Model" },
+];
+
+export const focusAreaOptions = [
+  { value: "concept_understanding", label: "Concept Understanding" },
+  { value: "application",           label: "Application" },
+  { value: "exam_preparation",      label: "Exam Preparation" },
+  { value: "revision",              label: "Revision" },
+];
+
+export const objectiveTagOptions = [
+  { value: "concept",     label: "🧠 Concept",     color: "bg-blue-100 text-blue-700" },
+  { value: "skill",       label: "⚙️ Skill",       color: "bg-green-100 text-green-700" },
+  { value: "application", label: "🔍 Application", color: "bg-orange-100 text-orange-700" },
+  { value: "hots",        label: "🔥 HOTS",        color: "bg-red-100 text-red-700" },
+];
 
 export const aiTips = [
   {

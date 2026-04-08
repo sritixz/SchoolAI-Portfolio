@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
-import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes } from "../../data/teacher/worksheetGeneratorData";
+import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes, boardOptions, learningObjectiveOptions, difficultyStructureOptions } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadWorksheetPdf } from "../../utils/aiPdfExport";
@@ -34,6 +34,11 @@ export default function WorksheetGenerator() {
         total_questions: form.totalQuestions,
         question_types: Object.entries(form.questionTypes).filter(([, v]) => v).map(([k]) => k),
         title: form.title,
+        board: form.board,
+        chapter: form.chapter,
+        learning_objective: form.learningObjective,
+        difficulty_structure: form.difficultyStructure,
+        special_instructions: form.specialInstructions,
       },
     }, { tool: "worksheet", title: form.title || `${form.topic} Worksheet`, subject: form.subject, topic: form.topic, grade: form.classLevel });
   };
@@ -87,10 +92,71 @@ export default function WorksheetGenerator() {
                 </select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Board</label>
+                <select value={form.board} onChange={(e) => setForm({ ...form, board: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
+                  {boardOptions.map((b) => <option key={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Chapter (optional)</label>
+                <input value={form.chapter} onChange={(e) => setForm({ ...form, chapter: e.target.value })}
+                  placeholder="e.g. Chapter 2"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
+              </div>
+            </div>
             <div>
               <label className="text-xs font-bold text-gray-500 mb-1 block">Topic</label>
               <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
+            </div>
+          </div>
+
+          {/* Learning Objective */}
+          <div className="mb-6">
+            <h2 className="flex items-center gap-2 font-black text-base mb-4">
+              <span className="size-6 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-green-600 text-sm">target</span>
+              </span>
+              Learning Objective
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {learningObjectiveOptions.map((lo) => (
+                <button key={lo.id} onClick={() => setForm({ ...form, learningObjective: lo.id })}
+                  className={`text-left px-3 py-2.5 rounded-xl border-2 transition-all ${
+                    form.learningObjective === lo.id
+                      ? "border-[#695be6] bg-[#695be6]/5"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}>
+                  <p className={`text-xs font-bold ${form.learningObjective === lo.id ? "text-[#695be6]" : "text-gray-700"}`}>{lo.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{lo.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Difficulty Structure */}
+          <div className="mb-6">
+            <h2 className="flex items-center gap-2 font-black text-base mb-4">
+              <span className="size-6 bg-orange-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-orange-600 text-sm">bar_chart</span>
+              </span>
+              Difficulty Structure
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {difficultyStructureOptions.map((ds) => (
+                <button key={ds.id} onClick={() => setForm({ ...form, difficultyStructure: ds.id })}
+                  className={`text-left px-3 py-2.5 rounded-xl border-2 transition-all ${
+                    form.difficultyStructure === ds.id
+                      ? "border-[#695be6] bg-[#695be6]/5"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}>
+                  <p className={`text-xs font-bold ${form.difficultyStructure === ds.id ? "text-[#695be6]" : "text-gray-700"}`}>{ds.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{ds.desc}</p>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -139,10 +205,16 @@ export default function WorksheetGenerator() {
               </span>
               Customization
             </h2>
-            <div>
+            <div className="mb-3">
               <label className="text-xs font-bold text-gray-500 mb-1 block">Worksheet Title</label>
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Special Instructions (optional)</label>
+              <textarea value={form.specialInstructions} onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
+                rows={3} placeholder="e.g. Include diagrams, focus on word problems, align to Chapter 2 outcomes..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] resize-none" />
             </div>
           </div>
 
