@@ -5,19 +5,21 @@ import { useAuth } from "../../context/AuthContext";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   conceptExplainerDefaults,
-  targetAudienceOptions,
+  gradeOptions,
+  boardOptions,
   explanationStyles,
+  levelOptions,
   includeElementOptions,
 } from "../../data/teacher/conceptExplainerData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadConceptPdf } from "../../utils/aiPdfExport";
 
 export default function ConceptExplainer() {
-  const navigate  = useNavigate();
-  const dispatch  = useDispatch();
-  const { user }  = useAuth();
-  const aiResult  = useSelector(selectAiToolResult);
-  const aiStatus  = useSelector(selectAiToolStatus);
+  const navigate   = useNavigate();
+  const dispatch   = useDispatch();
+  const { user }   = useAuth();
+  const aiResult   = useSelector(selectAiToolResult);
+  const aiStatus   = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(conceptExplainerDefaults);
   const generating = aiStatus === "loading";
   const generated  = !!aiResult && !generating;
@@ -31,19 +33,25 @@ export default function ConceptExplainer() {
     }));
 
   const { runTool } = useAiToolWithHistory();
+
   const handleGenerate = () => {
+    if (!form.concept.trim()) return;
     dispatch(clearAiToolResult());
-    runTool({
-      tool: "concept",
-      subject: "General",
-      topic: form.concept,
-      grade: form.targetAudience,
-      extra: {
-        style: form.explanationStyle,
-        simplify: form.simplifyForStruggling,
-        include: Object.entries(form.includeElements).filter(([,v]) => v).map(([k]) => k),
+    runTool(
+      {
+        tool: "concept",
+        subject: "General",
+        topic: form.concept,
+        grade: form.grade,
+        extra: {
+          board: form.board,
+          style: form.explanationStyle,
+          level: form.level,
+          include: Object.entries(form.includeElements).filter(([, v]) => v).map(([k]) => k),
+        },
       },
-    }, { tool: "concept", title: `Concept: ${form.concept}`, topic: form.concept, grade: form.targetAudience });
+      { tool: "concept", title: `Concept: ${form.concept}`, topic: form.concept, grade: form.grade }
+    );
   };
 
   return (
@@ -65,7 +73,9 @@ export default function ConceptExplainer() {
             <div className="relative p-2 hover:bg-gray-100 rounded-lg cursor-pointer">
               <span className="material-symbols-outlined text-gray-600">notifications</span>
             </div>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">
+              {user?.name?.[0] || "T"}
+            </div>
           </div>
         </div>
       </header>
@@ -92,51 +102,57 @@ export default function ConceptExplainer() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* Left: Config */}
+          {/* ── Left: Config ── */}
           <div className="space-y-4">
 
-            {/* Concept Input */}
+            {/* 1. Concept */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <label className="text-sm font-bold text-gray-700 mb-2 block">What concept do you need explained?</label>
-              <div className="relative">
-                <input
-                  value={form.concept}
-                  onChange={(e) => setForm({ ...form, concept: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6]"
-                  placeholder="e.g. Photosynthesis, Newton's Laws..."
-                />
-                <span className="absolute bottom-2 right-3 text-[10px] font-bold text-[#695be6] bg-[#695be6]/10 px-2 py-0.5 rounded">
-                  AUTOCOMPLETE ACTIVE
-                </span>
+              <label className="text-sm font-bold text-gray-700 mb-2 block">
+                Concept <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={form.concept}
+                onChange={(e) => setForm({ ...form, concept: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#695be6]"
+                placeholder="Enter concept (e.g., Photosynthesis, Newton's Laws)"
+              />
+            </div>
+
+            {/* 2. Class / Grade */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <label className="text-sm font-bold text-gray-700 mb-2 block">
+                Class / Grade <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={form.grade}
+                onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white"
+              >
+                {gradeOptions.map((g) => <option key={g}>{g}</option>)}
+              </select>
+            </div>
+
+            {/* 3. Board */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <label className="text-sm font-bold text-gray-700 mb-2 block">Board / Curriculum</label>
+              <div className="flex gap-2">
+                {boardOptions.map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => setForm({ ...form, board: b })}
+                    className={`flex-1 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+                      form.board === b
+                        ? "border-[#695be6] bg-[#695be6]/5 text-[#695be6]"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300"
+                    }`}
+                  >
+                    {b}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Target Audience */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <label className="text-sm font-bold text-gray-700 mb-2 block">Target Audience</label>
-              <select
-                value={form.targetAudience}
-                onChange={(e) => setForm({ ...form, targetAudience: e.target.value })}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white mb-3"
-              >
-                {targetAudienceOptions.map((o) => <option key={o}>{o}</option>)}
-              </select>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div>
-                  <p className="text-sm font-bold">Simplify for struggling learners</p>
-                  <p className="text-xs text-gray-400">Uses basic vocabulary and shorter sentences</p>
-                </div>
-                <div
-                  onClick={() => setForm({ ...form, simplifyForStruggling: !form.simplifyForStruggling })}
-                  className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${form.simplifyForStruggling ? "bg-[#695be6]" : "bg-gray-200"}`}
-                >
-                  <div className={`size-4 bg-white rounded-full absolute top-0.5 shadow-sm transition-transform ${form.simplifyForStruggling ? "translate-x-5" : "translate-x-0.5"}`} />
-                </div>
-              </label>
-            </div>
-
-            {/* Explanation Style */}
+            {/* 4. Explanation Style */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <label className="text-sm font-bold text-gray-700 mb-3 block">Explanation Style</label>
               <div className="grid grid-cols-2 gap-2">
@@ -156,15 +172,36 @@ export default function ConceptExplainer() {
               </div>
             </div>
 
-            {/* Include Elements */}
+            {/* 5. Level */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <label className="text-sm font-bold text-gray-700 mb-3 block">Include Elements</label>
+              <label className="text-sm font-bold text-gray-700 mb-3 block">Level</label>
+              <div className="grid grid-cols-3 gap-2">
+                {levelOptions.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => setForm({ ...form, level: l.id })}
+                    className={`py-2.5 px-2 rounded-xl border-2 transition-all text-left ${
+                      form.level === l.id
+                        ? "border-[#695be6] bg-[#695be6]/5"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <p className={`text-xs font-bold ${form.level === l.id ? "text-[#695be6]" : "text-gray-700"}`}>{l.label}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{l.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 6. Include Options */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <label className="text-sm font-bold text-gray-700 mb-3 block">Include Options</label>
               <div className="grid grid-cols-2 gap-2">
                 {includeElementOptions.map((el) => (
                   <label key={el.id} className="flex items-center gap-2 cursor-pointer">
                     <div
                       onClick={() => toggleElement(el.id)}
-                      className={`size-5 rounded border-2 flex items-center justify-center cursor-pointer ${
+                      className={`size-5 rounded border-2 flex items-center justify-center cursor-pointer flex-shrink-0 ${
                         form.includeElements[el.id] ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"
                       }`}
                     >
@@ -172,7 +209,7 @@ export default function ConceptExplainer() {
                         <span className="material-symbols-outlined text-white text-xs">check</span>
                       )}
                     </div>
-                    <span className="text-sm">{el.label}</span>
+                    <span className="text-sm text-gray-700">{el.label}</span>
                   </label>
                 ))}
               </div>
@@ -180,192 +217,65 @@ export default function ConceptExplainer() {
 
             <button
               onClick={handleGenerate}
-              disabled={generating}
-              className="w-full bg-[#695be6] text-white font-black py-4 rounded-xl hover:bg-[#5a4dd4] transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+              disabled={generating || !form.concept.trim()}
+              className="w-full bg-[#695be6] text-white font-black py-4 rounded-xl hover:bg-[#5a4dd4] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <span className="material-symbols-outlined text-base">auto_awesome</span>
-              {generating ? "Generating..." : "Generate Explanation ✨"}
+              {generating ? "Generating..." : "✨ Generate Explanation"}
             </button>
           </div>
 
-          {/* Right: Preview */}
+          {/* ── Right: Output ── */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-            {/* Browser chrome */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
               <div className="flex items-center gap-1.5">
                 <div className="size-3 rounded-full bg-red-400" />
                 <div className="size-3 rounded-full bg-yellow-400" />
                 <div className="size-3 rounded-full bg-green-400" />
               </div>
-              <div className="flex items-center gap-3">
-                <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-                  <span className="material-symbols-outlined text-sm">content_copy</span> Copy
-                </button>
-                <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700">
-                  <span className="material-symbols-outlined text-sm">download</span> Save PDF
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center">
-              {generating && (
-                <div className="flex flex-col items-center gap-3">
-                  <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
-                  <p className="text-sm text-gray-400">Generating explanation...</p>
+              {generated && aiResult && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                  </button>
+                  <button
+                    onClick={() => downloadConceptPdf(aiResult)}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    <span className="material-symbols-outlined text-sm">download</span> Save PDF
+                  </button>
                 </div>
               )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {/* Empty state */}
               {!generating && !generated && (
-                <>
+                <div className="flex flex-col items-center justify-center h-full p-10 text-center">
                   <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-5">
                     <span className="material-symbols-outlined text-[#695be6] text-4xl">lightbulb</span>
                   </div>
                   <h3 className="font-black text-xl mb-2">Ready to explain?</h3>
                   <p className="text-sm text-gray-400 max-w-xs">
-                    Your age-appropriate explanation for{" "}
-                    <span className="text-[#695be6] font-bold">"{form.concept}"</span>{" "}
-                    will appear here. Choose a style and elements on the left to get started.
+                    Fill in the concept and settings on the left, then hit Generate.
                   </p>
-                  <div className="w-full mt-6 space-y-2">
-                    <div className="h-2 bg-gray-100 rounded w-3/4 mx-auto" />
-                    <div className="h-2 bg-gray-100 rounded w-1/2 mx-auto" />
-                  </div>
-                </>
-              )}
-              {!generating && generated && aiResult && (
-                <div className="text-left w-full space-y-4 overflow-y-auto max-h-[75vh] pr-1">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-black text-lg text-[#695be6]">{aiResult.concept || form.concept}</h3>
-                      {aiResult.one_line_summary && <p className="text-xs text-gray-500 italic mt-0.5">{aiResult.one_line_summary}</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
-                        className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-2 py-1 rounded-lg hover:bg-gray-50">
-                        <span className="material-symbols-outlined text-sm">content_copy</span>
-                      </button>
-                      <button onClick={() => downloadConceptPdf(aiResult)}
-                        className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-2 py-1 rounded-lg hover:bg-[#5a4dd4]">
-                        <span className="material-symbols-outlined text-sm">download</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Plain English */}
-                  {aiResult.plain_english_explanation && (
-                    <div>
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-1">Plain English Explanation</p>
-                      <p className="text-sm text-gray-700 leading-relaxed">{aiResult.plain_english_explanation}</p>
-                    </div>
-                  )}
-                  {/* Fallback */}
-                  {!aiResult.plain_english_explanation && aiResult.explanation && (
-                    <p className="text-sm text-gray-700 leading-relaxed">{aiResult.explanation}</p>
-                  )}
-
-                  {/* Primary Analogy */}
-                  {(aiResult.primary_analogy || aiResult.analogy) && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                      <p className="text-xs font-bold text-blue-700 mb-1">Primary Analogy</p>
-                      {aiResult.primary_analogy ? (
-                        <>
-                          <p className="text-sm font-semibold text-gray-800 mb-1">{aiResult.primary_analogy.analogy}</p>
-                          <p className="text-xs text-gray-600">{aiResult.primary_analogy.explanation}</p>
-                          {aiResult.primary_analogy.limitations && (
-                            <p className="text-xs text-amber-700 mt-1 italic">⚠ Limitation: {aiResult.primary_analogy.limitations}</p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-xs text-gray-600">{aiResult.analogy}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Real-world examples */}
-                  {aiResult.real_world_examples?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Real-World Examples</p>
-                      <div className="space-y-2">
-                        {aiResult.real_world_examples.map((ex, i) => (
-                          <div key={i} className="bg-green-50 border border-green-200 rounded-lg p-3">
-                            <p className="text-xs font-bold text-green-800">{ex.example}</p>
-                            <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Common Misconceptions */}
-                  {aiResult.common_misconceptions?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Common Misconceptions</p>
-                      <div className="space-y-2">
-                        {aiResult.common_misconceptions.map((m, i) => (
-                          <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
-                            <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
-                            <p className="text-xs text-green-700 font-semibold mb-1">✅ {m.correction}</p>
-                            {m.how_to_address && <p className="text-xs text-gray-600 italic">{m.how_to_address}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Key Vocabulary */}
-                  {(aiResult.key_vocabulary?.length > 0 || aiResult.key_points?.length > 0) && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
-                      <p className="text-xs font-bold text-yellow-700 mb-2">Key Vocabulary / Points</p>
-                      {aiResult.key_vocabulary?.length > 0 ? (
-                        <div className="space-y-1">
-                          {aiResult.key_vocabulary.map((v, i) => (
-                            <p key={i} className="text-xs text-gray-700"><strong className="text-[#695be6]">{v.term}</strong>: {v.definition}</p>
-                          ))}
-                        </div>
-                      ) : (
-                        <ul className="space-y-1">
-                          {aiResult.key_points.map((pt, i) => (
-                            <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
-                              <span className="size-1.5 rounded-full bg-yellow-500 mt-1.5 shrink-0" />{pt}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Discussion Questions */}
-                  {aiResult.discussion_questions?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">Discussion Questions</p>
-                      <div className="space-y-1">
-                        {aiResult.discussion_questions.map((q, i) => (
-                          <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
-                            <span className="text-[#695be6] font-bold flex-shrink-0">Q{i+1}.</span>{q}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Teaching Tips */}
-                  {aiResult.teaching_tips?.length > 0 && (
-                    <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-                      <p className="text-xs font-bold text-purple-700 mb-2">Teaching Tips</p>
-                      <ul className="space-y-1">
-                        {aiResult.teaching_tips.map((t, i) => (
-                          <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
-                            <span className="material-symbols-outlined text-purple-500 text-sm flex-shrink-0">tips_and_updates</span>{t}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {!aiResult.plain_english_explanation && !aiResult.explanation && aiResult.content && (
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{aiResult.content}</p>
-                  )}
                 </div>
+              )}
+
+              {/* Loading */}
+              {generating && (
+                <div className="flex flex-col items-center justify-center h-full p-10 gap-3">
+                  <span className="size-10 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+                  <p className="text-sm text-gray-400">Generating explanation...</p>
+                </div>
+              )}
+
+              {/* Result */}
+              {!generating && generated && aiResult && (
+                <ConceptOutput result={aiResult} />
               )}
             </div>
 
@@ -376,6 +286,231 @@ export default function ConceptExplainer() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Output renderer ──────────────────────────────────────────────────────────
+function Section({ title, children }) {
+  return (
+    <div>
+      <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function ConceptOutput({ result }) {
+  return (
+    <div className="p-5 space-y-5 text-sm">
+
+      {/* Title */}
+      <div>
+        <h3 className="font-black text-lg text-[#695be6]">
+          🌿 {result.concept || "Concept"}{result.grade ? ` (${result.grade})` : ""}
+        </h3>
+        {result.one_line_summary && (
+          <p className="text-xs text-gray-500 italic mt-1">{result.one_line_summary}</p>
+        )}
+      </div>
+
+      {/* 1. Simple Definition */}
+      {result.one_line_summary && (
+        <Section title="🔷 1. Simple Definition">
+          <p className="text-gray-700 leading-relaxed">{result.one_line_summary}</p>
+        </Section>
+      )}
+
+      {/* 2. Easy Explanation */}
+      {result.plain_english_explanation && (
+        <Section title="🔷 2. Easy Explanation">
+          <p className="text-gray-700 leading-relaxed whitespace-pre-line">{result.plain_english_explanation}</p>
+        </Section>
+      )}
+
+      {/* 3. Step-by-Step */}
+      {result.step_by_step_process?.length > 0 && (
+        <Section title="🔷 3. Step-by-Step Process 🌱">
+          <ol className="space-y-1.5">
+            {result.step_by_step_process.map((s, i) => (
+              <li key={i} className="flex items-start gap-2 text-gray-700">
+                <span className="size-5 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
+                  {s.step || i + 1}
+                </span>
+                <span><strong>{s.action}</strong>{s.explanation ? ` — ${s.explanation}` : ""}</span>
+              </li>
+            ))}
+          </ol>
+        </Section>
+      )}
+
+      {/* 4. Visual / Diagram */}
+      {result.diagram_description && (
+        <Section title="🔷 4. Visual Representation 📊">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+            <p className="text-xs text-blue-800 leading-relaxed whitespace-pre-line">{result.diagram_description}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* 5. Analogy */}
+      {result.primary_analogy && (
+        <Section title="🔷 5. Analogy 🍳">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
+            <p className="font-semibold text-gray-800">{result.primary_analogy.analogy}</p>
+            <p className="text-xs text-gray-600">{result.primary_analogy.explanation}</p>
+            {result.primary_analogy.limitations && (
+              <p className="text-xs text-amber-700 italic">⚠ Limitation: {result.primary_analogy.limitations}</p>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* 6. Technical Explanation */}
+      {result.technical_explanation && (
+        <Section title="🔷 6. Technical Explanation 🧪">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <p className="text-xs text-gray-700 leading-relaxed">{result.technical_explanation}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* 7. Real-Life Examples */}
+      {result.real_world_examples?.length > 0 && (
+        <Section title="🔷 7. Real-Life Example 🌍">
+          <div className="space-y-2">
+            {result.real_world_examples.map((ex, i) => (
+              <div key={i} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-green-800">{ex.example}</p>
+                <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* 8. Common Mistakes */}
+      {result.common_misconceptions?.length > 0 && (
+        <Section title="🔷 8. Common Mistakes ⚠️">
+          <div className="space-y-2">
+            {result.common_misconceptions.map((m, i) => (
+              <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
+                <p className="text-xs text-green-700 font-semibold">✅ {m.correction}</p>
+                {m.how_to_address && <p className="text-xs text-gray-500 italic mt-1">{m.how_to_address}</p>}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* 9. Quick Revision */}
+      {result.key_vocabulary?.length > 0 && (
+        <Section title="🔷 9. Quick Revision 📘">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-1">
+            {result.key_vocabulary.map((v, i) => (
+              <p key={i} className="text-xs text-gray-700">
+                <strong className="text-[#695be6]">{v.term}</strong>: {v.definition}
+              </p>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* 10. Quick Check Questions */}
+      {result.quick_check_questions?.length > 0 && (
+        <Section title="🔷 10. Quick Check 🧪">
+          <div className="space-y-2">
+            {result.quick_check_questions.map((q, i) => (
+              <div key={i} className="border border-gray-200 rounded-lg p-3">
+                <p className="text-xs font-bold text-gray-700">Q{i + 1}. {q.question}</p>
+                {q.options?.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {q.options.map((opt, j) => (
+                      <li key={j} className={`text-xs ${opt.is_correct ? "text-green-700 font-semibold" : "text-gray-600"}`}>
+                        {String.fromCharCode(65 + j)}. {opt.text || opt} {opt.is_correct ? "✅" : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {q.expected_answer && !q.options?.length && (
+                  <p className="text-xs text-green-700 mt-1">→ {q.expected_answer}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* 11. Exam Answer Format */}
+      {result.exam_answer_format && (
+        <Section title="🔷 11. Exam Answer Format 📝">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <p className="text-xs text-gray-700 leading-relaxed">{result.exam_answer_format}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* 12. Key Vocabulary */}
+      {result.key_vocabulary?.length > 0 && (
+        <Section title="🔷 12. Key Vocabulary 📖">
+          <div className="space-y-1">
+            {result.key_vocabulary.map((v, i) => (
+              <p key={i} className="text-xs text-gray-700">
+                <strong className="text-[#695be6]">{v.term}</strong>: {v.definition}
+                {v.example_in_sentence && <span className="text-gray-400 italic"> — "{v.example_in_sentence}"</span>}
+              </p>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* 13. Teaching Tips */}
+      {result.teaching_tips?.length > 0 && (
+        <Section title="🔷 13. Teaching Tips 👨‍🏫">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
+            <ul className="space-y-1">
+              {result.teaching_tips.map((t, i) => (
+                <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
+                  <span className="material-symbols-outlined text-purple-500 text-sm flex-shrink-0">tips_and_updates</span>
+                  {t}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Section>
+      )}
+
+      {/* Simplified version (for Basic level) */}
+      {result.simplified_version && (
+        <Section title="📗 Simplified Version">
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
+            <p className="text-xs text-gray-700 leading-relaxed">{result.simplified_version}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* Extension for Advanced */}
+      {result.extension_for_advanced && (
+        <Section title="🚀 Extension for Advanced Learners">
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+            <p className="text-xs text-gray-700 leading-relaxed">{result.extension_for_advanced}</p>
+          </div>
+        </Section>
+      )}
+
+      {/* Discussion Questions */}
+      {result.discussion_questions?.length > 0 && (
+        <Section title="💬 Discussion Questions">
+          <div className="space-y-1">
+            {result.discussion_questions.map((q, i) => (
+              <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
+                <span className="text-[#695be6] font-bold flex-shrink-0">Q{i + 1}.</span>{q}
+              </p>
+            ))}
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

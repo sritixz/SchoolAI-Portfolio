@@ -8,6 +8,7 @@ import {
   presentationPurposes,
   presentationDefaults,
 } from "../../data/teacher/presentationCreatorData";
+import { boardOptions, learningObjectiveOptions } from "../../data/teacher/worksheetGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadPresentationPdf } from "../../utils/aiPdfExport";
 
@@ -35,6 +36,10 @@ export default function PresentationCreator() {
         duration_minutes: form.durationMinutes,
         purpose: form.purpose,
         visual_style: form.visualStyle,
+        board: form.board,
+        chapter: form.chapter,
+        learning_objective: form.learningObjective,
+        special_instructions: form.specialInstructions,
       },
     }, { tool: "presentation", title: `Presentation: ${form.topic}`, subject: form.subject, topic: form.topic, grade: form.classLevel });
   };
@@ -106,6 +111,44 @@ export default function PresentationCreator() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Board</label>
+                <select value={form.board} onChange={(e) => setForm({ ...form, board: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
+                  {boardOptions.map((b) => <option key={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Chapter (optional)</label>
+                <input value={form.chapter} onChange={(e) => setForm({ ...form, chapter: e.target.value })}
+                  placeholder="e.g. Chapter 2"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
+              </div>
+            </div>
+          </div>
+
+          {/* Learning Objective */}
+          <div className="mb-6">
+            <h2 className="flex items-center gap-2 font-black text-base mb-4">
+              <span className="size-6 bg-green-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-green-600 text-sm">target</span>
+              </span>
+              Learning Objective
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {learningObjectiveOptions.map((lo) => (
+                <button key={lo.id} onClick={() => setForm({ ...form, learningObjective: lo.id })}
+                  className={`text-left px-3 py-2.5 rounded-xl border-2 transition-all ${
+                    form.learningObjective === lo.id
+                      ? "border-[#695be6] bg-[#695be6]/5"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}>
+                  <p className={`text-xs font-bold ${form.learningObjective === lo.id ? "text-[#695be6]" : "text-gray-700"}`}>{lo.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{lo.desc}</p>
+                </button>
+              ))}
             </div>
           </div>
 
@@ -208,6 +251,19 @@ export default function PresentationCreator() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Special Instructions */}
+          <div className="mb-6">
+            <h2 className="flex items-center gap-2 font-black text-base mb-4">
+              <span className="size-6 bg-amber-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-amber-600 text-sm">edit_note</span>
+              </span>
+              Special Instructions
+            </h2>
+            <textarea value={form.specialInstructions} onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
+              rows={3} placeholder="e.g. Include real-life examples, add activity slides, align to NCERT Chapter 3..."
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] resize-none" />
           </div>
 
           {/* Generate Button */}

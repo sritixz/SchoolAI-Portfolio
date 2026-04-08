@@ -34,4 +34,8 @@ export const presentationDefaults = {
   durationMinutes: 30,
   purpose: "teaching",
   visualStyle: "modern",
+  board: "CBSE",
+  chapter: "",
+  learningObjective: "Concept Understanding",
+  specialInstructions: "",
 };

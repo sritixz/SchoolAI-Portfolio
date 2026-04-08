@@ -443,79 +443,60 @@ export function downloadPresentationPdf(result) {
 
 export function downloadGradingPdf(result, feedbackText) {
   const doc = newDoc();
-  const pct = result.percentage ?? Math.round(((result.score || 0) / (result.max_score || result.maxScore || 1)) * 100);
-  let y = header(doc, "Grading Report", [
-    `Score: ${result.score}/${result.max_score || result.maxScore}`, `${pct}%`, result.grade_letter, result.performance_level
+  const pct = result.percentage ?? Math.round(((result.score || 0) / (result.max_score || 1)) * 100);
+  let y = header(doc, "⚡ Smart AI Feedback", [
+    `Score: ${result.score}/${result.max_score}`, `${pct}%`
   ]);
 
-  if (result.question) {
-    y = sectionTitle(doc, "Question / Task", y);
-    y = bodyText(doc, result.question, y); y += 4;
-  }
-
-  // Score summary table
+  // Overall verdict + score
   autoTable(doc, {
     startY: y,
     body: [
-      ["Score", `${result.score} / ${result.max_score || result.maxScore}`],
-      ["Grade", result.grade_letter || "—"],
+      ["Score", `${result.score} / ${result.max_score}`],
       ["Percentage", `${pct}%`],
-      ["Performance Level", result.performance_level || "—"],
+      ["Overall", result.overall_verdict || ""],
     ],
     theme: "plain",
     bodyStyles: { fontSize: 9 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 50, textColor: PRIMARY } },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 30, textColor: PRIMARY } },
     margin: { left: 14, right: 14 },
   });
   y = doc.lastAutoTable.finalY + 6;
 
-  // Rubric criteria
-  if (result.rubric_criteria?.length) {
-    y = checkPage(doc, y, 20);
-    y = sectionTitle(doc, "Analytic Rubric Assessment", y);
-    autoTable(doc, {
-      startY: y,
-      head: [["Criterion", "Marks", "Level", "Evidence / Descriptor"]],
-      body: result.rubric_criteria.map((c) => [
-        c.criterion, `${c.marks_awarded}/${c.max_marks}`, c.level, c.evidence || c.descriptor || ""
-      ]),
-      theme: "grid",
-      headStyles: { fillColor: PRIMARY, textColor: WHITE, fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
-      columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 18 }, 2: { cellWidth: 22 } },
-      margin: { left: 14, right: 14 },
-    });
-    y = doc.lastAutoTable.finalY + 6;
-  }
-
-  if (result.strengths?.length) {
+  if (result.what_went_well?.length) {
     y = checkPage(doc, y, 15);
-    y = sectionTitle(doc, "Strengths", y);
-    result.strengths.forEach((s) => { y = bullet(doc, s, y); }); y += 3;
+    y = sectionTitle(doc, "✅ What You Did Well", y);
+    result.what_went_well.forEach((s) => { y = bullet(doc, s, y); }); y += 3;
   }
 
-  if (result.areas_for_improvement?.length) {
+  if (result.what_to_improve?.length) {
     y = checkPage(doc, y, 15);
-    y = sectionTitle(doc, "Areas for Improvement", y);
-    result.areas_for_improvement.forEach((a) => { y = bullet(doc, a, y); }); y += 3;
+    y = sectionTitle(doc, "⚠️ What to Improve", y);
+    result.what_to_improve.forEach((a) => { y = bullet(doc, a, y); }); y += 3;
   }
 
-  if (feedbackText || result.feedback) {
-    y = checkPage(doc, y, 20);
-    y = sectionTitle(doc, "Feedback", y);
-    y = bodyText(doc, feedbackText || result.feedback, y); y += 4;
+  if (result.quick_fix?.length) {
+    y = checkPage(doc, y, 15);
+    y = sectionTitle(doc, "🧠 Quick Fix", y);
+    result.quick_fix.forEach((f) => { y = bullet(doc, f, y); }); y += 3;
   }
 
   if (result.next_steps?.length) {
     y = checkPage(doc, y, 15);
-    y = sectionTitle(doc, "Next Steps", y);
-    result.next_steps.forEach((s, i) => { y = bullet(doc, `${i+1}. ${s}`, y); }); y += 3;
+    y = sectionTitle(doc, "🛠️ Next Steps", y);
+    result.next_steps.forEach((s, i) => { y = bullet(doc, `${i + 1}. ${s}`, y); }); y += 3;
   }
 
-  if (result.parent_friendly_summary) {
-    y = checkPage(doc, y, 15);
-    y = sectionTitle(doc, "Parent-Friendly Summary", y);
-    y = bodyText(doc, result.parent_friendly_summary, y);
+  if (result.try_again_message) {
+    y = checkPage(doc, y, 12);
+    y = sectionTitle(doc, "🔁 Try Again", y);
+    y = bodyText(doc, `"${result.try_again_message}"`, y); y += 4;
+  }
+
+  if (feedbackText || result.feedback) {
+    y = checkPage(doc, y, 20);
+    y = sectionTitle(doc, "Feedback Draft", y);
+    y = bodyText(doc, feedbackText || result.feedback, y);
   }
 
   footer(doc);

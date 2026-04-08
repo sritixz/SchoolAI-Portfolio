@@ -30,6 +30,10 @@ class AIGenerateQuestionsRequest(BaseModel):
     count: int = 5
     difficulty: str = "medium"
     question_types: List[str] = ["mcq"]
+    board: Optional[str] = "CBSE"
+    chapter: Optional[str] = None
+    learning_objective: Optional[str] = None
+    special_instructions: Optional[str] = None
 
 # ── Student Groups models ─────────────────────────────────────
 class GroupMember(BaseModel):
@@ -697,12 +701,24 @@ WORKSHEET DETAILS:
 - Subject: {body.subject}
 - Topic: {body.topic}
 - Grade: {body.grade or extra.get('classLevel', '')}
+- Board: {extra.get('board', 'CBSE')}
+- Chapter: {extra.get('chapter', '') or 'Not specified'}
 - Difficulty: {extra.get('difficulty', 'Medium')}
+- Difficulty Structure: {extra.get('difficulty_structure', 'Medium')} — Easy=Basic concept (1-step), Medium=Application (2-3 steps), Hard=Case-based/multi-step
+- Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — align all questions to this objective
 - Total Questions: {extra.get('totalQuestions', 10)}
 - Question Types: {', '.join(extra.get('question_types', ['mcq', 'shortAnswer']))}
 - Title: {extra.get('title', f'{body.topic} Worksheet')}
+- Special Instructions: {extra.get('special_instructions', 'None')}
 
-Generate a COMPLETE worksheet with detailed answer key, marking scheme, and teacher notes. Questions must be curriculum-appropriate and progressively challenging.
+BOARD-SPECIFIC GUIDANCE:
+- CBSE: Follow NCERT curriculum, use standard CBSE question patterns, include VSA/SA/LA sections
+- ICSE: Follow ICSE syllabus, include application-based and analytical questions
+- State Board: Use state curriculum standards and regional context
+- IB: Use inquiry-based questions, include ATL skills
+- Cambridge: Use Cambridge assessment objectives and command words
+
+Generate a COMPLETE worksheet with detailed answer key, marking scheme, and teacher notes. Questions must be curriculum-appropriate, board-aligned, and match the specified learning objective and difficulty structure.
 
 Return ONLY valid JSON (no markdown):
 {{
@@ -783,12 +799,23 @@ Return ONLY valid JSON (no markdown):
 LESSON DETAILS:
 - Subject: {body.subject}
 - Topic: {body.topic}
-- Grade/Class: {body.grade or extra.get('classLevel','')}
-- Duration: {extra.get('durationMinutes', 45)} minutes
+- Grade/Class: {body.grade or extra.get('classLevel', '')}
+- Board / Curriculum: {extra.get('board', 'CBSE')}
+- Chapter: {extra.get('chapter', '') or 'Not specified'}
+- Duration per Class: {extra.get('durationMinutes', 45)} minutes
+- Number of Classes: {extra.get('numberOfClasses', 1)}
 - Curriculum Standards: {extra.get('standards', 'Not specified')}
+- Lesson Type: {extra.get('lessonType', 'standard')} (standard | activity | inquiry | 5e)
+- Focus Areas: {', '.join(extra.get('focusAreas', ['concept_understanding']))}
 
-TEACHER-SELECTED LEARNING OBJECTIVES:
-{chr(10).join(f'- {o}' for o in extra.get('objectives', [])) or '- To be determined by AI based on topic'}
+INCLUDE IN PLAN:
+- Assessment Questions: {extra.get('includeOptions', {}).get('assessmentQuestions', True)}
+- Homework: {extra.get('includeOptions', {}).get('homework', True)}
+- Real-Life Examples: {extra.get('includeOptions', {}).get('realLifeExamples', True)}
+- Differentiation: {extra.get('includeOptions', {}).get('differentiation', True)}
+
+TEACHER-SELECTED LEARNING OBJECTIVES (with cognitive tags):
+{chr(10).join(f'- [{o.get("tag", "concept").upper()}] {o.get("text", o) if isinstance(o, dict) else o}' for o in extra.get('objectives', [])) or '- To be determined by AI based on topic'}
 
 INSTRUCTIONAL METHODS TO USE:
 {', '.join(extra.get('instructionalMethods', ['Direct Instruction', 'Guided Practice']))}
@@ -806,14 +833,40 @@ DIFFERENTIATION STRATEGIES PROVIDED:
 - Support: {extra.get('differentiation', {}).get('support', 'Provide scaffolding and peer support')}
 - Enrichment: {extra.get('differentiation', {}).get('enrichment', 'Extension tasks for advanced learners')}
 
-Generate a COMPREHENSIVE, DETAILED lesson plan. Each section must have specific, actionable teacher instructions and student activities — not vague descriptions. Include exact questions to ask, specific examples to use, and precise activities.
+BOARD-SPECIFIC GUIDANCE:
+- CBSE: Follow NCERT curriculum, use standard CBSE patterns and terminology
+- ICSE: Include application-based and analytical depth per ICSE style
+- State Board: Use state syllabus structure and regional context
+- IB: Use inquiry-based questions, ATL skills, and conceptual understanding
+- Cambridge: Use Cambridge learning objectives and command words
+
+LESSON TYPE GUIDANCE:
+- standard: Traditional teacher-led instruction with guided and independent practice
+- activity: Hands-on, student-centred activities as the primary mode of learning
+- inquiry: Students explore questions and construct understanding through investigation
+- 5e: Follow Engage → Explore → Explain → Elaborate → Evaluate structure
+
+FOCUS AREA GUIDANCE:
+- concept_understanding: Prioritise clear explanations, analogies, and conceptual depth
+- application: Emphasise real-world problems, worked examples, and transfer tasks
+- exam_preparation: Include exam-style questions, mark schemes, and exam technique tips
+- revision: Structure around retrieval practice, spaced repetition, and gap-filling
+
+{f'REFERENCE DOCUMENT PROVIDED BY TEACHER (use this to inform content, examples, and alignment):{chr(10)}{extra.get("referenceDocumentContent", "")[:3000]}' if extra.get('referenceDocumentContent') else ''}
+
+Generate a COMPREHENSIVE, DETAILED lesson plan. Each section must have specific, actionable teacher instructions and student activities — not vague descriptions. Include exact questions to ask, specific examples to use, and precise activities. Only include sections the teacher opted into (assessmentQuestions, homework, realLifeExamples, differentiation).
 
 Return ONLY valid JSON (no markdown, no extra text):
 {{
   "title": "Lesson Plan: {body.topic}",
   "subject": "{body.subject}",
-  "grade": "{body.grade or extra.get('classLevel','')}",
+  "grade": "{body.grade or extra.get('classLevel', '')}",
+  "board": "{extra.get('board', 'CBSE')}",
+  "chapter": "{extra.get('chapter', '')}",
+  "lesson_type": "{extra.get('lessonType', 'standard')}",
+  "focus_areas": {extra.get('focusAreas', ['concept_understanding'])},
   "duration_minutes": {extra.get('durationMinutes', 45)},
+  "number_of_classes": {extra.get('numberOfClasses', 1)},
   "standards": "{extra.get('standards', '')}",
   "learning_objectives": [
     "By the end of this lesson, students will be able to [specific measurable action] [topic element] with [success criteria]",
@@ -833,60 +886,6 @@ Return ONLY valid JSON (no markdown, no extra text):
       "student_actions": "Exactly what students do during this phase",
       "key_questions": ["Specific questions to ask students"],
       "notes": "Tips, common misconceptions to watch for"
-    }},
-    {{
-      "phase": "Introduction / Hook",
-      "duration_minutes": 5,
-      "purpose": "Engage students and introduce the lesson topic",
-      "teacher_actions": "...",
-      "student_actions": "...",
-      "key_questions": ["..."],
-      "notes": "..."
-    }},
-    {{
-      "phase": "Direct Instruction / Explanation",
-      "duration_minutes": 15,
-      "purpose": "Teach the core concept with clear explanations and examples",
-      "teacher_actions": "Step-by-step explanation including specific examples to write on board, models to demonstrate",
-      "student_actions": "Note-taking, responding to questions, following along",
-      "key_questions": ["Comprehension check questions"],
-      "notes": "Common errors students make and how to address them"
-    }},
-    {{
-      "phase": "Guided Practice",
-      "duration_minutes": 10,
-      "purpose": "Practice together with teacher support",
-      "teacher_actions": "Walk through problems/examples together, circulate and monitor",
-      "student_actions": "Attempt problems with teacher guidance, ask questions",
-      "key_questions": ["Questions to check understanding during practice"],
-      "notes": "Scaffolding strategies to use"
-    }},
-    {{
-      "phase": "Independent Practice / Application",
-      "duration_minutes": 8,
-      "purpose": "Students apply learning independently",
-      "teacher_actions": "Circulate, provide targeted support, note common errors",
-      "student_actions": "Complete practice tasks independently or in pairs",
-      "key_questions": ["Questions to prompt thinking if students are stuck"],
-      "notes": "Differentiation: what to give struggling vs advanced students"
-    }},
-    {{
-      "phase": "Closure / Summary",
-      "duration_minutes": 5,
-      "purpose": "Consolidate learning and preview next steps",
-      "teacher_actions": "Facilitate class discussion to summarize key points, preview next lesson",
-      "student_actions": "Share responses, reflect on learning",
-      "key_questions": ["What did we learn today?", "How does this connect to...?"],
-      "notes": "..."
-    }},
-    {{
-      "phase": "Assessment / Exit Ticket",
-      "duration_minutes": 5,
-      "purpose": "Check for understanding before students leave",
-      "teacher_actions": "Distribute exit ticket, collect and review responses",
-      "student_actions": "Complete exit ticket independently",
-      "key_questions": ["Exit ticket question(s)"],
-      "notes": "How to use exit ticket data to inform next lesson"
     }}
   ],
   "formative_assessment": {{
@@ -900,6 +899,7 @@ Return ONLY valid JSON (no markdown, no extra text):
     "ell_accommodations": "Strategies for English Language Learners",
     "iep_accommodations": "General accommodations for students with IEPs"
   }},
+  "real_life_examples": ["Concrete real-world connection 1", "Concrete real-world connection 2"],
   "cross_curricular_connections": ["Connections to other subjects or real-world applications"],
   "homework_assignment": "Specific homework task with clear instructions",
   "teacher_reflection_prompts": [
@@ -915,9 +915,20 @@ QUIZ DETAILS:
 - Subject: {body.subject}
 - Topic: {body.topic}
 - Grade: {body.grade or extra.get('classLevel', '')}
+- Board: {extra.get('board', 'CBSE')}
+- Chapter: {extra.get('chapter', '') or 'Not specified'}
 - Number of Questions: {extra.get('count', 10)}
 - Difficulty: {extra.get('difficulty', 'Mixed')}
 - Question Types: {', '.join(extra.get('question_types', ['mcq', 'short_answer']))}
+- Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — align all questions to this objective
+- Special Instructions: {extra.get('special_instructions', 'None')}
+
+BOARD-SPECIFIC GUIDANCE:
+- CBSE: Follow NCERT patterns, use standard CBSE marking scheme
+- ICSE: Include application and analytical questions per ICSE style
+- State Board: Align to state syllabus and regional context
+- IB: Use inquiry-based, conceptual questions
+- Cambridge: Use Cambridge command words (describe, explain, evaluate, etc.)
 
 Generate a PROFESSIONAL quiz. For MCQs: write plausible distractors with rationale. For short/long answer: include a detailed marking rubric.
 
@@ -973,31 +984,45 @@ Return ONLY valid JSON (no markdown):
 CONCEPT DETAILS:
 - Concept: {body.topic}
 - Subject: {body.subject}
-- Target Audience: {body.grade or extra.get('targetAudience', 'Grade 8')}
-- Explanation Style: {extra.get('style', 'Analogy-heavy')}
-- Simplify for Struggling Learners: {extra.get('simplify', False)}
-- Include Elements: {', '.join(extra.get('include', ['analogies', 'examples', 'misconceptions', 'teaching_tips']))}
+- Class / Grade: {body.grade or 'Grade 8'}
+- Board / Curriculum: {extra.get('board', 'CBSE')}
+- Explanation Style: {extra.get('style', 'Analogy-based')}
+- Level: {extra.get('level', 'Standard')} — Basic = simple vocabulary for struggling students; Standard = default depth; Advanced = deeper exploration
+- Include Options: {', '.join(extra.get('include', ['realLifeExamples', 'visualExplanation', 'commonMistakes', 'quickQuestions']))}
+
+LEVEL GUIDANCE:
+- Basic: Use very simple language, short sentences, relatable everyday examples. Emphasise simplified_version.
+- Standard: Balanced explanation suitable for the grade level.
+- Advanced: Include technical depth, chemical equations, formal definitions, extension activities.
+
+BOARD-SPECIFIC GUIDANCE:
+- CBSE: Use NCERT-aligned examples and standard textbook language
+- ICSE: Include analytical depth and application examples
+- State Board: Use regional/local context in examples
+
+INCLUDE OPTIONS GUIDANCE — only generate sections for the options listed above:
+- realLifeExamples → populate real_world_examples
+- visualExplanation → populate diagram_description
+- commonMistakes → populate common_misconceptions
+- quickQuestions → populate quick_check_questions (1 MCQ with 4 options + 1 fill-in-the-blank + 1 short question)
 
 Return ONLY valid JSON (no markdown):
 {{
   "concept": "{body.topic}",
   "subject": "{body.subject}",
-  "grade": "{body.grade or extra.get('targetAudience', '')}",
+  "grade": "{body.grade or ''}",
   "one_line_summary": "A single sentence capturing the essence of this concept",
   "plain_english_explanation": "Clear, jargon-free explanation (3-4 paragraphs)",
-  "technical_explanation": "Precise technical definition with correct terminology",
+  "technical_explanation": "Precise technical definition with correct terminology and any relevant equations",
   "primary_analogy": {{
     "analogy": "The main analogy to use",
     "explanation": "How the analogy maps to the concept step by step",
     "limitations": "Where the analogy breaks down"
   }},
-  "additional_analogies": [
-    {{"analogy": "...", "best_for": "Visual learners / struggling students"}}
-  ],
   "real_world_examples": [
-    {{"example": "...", "connection": "How this connects to the concept", "context": "Where students encounter this"}}
+    {{"example": "...", "connection": "How this connects to the concept"}}
   ],
-  "diagram_description": "Detailed description of a diagram to draw on the board",
+  "diagram_description": "Step-by-step visual flow description suitable for drawing on a board (use arrows and labels)",
   "step_by_step_process": [
     {{"step": 1, "action": "...", "explanation": "..."}}
   ],
@@ -1007,13 +1032,33 @@ Return ONLY valid JSON (no markdown):
   "common_misconceptions": [
     {{"misconception": "What students wrongly believe", "correction": "The accurate understanding", "how_to_address": "Teaching strategy"}}
   ],
-  "prerequisite_concepts": ["What students must understand first"],
   "discussion_questions": ["Questions to spark class discussion"],
   "quick_check_questions": [
-    {{"question": "...", "expected_answer": "...", "purpose": "What this checks"}}
+    {{
+      "question": "MCQ question text",
+      "type": "mcq",
+      "options": [
+        {{"text": "Option A", "is_correct": false}},
+        {{"text": "Option B", "is_correct": true}},
+        {{"text": "Option C", "is_correct": false}},
+        {{"text": "Option D", "is_correct": false}}
+      ],
+      "expected_answer": "Option B"
+    }},
+    {{
+      "question": "Fill in the blank: Plants use _______ to make food.",
+      "type": "fill_blank",
+      "expected_answer": "Sunlight"
+    }},
+    {{
+      "question": "Short question text",
+      "type": "short",
+      "expected_answer": "Expected short answer"
+    }}
   ],
+  "exam_answer_format": "A model exam-style answer (2-3 sentences) suitable for board exams",
   "teaching_tips": ["Specific classroom strategies"],
-  "simplified_version": "Simpler explanation for struggling learners",
+  "simplified_version": "Simpler explanation for struggling learners using very basic vocabulary",
   "extension_for_advanced": "Deeper exploration for advanced students"
 }}""",
 
@@ -1023,10 +1068,21 @@ PRESENTATION DETAILS:
 - Topic: {body.topic}
 - Subject: {body.subject}
 - Grade/Class: {body.grade or extra.get('classLevel', '')}
+- Board: {extra.get('board', 'CBSE')}
+- Chapter: {extra.get('chapter', '') or 'Not specified'}
 - Number of Slides: {extra.get('num_slides', 12)}
 - Duration: {extra.get('duration_minutes', 45)} minutes
 - Purpose: {extra.get('purpose', 'Teaching New Concept')}
 - Visual Style: {extra.get('visual_style', 'Modern/Clean')}
+- Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — structure slides to build toward this objective
+- Special Instructions: {extra.get('special_instructions', 'None')}
+
+BOARD-SPECIFIC GUIDANCE:
+- CBSE/NCERT: Reference NCERT chapters, use standard curriculum flow
+- ICSE: Include analytical and application-focused slides
+- State Board: Use state syllabus structure and regional examples
+- IB: Include inquiry questions, ATL skills, and conceptual understanding
+- Cambridge: Use Cambridge learning objectives and command words
 
 Return ONLY valid JSON (no markdown):
 {{
@@ -1121,77 +1177,47 @@ Return ONLY valid JSON (no markdown):
   "homework_connection": "How this connects to homework or next lesson"
 }}""",
 
-        "grading": f"""You are an expert educational assessor. Provide comprehensive grading using analytic rubric methodology.
+        "grading": f"""You are an expert educational assessor. Grade the student response and return structured SMART AI feedback.
 
 GRADING REQUEST:
-- Assistance Type: {extra.get('assistance_type', 'Generate Feedback for Response')}
+- Assistance Type: {extra.get('assistance_type', 'feedback')}
 - Question/Task: {extra.get('question', body.topic)}
 - Student Response: {extra.get('student_response', 'No response provided')}
 - Total Marks: {extra.get('total_marks', 10)}
-- Feedback Tone: {extra.get('feedback_tone', 'Encouraging')}
+- Feedback Tone: {extra.get('feedback_tone', 'encouraging')}
 - Subject: {body.subject}
 - Grade Level: {body.grade or 'General'}
 
+TONE GUIDANCE:
+- encouraging: warm, positive framing, celebrate effort, gentle on mistakes
+- neutral: factual, balanced, no emotional language
+- strict: direct, precise, high standards, minimal praise
+
 Return ONLY valid JSON (no markdown):
 {{
-  "assistance_type": "{extra.get('assistance_type', 'Generate Feedback for Response')}",
   "question": "{extra.get('question', body.topic)}",
-  "total_marks": {extra.get('total_marks', 10)},
-  "score": 7,
+  "score": <integer marks awarded>,
   "max_score": {extra.get('total_marks', 10)},
-  "grade_letter": "B",
-  "percentage": 70,
-  "performance_level": "Meeting Expectations",
-  "rubric_criteria": [
-    {{
-      "criterion": "Content Knowledge / Accuracy",
-      "max_marks": 3,
-      "marks_awarded": 2,
-      "level": "Meeting",
-      "descriptor": "What the student demonstrated",
-      "evidence": "Specific quote from student response"
-    }},
-    {{
-      "criterion": "Understanding & Explanation",
-      "max_marks": 3,
-      "marks_awarded": 2,
-      "level": "Meeting",
-      "descriptor": "...",
-      "evidence": "..."
-    }},
-    {{
-      "criterion": "Application / Problem Solving",
-      "max_marks": 2,
-      "marks_awarded": 2,
-      "level": "Exceeding",
-      "descriptor": "...",
-      "evidence": "..."
-    }},
-    {{
-      "criterion": "Communication / Presentation",
-      "max_marks": 2,
-      "marks_awarded": 1,
-      "level": "Approaching",
-      "descriptor": "...",
-      "evidence": "..."
-    }}
+  "percentage": <integer 0-100>,
+  "overall_verdict": "One sentence overall assessment (e.g. 'You understood the concept but made a calculation error at the end.')",
+  "what_went_well": [
+    "Specific thing the student did correctly with evidence from their response",
+    "Another strength"
   ],
-  "strengths": ["Specific strength 1 with evidence", "Specific strength 2"],
-  "areas_for_improvement": ["Specific gap with actionable guidance"],
-  "model_answer_notes": "Key points that should have been in a full-mark response",
-  "feedback": "Full written feedback in the requested tone — 3-4 sentences, specific and actionable",
-  "parent_friendly_summary": "Brief jargon-free summary for parents",
-  "next_steps": ["Concrete action 1", "Concrete action 2", "Resource to help"],
-  "suggestions": ["Improvement suggestion 1", "Improvement suggestion 2"],
-  "grading_rubric_table": [
-    {{
-      "criterion": "Content Knowledge",
-      "exceeding": "Thorough, accurate understanding with no errors",
-      "meeting": "Mostly accurate with minor errors",
-      "approaching": "Partial understanding with significant errors",
-      "developing": "Limited understanding with major omissions"
-    }}
-  ]
+  "what_to_improve": [
+    "Specific mistake or gap with exact location in their response",
+    "Another improvement point"
+  ],
+  "quick_fix": [
+    "Step-by-step correction for the main mistake (e.g. 'From 3x = 15, divide both sides by 3 → x = 5')",
+    "Any other quick correction"
+  ],
+  "next_steps": [
+    "Actionable study/practice suggestion",
+    "Another next step"
+  ],
+  "try_again_message": "Short motivational retry prompt (e.g. 'Almost correct — fix the last step and retry!')",
+  "feedback": "Full written feedback paragraph in the requested tone — 3-4 sentences, specific and actionable"
 }}""",
 
         "diffgroups": f"""You are an expert educator specialising in differentiated instruction. Analyse the student performance data and create optimal learning groups.
@@ -1290,6 +1316,9 @@ async def ai_generate_questions(body: AIGenerateQuestionsRequest, user=Depends(r
 
     prompt = f"""Generate {body.count} homework questions for:
 Subject: {body.subject}, Topic: {body.topic}, Grade: {body.grade}, Difficulty: {body.difficulty}
+Board: {body.board or 'CBSE'}{f", Chapter: {body.chapter}" if body.chapter else ""}
+{f"Learning Objective: {body.learning_objective}" if body.learning_objective else ""}
+{f"Special Instructions: {body.special_instructions}" if body.special_instructions else ""}
 Question types: {types_desc}
 
 Return ONLY valid JSON:

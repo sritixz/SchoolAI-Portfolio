@@ -8,6 +8,10 @@ import {
   aiTips,
   methodOptions,
   resourceOptions,
+  boardOptions,
+  lessonTypeOptions,
+  focusAreaOptions,
+  objectiveTagOptions,
 } from "../../data/teacher/lessonPlanData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadLessonPlanPdf } from "../../utils/aiPdfExport";
@@ -20,6 +24,9 @@ export default function LessonPlanCreator() {
   const aiStatus  = useSelector(selectAiToolStatus);
   const [form, setForm] = useState(lessonPlanDefaults);
   const [newMethod, setNewMethod] = useState("");
+  const [newObjectiveText, setNewObjectiveText] = useState("");
+  const [newObjectiveTag, setNewObjectiveTag] = useState("concept");
+  const [showAddObjective, setShowAddObjective] = useState(false);
   const generating = aiStatus === "loading";
 
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
@@ -55,6 +62,45 @@ export default function LessonPlanCreator() {
     }
   };
 
+  const toggleFocusArea = (val) =>
+    setForm((p) => {
+      const has = p.focusAreas.includes(val);
+      if (has && p.focusAreas.length === 1) return p; // keep at least 1
+      const next = has
+        ? p.focusAreas.filter((f) => f !== val)
+        : p.focusAreas.length < 2
+        ? [...p.focusAreas, val]
+        : [p.focusAreas[1], val]; // max 2
+      return { ...p, focusAreas: next };
+    });
+
+  const addCustomObjective = () => {
+    if (!newObjectiveText.trim()) return;
+    const id = `lo_custom_${Date.now()}`;
+    setForm((p) => ({
+      ...p,
+      objectives: [...p.objectives, { id, text: newObjectiveText.trim(), selected: true, tag: newObjectiveTag }],
+    }));
+    setNewObjectiveText("");
+    setShowAddObjective(false);
+  };
+
+  const updateObjectiveTag = (id, tag) =>
+    setForm((p) => ({
+      ...p,
+      objectives: p.objectives.map((o) => o.id === id ? { ...o, tag } : o),
+    }));
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setForm((p) => ({ ...p, referenceDocument: { name: file.name, content: ev.target.result } }));
+    };
+    reader.readAsText(file);
+  };
+
   const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
     dispatch(clearAiToolResult());
@@ -66,13 +112,20 @@ export default function LessonPlanCreator() {
       grade: form.classLevel,
       extra: {
         durationMinutes: form.durationMinutes,
+        numberOfClasses: form.numberOfClasses,
+        board: form.board,
+        chapter: form.chapter,
         standards: form.standards || "",
-        objectives: form.objectives.filter(o => o.selected).map(o => o.text),
+        lessonType: form.lessonType,
+        focusAreas: form.focusAreas,
+        includeOptions: form.includeOptions,
+        objectives: form.objectives.filter(o => o.selected).map(o => ({ text: o.text, tag: o.tag })),
         instructionalMethods: form.instructionalMethods,
         resources: form.resources,
         lessonSections: selectedSections.map(s => ({ label: s.label, duration: s.duration })),
         specificNeeds: form.specificNeeds,
         differentiation: form.differentiation,
+        referenceDocumentContent: form.referenceDocument?.content || null,
       },
     }, { tool: "lessonplan", title: `Lesson Plan: ${form.topic}`, subject: form.subject, topic: form.topic, grade: form.classLevel });
   };
@@ -154,7 +207,41 @@ export default function LessonPlanCreator() {
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Duration (minutes)</label>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Board / Curriculum</label>
+                <select
+                  value={form.board}
+                  onChange={(e) => setForm({ ...form, board: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white"
+                >
+                  {boardOptions.map((b) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Chapter</label>
+                <input
+                  value={form.chapter}
+                  onChange={(e) => setForm({ ...form, chapter: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
+                  placeholder="e.g., Chapter 4: Polynomials"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Standards / Curriculum Alignment</label>
+                <input
+                  value={form.standards || ""}
+                  onChange={(e) => setForm({ ...form, standards: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
+                  placeholder="e.g., CCSS.MATH.CONTENT.HSA.REI.B.4"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Duration per Class (minutes)</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -166,15 +253,89 @@ export default function LessonPlanCreator() {
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-gray-400 text-base">schedule</span>
                 </div>
               </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Number of Classes</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.numberOfClasses}
+                  onChange={(e) => setForm({ ...form, numberOfClasses: parseInt(e.target.value) || 1 })}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
+                  placeholder="1"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Lesson Type & Focus */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="flex items-center gap-2 font-black text-base mb-4">
+              <span className="size-6 bg-indigo-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-indigo-600 text-sm">tune</span>
+              </span>
+              Lesson Type & Focus
+            </h2>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-500 mb-2 block">Lesson Type</label>
+              <div className="grid grid-cols-2 gap-2">
+                {lessonTypeOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setForm((p) => ({ ...p, lessonType: opt.value }))}
+                    className={`px-3 py-2 rounded-xl border-2 text-sm font-semibold text-left transition-all ${
+                      form.lessonType === opt.value
+                        ? "border-[#695be6] bg-[#695be6]/5 text-[#695be6]"
+                        : "border-gray-100 text-gray-600 hover:border-gray-200"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-gray-500 mb-2 block">Focus Area <span className="font-normal text-gray-400">(select 1–2)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {focusAreaOptions.map((opt) => {
+                  const active = form.focusAreas.includes(opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => toggleFocusArea(opt.value)}
+                      className={`px-3 py-1.5 rounded-full border-2 text-xs font-bold transition-all ${
+                        active
+                          ? "border-[#695be6] bg-[#695be6] text-white"
+                          : "border-gray-200 text-gray-600 hover:border-[#695be6]"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 mb-1 block">Standards/Curriculum Alignment (Optional)</label>
-              <input
-                value={form.standards || ""}
-                onChange={(e) => setForm({ ...form, standards: e.target.value })}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
-                placeholder="e.g., CCSS.MATH.CONTENT.HSA.REI.B.4"
-              />
+              <label className="text-xs font-bold text-gray-500 mb-2 block">Include in Plan</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: "assessmentQuestions", label: "Assessment Questions" },
+                  { key: "homework",             label: "Homework" },
+                  { key: "realLifeExamples",     label: "Real-Life Examples" },
+                  { key: "differentiation",      label: "Differentiation" },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <div
+                      onClick={() => setForm((p) => ({ ...p, includeOptions: { ...p.includeOptions, [key]: !p.includeOptions[key] } }))}
+                      className={`size-5 rounded border-2 flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                        form.includeOptions[key] ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"
+                      }`}
+                    >
+                      {form.includeOptions[key] && <span className="material-symbols-outlined text-white text-xs">check</span>}
+                    </div>
+                    <span className="text-sm text-gray-700">{label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -187,26 +348,84 @@ export default function LessonPlanCreator() {
                 </span>
                 Learning Objectives
               </h2>
-              <button className="text-xs text-[#695be6] font-semibold hover:underline">+ Add Custom Objective</button>
+              <button
+                onClick={() => setShowAddObjective((v) => !v)}
+                className="text-xs text-[#695be6] font-semibold hover:underline"
+              >
+                + Add Custom Objective
+              </button>
             </div>
             <div className="space-y-2">
-              {form.objectives.map((obj) => (
-                <div
-                  key={obj.id}
-                  onClick={() => toggleObjective(obj.id)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                    obj.selected ? "border-[#695be6] bg-[#695be6]/5" : "border-gray-100 hover:border-gray-200"
-                  }`}
-                >
-                  <div className={`size-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                    obj.selected ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"
-                  }`}>
-                    {obj.selected && <span className="material-symbols-outlined text-white text-xs">check</span>}
+              {form.objectives.map((obj) => {
+                const tagMeta = objectiveTagOptions.find((t) => t.value === obj.tag) || objectiveTagOptions[0];
+                return (
+                  <div
+                    key={obj.id}
+                    className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-all ${
+                      obj.selected ? "border-[#695be6] bg-[#695be6]/5" : "border-gray-100 hover:border-gray-200"
+                    }`}
+                  >
+                    <div
+                      onClick={() => toggleObjective(obj.id)}
+                      className={`size-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-0.5 cursor-pointer ${
+                        obj.selected ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"
+                      }`}
+                    >
+                      {obj.selected && <span className="material-symbols-outlined text-white text-xs">check</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">{obj.text}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {objectiveTagOptions.map((t) => (
+                          <button
+                            key={t.value}
+                            onClick={() => updateObjectiveTag(obj.id, t.value)}
+                            className={`text-xs px-2 py-0.5 rounded-full font-semibold transition-all ${
+                              obj.tag === t.value ? t.color + " ring-1 ring-offset-1 ring-current" : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-sm">{obj.text}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
+            {showAddObjective && (
+              <div className="mt-3 p-3 bg-gray-50 rounded-xl border border-dashed border-gray-300 space-y-2">
+                <input
+                  value={newObjectiveText}
+                  onChange={(e) => setNewObjectiveText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addCustomObjective()}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#695be6]"
+                  placeholder="Type your custom objective..."
+                  autoFocus
+                />
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1 flex-wrap flex-1">
+                    {objectiveTagOptions.map((t) => (
+                      <button
+                        key={t.value}
+                        onClick={() => setNewObjectiveTag(t.value)}
+                        className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                          newObjectiveTag === t.value ? t.color : "bg-gray-100 text-gray-400"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={addCustomObjective}
+                    className="text-xs bg-[#695be6] text-white px-3 py-1.5 rounded-lg font-bold hover:bg-[#5a4dd4]"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Teaching Approach */}
@@ -347,6 +566,36 @@ export default function LessonPlanCreator() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Reference Document Upload */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <h2 className="flex items-center gap-2 font-black text-base mb-3">
+              <span className="size-6 bg-yellow-100 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-yellow-600 text-sm">attach_file</span>
+              </span>
+              Reference Document <span className="text-xs font-normal text-gray-400 ml-1">(Optional)</span>
+            </h2>
+            <p className="text-xs text-gray-500 mb-3">Upload a syllabus, chapter notes, or any reference the AI should consider when generating the plan.</p>
+            {form.referenceDocument ? (
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                <span className="material-symbols-outlined text-green-600">description</span>
+                <span className="text-sm font-semibold text-green-800 flex-1 truncate">{form.referenceDocument.name}</span>
+                <button
+                  onClick={() => setForm((p) => ({ ...p, referenceDocument: null }))}
+                  className="text-xs text-red-500 font-bold hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl p-6 cursor-pointer hover:border-[#695be6] transition-colors">
+                <span className="material-symbols-outlined text-gray-400 text-3xl">upload_file</span>
+                <span className="text-sm text-gray-500">Click to upload a document</span>
+                <span className="text-xs text-gray-400">.txt, .md, .csv files supported</span>
+                <input type="file" accept=".txt,.md,.csv" className="hidden" onChange={handleFileUpload} />
+              </label>
+            )}
           </div>
         </div>
 

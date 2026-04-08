@@ -3,43 +3,45 @@
 // ============================================================
 
 export const conceptExplainerDefaults = {
-  concept: "Photosynthesis",
-  targetAudience: "Grade 7 (12-13 years old)",
-  simplifyForStruggling: true,
-  explanationStyle: "Analogy-heavy",
+  concept: "",
+  grade: "Grade 7",
+  board: "CBSE",
+  explanationStyle: "Analogy-based",
+  level: "Standard",
   includeElements: {
-    visualAnalogies:       true,
-    realWorldExamples:     true,
-    commonMisconceptions:  true,
-    teachingTips:          false,
+    realLifeExamples:   true,
+    visualExplanation:  true,
+    commonMistakes:     true,
+    quickQuestions:     true,
   },
 };
 
-export const targetAudienceOptions = [
-  "Grade 5 (10-11 years old)",
-  "Grade 6 (11-12 years old)",
-  "Grade 7 (12-13 years old)",
-  "Grade 8 (13-14 years old)",
-  "Grade 9 (14-15 years old)",
-  "Grade 10 (15-16 years old)",
+export const gradeOptions = [
+  "Grade 5",
+  "Grade 6",
+  "Grade 7",
+  "Grade 8",
+  "Grade 9-12",
 ];
 
+export const boardOptions = ["CBSE", "ICSE", "State Board"];
+
 export const explanationStyles = [
-  { id: "analogy",    label: "Analogy-heavy" },
+  { id: "analogy",    label: "Analogy-based" },
   { id: "stepbystep", label: "Step-by-step" },
   { id: "story",      label: "Story-based" },
   { id: "technical",  label: "Technical" },
 ];
 
-export const includeElementOptions = [
-  { id: "visualAnalogies",      label: "Visual Analogies" },
-  { id: "realWorldExamples",    label: "Real-world Examples" },
-  { id: "commonMisconceptions", label: "Common Misconceptions" },
-  { id: "teachingTips",         label: "Teaching Tips" },
+export const levelOptions = [
+  { id: "Basic",    label: "Basic",    desc: "For struggling students" },
+  { id: "Standard", label: "Standard", desc: "Default level" },
+  { id: "Advanced", label: "Advanced", desc: "For advanced learners" },
 ];
 
-export const conceptExplainerHistory = [
-  { id: "ce1", concept: "Photosynthesis",    audience: "Grade 7", date: "Mar 25, 2026", status: "completed" },
-  { id: "ce2", concept: "Newton's 3rd Law",  audience: "Grade 8", date: "Mar 22, 2026", status: "completed" },
-  { id: "ce3", concept: "Fractions",         audience: "Grade 5", date: "Mar 20, 2026", status: "draft" },
+export const includeElementOptions = [
+  { id: "realLifeExamples",  label: "Real-life examples" },
+  { id: "visualExplanation", label: "Visual explanation (diagram/flow)" },
+  { id: "commonMistakes",    label: "Common mistakes" },
+  { id: "quickQuestions",    label: "Quick questions (MCQ + short)" },
 ];
