@@ -4,9 +4,9 @@
 // ============================================================
 
 export const lessonPlanDefaults = {
-  subject: "Math",
-  topic: "Quadratic Equations",
-  classLevel: "Grade 8A",
+  subject: "",
+  topic: "",
+  classLevel: "",
   durationMinutes: 45,
   numberOfClasses: 1,
   board: "CBSE",
@@ -20,14 +20,10 @@ export const lessonPlanDefaults = {
     realLifeExamples: true,
     differentiation: true,
   },
-  objectives: [
-    { id: "lo1", text: "Students will be able to identify and write quadratic equations in standard form (ax² + bx + c = 0)", selected: true, tag: "concept" },
-    { id: "lo2", text: "Students will be able to solve quadratic equations using the factorization method with 80% accuracy", selected: true, tag: "skill" },
-    { id: "lo3", text: "Students will be able to identify and explain the role of coefficients a, b, and c in quadratic equations", selected: false, tag: "application" },
-  ],
-  instructionalMethods: ["Direct Instruction", "Guided Practice", "Collaborative Learning"],
-  resources: ["Whiteboard/Smartboard", "Algebra Tiles", "Graphing Calculator", "Worksheets"],
-  specificNeeds: "3 students with IEPs need extended time, 5 visual learners benefit from graphic organizers, 2 ELL students need vocabulary support",
+  objectives: [],
+  instructionalMethods: ["Direct Instruction", "Guided Practice"],
+  resources: ["Whiteboard/Smartboard", "Textbook"],
+  specificNeeds: "",
   lessonSections: [
     { id: "warmup",      label: "Warm-Up/Do Now",        selected: true, duration: 5 },
     { id: "intro",       label: "Introduction/Hook",     selected: true, duration: 5 },
@@ -38,11 +34,10 @@ export const lessonPlanDefaults = {
     { id: "assessment",  label: "Assessment/Exit Ticket", selected: true, duration: 5 },
   ],
   differentiation: {
-    support: "Provide equation templates, use manipulatives, pair with peer tutors",
-    enrichment: "Challenge problems with real-world applications, explore graphing connections",
-    modifications: "Reduce number of problems, provide formula sheet, allow calculator use"
+    support: "",
+    enrichment: "",
   },
-  referenceDocument: null, // { name, content } for uploaded doc
+  referenceDocument: null,
 };
 
 export const boardOptions = ["CBSE", "ICSE", "State Board", "IB", "Cambridge"];

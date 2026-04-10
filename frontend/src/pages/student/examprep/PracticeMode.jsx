@@ -4,6 +4,7 @@ import api from "../../../api";
 export default function PracticeMode({ subject, profile, onBack }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
   const [idx, setIdx]             = useState(0);
   const [selected, setSelected]   = useState(null);
   const [checked, setChecked]     = useState(false);
@@ -12,38 +13,59 @@ export default function PracticeMode({ subject, profile, onBack }) {
 
   const subjectProfile = profile.subjects?.find((s) => s.name === subject);
 
-  useEffect(() => {
+  const fetchQuestions = () => {
+    setLoading(true);
+    setError(null);
     api.post("/student/exam-prep/practice-questions", {
       subject,
       class: profile.class,
       board: profile.board,
+      state: subjectProfile?.state || undefined,
       topics: subjectProfile?.topics || [],
+      syllabusMode: subjectProfile?.syllabusMode || "full",
       pattern: subjectProfile?.pattern || "mixed",
       confidence: subjectProfile?.confidence || "medium",
     })
-      .then((r) => setQuestions(r.data.questions || []))
-      .catch(() => setQuestions(FALLBACK_QUESTIONS))
+      .then((r) => {
+        const qs = r.data.questions || [];
+        if (!qs.length) {
+          setError("No questions returned. Try again.");
+        } else {
+          setQuestions(qs);
+        }
+      })
+      .catch((err) => {
+        const msg = err.response?.data?.detail || err.message || "Failed to load questions";
+        setError(msg);
+      })
       .finally(() => setLoading(false));
-  }, [subject]);
+  };
+
+  useEffect(() => { fetchQuestions(); }, [subject]);
 
   if (loading) {
     return (
       <Screen onBack={onBack} title={`Practice: ${subject}`}>
         <div className="flex flex-col items-center justify-center flex-1 gap-3">
           <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
-          <p className="text-sm text-gray-400">Generating questions...</p>
+          <p className="text-sm text-gray-400">Generating {subject} questions...</p>
+          <p className="text-xs text-gray-400">Class {profile.class} · {profile.board}{subjectProfile?.state ? ` (${subjectProfile.state})` : ""}</p>
         </div>
       </Screen>
     );
   }
 
-  if (!questions.length) {
+  if (error || !questions.length) {
     return (
       <Screen onBack={onBack} title={`Practice: ${subject}`}>
-        <div className="flex flex-col items-center justify-center flex-1 gap-3 text-gray-400">
-          <span className="material-symbols-outlined text-4xl">quiz</span>
-          <p className="text-sm">No questions available</p>
-          <button onClick={onBack} className="px-6 py-2 bg-[#695be6] text-white rounded-full font-bold text-sm">Back</button>
+        <div className="flex flex-col items-center justify-center flex-1 gap-4 px-6 text-center">
+          <span className="material-symbols-outlined text-4xl text-red-400">error_outline</span>
+          <p className="text-sm font-semibold text-gray-700">Couldn't load questions</p>
+          <p className="text-xs text-gray-400 max-w-xs">{error || "No questions were generated."}</p>
+          <button onClick={fetchQuestions} className="px-6 py-2.5 bg-[#695be6] text-white rounded-full font-bold text-sm flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">refresh</span> Try Again
+          </button>
+          <button onClick={onBack} className="text-sm text-gray-400 font-semibold hover:text-gray-600">← Back</button>
         </div>
       </Screen>
     );
@@ -69,7 +91,7 @@ export default function PracticeMode({ subject, profile, onBack }) {
             </div>
           )}
           <div className="flex gap-3 w-full max-w-xs">
-            <button onClick={() => { setIdx(0); setSelected(null); setChecked(false); setScore(0); setFinished(false); }}
+            <button onClick={() => { setIdx(0); setSelected(null); setChecked(false); setScore(0); setFinished(false); setQuestions([]); fetchQuestions(); }}
               className="flex-1 py-3 bg-[#695be6] text-white font-bold rounded-xl text-sm">Retry</button>
             <button onClick={onBack} className="flex-1 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl text-sm">Back</button>
           </div>
@@ -179,16 +201,4 @@ function Screen({ onBack, title, progress, score, total, children }) {
   );
 }
 
-const FALLBACK_QUESTIONS = [
-  {
-    id: "q1", question: "What is the value of x in 2x + 4 = 10?",
-    options: [
-      { id: "A", text: "2", is_correct: false },
-      { id: "B", text: "3", is_correct: true },
-      { id: "C", text: "4", is_correct: false },
-      { id: "D", text: "5", is_correct: false },
-    ],
-    explanation: "2x = 10 - 4 = 6, so x = 3",
-    trick: "Isolate x by moving constants to the other side first.",
-  },
-];
+
