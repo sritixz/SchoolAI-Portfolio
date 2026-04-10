@@ -38,6 +38,9 @@ app.include_router(career.router)
 app.include_router(portfolio.router)
 app.include_router(storage.router)
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+
+
+# main.py — add a test route
+@app.get("/ping")
+async def ping():
+    return {"ok": True}

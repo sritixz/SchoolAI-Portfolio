@@ -13,11 +13,19 @@ const SUBJECT_COLORS = {
 };
 const CONFIDENCE_EMOJI = { low: "😰", medium: "😐", high: "😎" };
 
+const MODE_META = {
+  regular:   { label: "Regular Mode",   color: "bg-blue-100 text-blue-700",   icon: "school",        desc: "Learning + Practice" },
+  revision:  { label: "Revision Mode",  color: "bg-amber-100 text-amber-700", icon: "replay",        desc: "Notes + Important Questions" },
+  last_day:  { label: "Last-Day Mode",  color: "bg-red-100 text-red-700",     icon: "emergency_home", desc: "Ultra-short revision only" },
+};
+
 export default function ExamDashboard({ user, navigate, profile, onReset }) {
   const [activeTab, setActiveTab]   = useState("today");
   const [studyPlan, setStudyPlan]   = useState(profile.studyPlan || []);
   const [readiness, setReadiness]   = useState(profile.readiness || {});
   const [aiInsights, setAiInsights] = useState(profile.aiInsights || []);
+  const [currentMode, setCurrentMode] = useState(profile.currentMode || "regular");
+  const [weakTopics, setWeakTopics]   = useState(profile.weakTopics || {});
   const [loadingPlan, setLoadingPlan] = useState(!profile.studyPlan?.length);
   const [practiceSubject, setPracticeSubject] = useState(null);
   const [notesSubject, setNotesSubject]       = useState(null);
@@ -29,6 +37,8 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
           setStudyPlan(r.data.studyPlan || []);
           setReadiness(r.data.readiness || {});
           setAiInsights(r.data.aiInsights || []);
+          setCurrentMode(r.data.currentMode || "regular");
+          setWeakTopics(r.data.weakTopics || {});
         })
         .catch(() => {})
         .finally(() => setLoadingPlan(false));
@@ -37,12 +47,48 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
     }
   }, [profile]);
 
+  // Bug 2 fix: parse date as local midnight, not UTC midnight
+  const parseLocalDate = (d) => {
+    if (!d) return null;
+    const [y, m, day] = d.split("-");
+    return new Date(Number(y), Number(m) - 1, Number(day));
+  };
+
+  // Recalculate daysLeft fresh from examDate (stored value goes stale)
+  const freshSubjects = (profile.subjects || []).map((s) => ({
+    ...s,
+    daysLeft: s.examDate
+      ? Math.max(0, Math.ceil((parseLocalDate(s.examDate) - new Date()) / 86400000))
+      : s.daysLeft,
+  }));
+
+  // Bug 1 fix: Math.min(...[]) === Infinity — guard with explicit length check
+  const daysArr = freshSubjects.map((s) => s.daysLeft).filter((d) => d > 0);
+  const minDaysLeft = daysArr.length ? Math.min(...daysArr) : 0;
+  const derivedMode = minDaysLeft <= 1 ? "last_day" : minDaysLeft <= 5 ? "revision" : "regular";
+  const activeMode  = derivedMode !== "regular" ? derivedMode : currentMode;
+
+  const handleSessionToggle = async (dayNum, sessionIdx, done, subject, scorePct) => {
+    // Optimistic update
+    setStudyPlan((prev) => prev.map((d) =>
+      d.day === dayNum
+        ? { ...d, sessions: d.sessions.map((s, i) => i === sessionIdx ? { ...s, done } : s) }
+        : d
+    ));
+    try {
+      const r = await api.post("/student/exam-prep/session-progress", {
+        day: dayNum, session_index: sessionIdx, done, subject, score_pct: scorePct ?? null,
+      });
+      if (r.data.readiness) setReadiness(r.data.readiness);
+    } catch { /* silent */ }
+  };
+
+  if (practiceSubject) return <PracticeMode subject={practiceSubject} profile={{ ...profile, subjects: freshSubjects, weakTopics }} onBack={() => setPracticeSubject(null)} />;
+  if (notesSubject)    return <NotesTab subject={notesSubject} profile={{ ...profile, subjects: freshSubjects, weakTopics }} onBack={() => setNotesSubject(null)} />;
+
+  const modeMeta = MODE_META[activeMode] || MODE_META.regular;
   const today = studyPlan[0] || null;
   const totalDailyMins = profile.dailyStudyMinutes || 60;
-  const revisionMode = profile.subjects?.some((s) => s.daysLeft <= 5 && s.daysLeft > 0);
-
-  if (practiceSubject) return <PracticeMode subject={practiceSubject} profile={profile} onBack={() => setPracticeSubject(null)} />;
-  if (notesSubject)    return <NotesTab subject={notesSubject} profile={profile} onBack={() => setNotesSubject(null)} />;
 
   return (
     <div className="min-h-screen bg-[#f6f6f8] pb-24" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -58,7 +104,10 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {revisionMode && <span className="text-[10px] font-black bg-red-100 text-red-600 px-2 py-1 rounded-full">⚡ Revision Mode</span>}
+            <span className={`text-[10px] font-black px-2 py-1 rounded-full flex items-center gap-1 ${modeMeta.color}`}>
+              <span className="material-symbols-outlined text-xs">{modeMeta.icon}</span>
+              {modeMeta.label}
+            </span>
             <button onClick={onReset} className="p-2 hover:bg-gray-100 rounded-lg" title="Reset setup">
               <span className="material-symbols-outlined text-gray-400 text-xl">settings</span>
             </button>
@@ -82,15 +131,16 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
       <main className="max-w-2xl mx-auto pt-28 px-4 space-y-4">
         {activeTab === "today" && (
           <TodayView
-            profile={profile} readiness={readiness} aiInsights={aiInsights}
+            profile={{ ...profile, subjects: freshSubjects }} readiness={readiness} aiInsights={aiInsights}
             today={today} totalDailyMins={totalDailyMins} loadingPlan={loadingPlan}
-            revisionMode={revisionMode}
+            activeMode={activeMode} modeMeta={modeMeta} weakTopics={weakTopics}
             onPractice={setPracticeSubject} onNotes={setNotesSubject}
+            onSessionToggle={handleSessionToggle}
           />
         )}
-        {activeTab === "plan"     && <FullPlanTab studyPlan={studyPlan} loading={loadingPlan} />}
-        {activeTab === "notes"    && <SubjectPicker subjects={profile.subjects} colors={SUBJECT_COLORS} onSelect={setNotesSubject} label="Notes & Revision" sublabel="Short notes · Key concepts · Formulas" icon="arrow_forward" />}
-        {activeTab === "practice" && <SubjectPicker subjects={profile.subjects} colors={SUBJECT_COLORS} onSelect={setPracticeSubject} label="Practice Mode" sublabel="MCQ · Short Answer · Adaptive" icon="play_arrow" />}
+        {activeTab === "plan"     && <FullPlanTab studyPlan={studyPlan} loading={loadingPlan} onSessionToggle={handleSessionToggle} />}
+        {activeTab === "notes"    && <SubjectPicker subjects={freshSubjects} colors={SUBJECT_COLORS} onSelect={setNotesSubject} label="Notes & Revision" sublabel="Short notes · Key concepts · Formulas" icon="arrow_forward" weakTopics={weakTopics} />}
+        {activeTab === "practice" && <SubjectPicker subjects={freshSubjects} colors={SUBJECT_COLORS} onSelect={setPracticeSubject} label="Practice Mode" sublabel="MCQ · Short Answer · Adaptive" icon="play_arrow" weakTopics={weakTopics} />}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-2 z-50">
@@ -120,10 +170,26 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
 }
 
 // ── Today View ────────────────────────────────────────────────────────────────
-function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, loadingPlan, revisionMode, onPractice, onNotes }) {
+function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, loadingPlan, activeMode, modeMeta, weakTopics, onPractice, onNotes, onSessionToggle }) {
   return (
     <>
       <ReadinessReport profile={profile} readiness={readiness} />
+
+      {/* Mode Banner */}
+      <div className={`rounded-xl px-4 py-3 flex items-center gap-3 border ${
+        activeMode === "last_day" ? "bg-red-50 border-red-200" :
+        activeMode === "revision" ? "bg-amber-50 border-amber-200" :
+        "bg-blue-50 border-blue-200"
+      }`}>
+        <span className={`material-symbols-outlined text-xl ${
+          activeMode === "last_day" ? "text-red-600" : activeMode === "revision" ? "text-amber-600" : "text-blue-600"
+        }`}>{modeMeta.icon}</span>
+        <div>
+          <p className={`text-xs font-black ${activeMode === "last_day" ? "text-red-700" : activeMode === "revision" ? "text-amber-700" : "text-blue-700"}`}>{modeMeta.label}</p>
+          <p className="text-xs text-gray-500">{modeMeta.desc}</p>
+        </div>
+      </div>
+
       {aiInsights.length > 0 && (
         <div className="space-y-2">
           {aiInsights.map((msg, i) => (
@@ -134,23 +200,30 @@ function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, load
           ))}
         </div>
       )}
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <div>
             <p className="font-black text-sm">📅 Today's Study Plan</p>
-            <p className="text-xs text-gray-400">Total: {totalDailyMins} mins</p>
+            <p className="text-xs text-gray-400">Total: {totalDailyMins} mins · {today?.sessions?.filter((s) => s.done).length || 0}/{today?.sessions?.length || 0} done</p>
           </div>
-          {revisionMode && <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-full">REVISION MODE</span>}
+          <span className={`text-[10px] font-black px-2 py-1 rounded-full ${modeMeta.color}`}>{modeMeta.label}</span>
         </div>
         {loadingPlan ? (
           <div className="flex items-center justify-center py-10 gap-2">
             <span className="size-5 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
-            <p className="text-xs text-gray-400">Building your plan...</p>
+            <p className="text-xs text-gray-400">Building your personalized plan...</p>
           </div>
         ) : today?.sessions?.length ? (
           <div className="divide-y divide-gray-50">
             {today.sessions.map((session, i) => (
-              <TodaySession key={i} session={session} onPractice={() => onPractice(session.subject)} onNotes={() => onNotes(session.subject)} />
+              <TodaySession
+                key={i} session={session} dayNum={today.day} sessionIdx={i}
+                isWeak={session.isWeakTopic || (weakTopics[session.subject] || []).some((w) => session.topic?.toLowerCase().includes(w.toLowerCase()))}
+                onPractice={() => onPractice(session.subject)}
+                onNotes={() => onNotes(session.subject)}
+                onToggle={(done) => onSessionToggle(today.day, i, done, session.subject)}
+              />
             ))}
           </div>
         ) : (
@@ -160,6 +233,7 @@ function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, load
           </div>
         )}
       </div>
+
       <div>
         <p className="text-sm font-black mb-2">📆 Upcoming Exams</p>
         <div className="space-y-2">
@@ -255,18 +329,31 @@ function ExamCard({ subject: s, readiness }) {
   );
 }
 
-function TodaySession({ session, onPractice, onNotes }) {
+function TodaySession({ session, dayNum, sessionIdx, isWeak, onPractice, onNotes, onToggle }) {
   const [done, setDone] = useState(session.done || false);
+  const TYPE_COLORS = {
+    Learn:       "bg-blue-100 text-blue-700",
+    Practice:    "bg-purple-100 text-purple-700",
+    Revise:      "bg-green-100 text-green-700",
+    Notes:       "bg-amber-100 text-amber-700",
+    ImportantQ:  "bg-red-100 text-red-700",
+  };
+  const handleToggle = () => {
+    const next = !done;
+    setDone(next);
+    onToggle(next);
+  };
   return (
-    <div className={`px-4 py-3 flex items-center gap-3 ${done ? "opacity-50" : ""}`}>
-      <button onClick={() => setDone((v) => !v)}
+    <div className={`px-4 py-3 flex items-center gap-3 ${done ? "opacity-50" : ""} ${isWeak ? "bg-red-50/40" : ""}`}>
+      <button onClick={handleToggle}
         className={`size-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${done ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"}`}>
         {done && <span className="material-symbols-outlined text-white text-xs">check</span>}
       </button>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${session.type === "Learn" ? "bg-blue-100 text-blue-700" : session.type === "Practice" ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"}`}>{session.type}</span>
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${TYPE_COLORS[session.type] || "bg-gray-100 text-gray-600"}`}>{session.type}</span>
           <span className="text-xs text-gray-400">{session.subject}</span>
+          {isWeak && <span className="text-[10px] font-black bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">⚠ Weak</span>}
         </div>
         <p className={`text-sm font-semibold text-gray-800 truncate ${done ? "line-through" : ""}`}>{session.topic}</p>
       </div>
@@ -283,48 +370,81 @@ function TodaySession({ session, onPractice, onNotes }) {
   );
 }
 
-function FullPlanTab({ studyPlan, loading }) {
+function FullPlanTab({ studyPlan, loading, onSessionToggle }) {
   if (loading) return <div className="flex items-center justify-center py-16 gap-2"><span className="size-5 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" /><p className="text-xs text-gray-400">Loading plan...</p></div>;
   if (!studyPlan?.length) return <div className="text-center py-16 text-gray-400"><span className="material-symbols-outlined text-4xl mb-2 block">calendar_month</span><p className="text-sm">No plan generated yet</p></div>;
+
+  const TYPE_COLORS = {
+    Learn: "bg-blue-100 text-blue-700", Practice: "bg-purple-100 text-purple-700",
+    Revise: "bg-green-100 text-green-700", Notes: "bg-amber-100 text-amber-700", ImportantQ: "bg-red-100 text-red-700",
+  };
+  const MODE_COLORS = { regular: "text-blue-600", revision: "text-amber-600", last_day: "text-red-600" };
+
   return (
     <div className="space-y-3">
-      <p className="text-sm font-black text-gray-700">📆 Full Study Plan</p>
-      {studyPlan.map((day, i) => (
-        <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-2.5 bg-[#695be6]/5 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-xs font-black text-[#695be6]">Day {day.day} — {day.date}</p>
-            <p className="text-xs text-gray-400">{day.totalMinutes} min</p>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {day.sessions?.map((s, j) => (
-              <div key={j} className="px-4 py-2.5 flex items-center gap-3">
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${s.type === "Learn" ? "bg-blue-100 text-blue-700" : s.type === "Practice" ? "bg-purple-100 text-purple-700" : "bg-green-100 text-green-700"}`}>{s.type}</span>
-                <span className="text-xs font-semibold text-gray-700 flex-1">{s.subject} — {s.topic}</span>
-                <span className="text-xs text-gray-400 flex-shrink-0">{s.duration} min</span>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-black text-gray-700">📆 Full Study Plan</p>
+        <p className="text-xs text-gray-400">{studyPlan.length} days</p>
+      </div>
+      {studyPlan.map((day, i) => {
+        const doneCnt = day.sessions?.filter((s) => s.done).length || 0;
+        const totalCnt = day.sessions?.length || 0;
+        return (
+          <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-2.5 bg-[#695be6]/5 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black text-[#695be6]">Day {day.day} — {day.date}</p>
+                {day.mode && <span className={`text-[10px] font-bold uppercase ${MODE_COLORS[day.mode] || "text-gray-500"}`}>{day.mode}</span>}
               </div>
-            ))}
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-gray-400">{day.totalMinutes} min</p>
+                {doneCnt > 0 && <span className="text-[10px] font-bold text-green-600">{doneCnt}/{totalCnt} done</span>}
+              </div>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {day.sessions?.map((s, j) => (
+                <div key={j} className={`px-4 py-2.5 flex items-center gap-3 ${s.done ? "opacity-50" : ""} ${s.isWeakTopic ? "bg-red-50/30" : ""}`}>
+                  <button
+                    onClick={() => onSessionToggle(day.day, j, !s.done, s.subject)}
+                    className={`size-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${s.done ? "bg-[#695be6] border-[#695be6]" : "border-gray-300"}`}
+                  >
+                    {s.done && <span className="material-symbols-outlined text-white" style={{ fontSize: "10px" }}>check</span>}
+                  </button>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${TYPE_COLORS[s.type] || "bg-gray-100 text-gray-600"}`}>{s.type}</span>
+                  <span className="text-xs font-semibold text-gray-700 flex-1 truncate">{s.subject} — {s.topic}</span>
+                  {s.isWeakTopic && <span className="text-[10px] text-red-500 font-bold flex-shrink-0">⚠</span>}
+                  <span className="text-xs text-gray-400 flex-shrink-0">{s.duration} min</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function SubjectPicker({ subjects, colors, onSelect, label, sublabel, icon }) {
+function SubjectPicker({ subjects, colors, onSelect, label, sublabel, icon, weakTopics }) {
   return (
     <div className="space-y-3">
       <p className="text-sm font-black text-gray-700">{label}</p>
       <p className="text-xs text-gray-400">{sublabel}</p>
-      {subjects?.map((s) => (
-        <button key={s.name} onClick={() => onSelect(s.name)}
-          className={`w-full bg-gradient-to-r ${colors[s.name] || "from-gray-400 to-gray-500"} rounded-xl p-4 text-white text-left flex items-center justify-between`}>
-          <div>
-            <p className="font-black">{s.name}</p>
-            <p className="text-xs text-white/70">{sublabel}</p>
-          </div>
-          <span className="material-symbols-outlined">{icon}</span>
-        </button>
-      ))}
+      {subjects?.map((s) => {
+        const hasWeak = (weakTopics?.[s.name] || []).length > 0;
+        return (
+          <button key={s.name} onClick={() => onSelect(s.name)}
+            className={`w-full bg-gradient-to-r ${colors[s.name] || "from-gray-400 to-gray-500"} rounded-xl p-4 text-white text-left flex items-center justify-between`}>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-black">{s.name}</p>
+                {hasWeak && <span className="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-full">⚠ Weak areas</span>}
+              </div>
+              <p className="text-xs text-white/70">{sublabel}</p>
+            </div>
+            <span className="material-symbols-outlined">{icon}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

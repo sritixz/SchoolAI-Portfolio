@@ -50,6 +50,10 @@ const authSlice = createSlice({
     logoutUser(state) {
       Object.assign(state, { token: null, id: null, role: null, name: null, avatar: null, mustChangePassword: false, profile: null });
       localStorage.removeItem(STORAGE_KEY);
+      // Clean up any exam prep profiles from localStorage
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("exam_prep_profile_"))
+        .forEach((k) => localStorage.removeItem(k));
     },
     updateAvatar(state, { payload }) {
       state.avatar = payload;

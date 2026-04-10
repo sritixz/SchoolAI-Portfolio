@@ -27,6 +27,7 @@ export default function LessonPlanCreator() {
   const [newObjectiveText, setNewObjectiveText] = useState("");
   const [newObjectiveTag, setNewObjectiveTag] = useState("concept");
   const [showAddObjective, setShowAddObjective] = useState(false);
+  const [formError, setFormError] = useState("");
   const generating = aiStatus === "loading";
 
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
@@ -103,6 +104,11 @@ export default function LessonPlanCreator() {
 
   const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
+    if (!form.subject.trim() || !form.topic.trim()) {
+      setFormError("Please fill in Subject and Topic before generating.");
+      return;
+    }
+    setFormError("");
     dispatch(clearAiToolResult());
     const selectedSections = form.lessonSections.filter(s => s.selected);
     runTool({
@@ -181,7 +187,7 @@ export default function LessonPlanCreator() {
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Subject</label>
                 <input
                   value={form.subject}
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, subject: e.target.value }); setFormError(""); }}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
                   placeholder="e.g., Mathematics, Science, English"
                 />
@@ -190,9 +196,9 @@ export default function LessonPlanCreator() {
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Topic</label>
                 <input
                   value={form.topic}
-                  onChange={(e) => setForm({ ...form, topic: e.target.value })}
+                  onChange={(e) => { setForm({ ...form, topic: e.target.value }); setFormError(""); }}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
-                  placeholder="e.g., Quadratic Equations"
+                  placeholder="e.g., Photosynthesis, World War II, Fractions"
                 />
               </div>
             </div>
@@ -637,6 +643,9 @@ export default function LessonPlanCreator() {
             <div className="flex items-center justify-end mb-2">
               <p className="text-xs text-gray-400">AI is ready to draft based on your inputs.</p>
             </div>
+            {formError && (
+              <p className="text-xs text-red-500 font-semibold mb-2 text-center">{formError}</p>
+            )}
             <button
               onClick={handleGenerate}
               disabled={generating}

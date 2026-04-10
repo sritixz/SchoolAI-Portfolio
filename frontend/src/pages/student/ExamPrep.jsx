@@ -1,44 +1,56 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../../api";
 import ExamSetupWizard from "./examprep/ExamSetupWizard";
 import ExamDashboard from "./examprep/ExamDashboard";
 
-const STORAGE_KEY = "exam_prep_profile";
+const storageKey = (userId) => `exam_prep_profile_${userId}`;
 
 export default function ExamPrep() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);   // null = not set up yet
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Load saved profile from localStorage (fast) then verify with backend
+  const key = storageKey(user?.id);
+
+  // Bug 5 fix: parse cache eagerly, handle errors explicitly, add key to deps
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try { setProfile(JSON.parse(saved)); } catch { /* ignore */ }
-    }
-    // Also try to fetch from backend
+    if (!user?.id) { setLoading(false); return; }
+
+    const saved = localStorage.getItem(key);
+    const cachedProfile = saved
+      ? (() => { try { return JSON.parse(saved); } catch { return null; } })()
+      : null;
+
+    if (cachedProfile) setProfile(cachedProfile);
+
     api.get("/student/exam-prep/profile")
       .then((r) => {
         if (r.data?.subjects?.length) {
           setProfile(r.data);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(r.data));
+          localStorage.setItem(key, JSON.stringify(r.data));
+        } else if (!cachedProfile) {
+          setProfile(null); // no cache + no backend profile → show wizard
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        // Backend failed — keep cache if available, else show wizard
+        if (!cachedProfile) setProfile(null);
+        console.error("Failed to sync exam prep profile:", err);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id, key]);
 
   const handleSetupComplete = (newProfile) => {
     setProfile(newProfile);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newProfile));
+    localStorage.setItem(key, JSON.stringify(newProfile));
   };
 
   const handleReset = () => {
     setProfile(null);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(key);
   };
 
   if (loading && !profile) {
