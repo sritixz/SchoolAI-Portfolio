@@ -6,7 +6,7 @@ import {
   fetchMyStudents, selectMyStudents,
   setDiffContext, addDiffAssignment, selectDiffContext, selectDiffAssignments,
   fetchGroups, bulkSaveGroups, createGroup, updateGroup, deleteGroup,
-  selectGroups, selectGroupsStatus,
+  selectGroups, selectGroupsStatus, clearDiffSession,
 } from "../../store/slices/teacherSlice";
 import { fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus } from "../../store/slices/homeworkSlice";
 import { diffHomeworkSubjects, diffHomeworkChapters } from "../../data/teacher/differentiatedHomeworkData";
@@ -294,12 +294,35 @@ export default function DifferentiatedHomework() {
     setAssigning(true);
     try {
       const results = [];
+      const diffMap = { Foundation: "low", Intermediate: "medium", Advanced: "high" };
+
       for (const g of groups) {
         if (g.studentIds.length === 0) continue;
         let hwId;
+
         if (g.aiMode === "library" && g.homeworkId) {
-          // Use existing homework — just assign to these students
-          hwId = g.homeworkId;
+          // Library mode: fetch the source homework's questions and create a NEW
+          // homework per group so each group gets a distinct assignment record.
+          // This prevents the same homework_id from being shared across groups,
+          // which would make it impossible to tell which student got which version.
+          const srcRes = await api.get(`/homework/${g.homeworkId}`);
+          const src = srcRes.data;
+          const createRes = await api.post("/homework/create", {
+            title: g.homeworkTitle || `${src.title} (${g.label})`,
+            subject: src.subject || subject,
+            description: src.description || `${g.difficulty} level homework for ${chapter}`,
+            assigned_to_class: src.assigned_to_class || "",
+            assigned_students: g.studentIds,
+            due_date: g.dueDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            difficulty_level: diffMap[g.difficulty] || src.difficulty_level || "medium",
+            submission_type: src.submission_type || "online_quiz",
+            estimated_duration_minutes: src.estimated_duration_minutes || 30,
+            tags: src.tags || [subject, chapter, g.difficulty],
+            total_marks: src.total_marks || 0,
+            questions: src.questions || [],
+            ai_assistant_enabled: src.ai_assistant_enabled ?? true,
+          });
+          hwId = createRes.data.id;
           await api.post("/homework/assign", {
             homework_id: hwId,
             student_ids: g.studentIds,
@@ -313,13 +336,12 @@ export default function DifferentiatedHomework() {
             question_number: i + 1,
             total_questions: totalQs,
             question_text: q.text || q.question_text || "",
-            answer_type: "typed",   // typed avoids MCQ-options validation
+            answer_type: "typed",
             options: [],
             max_points: q.marks || 5,
             hint: q.hint || null,
             sample_answer: q.sample_answer || null,
           }));
-          const diffMap = { Foundation: "low", Intermediate: "medium", Advanced: "high" };
           const createRes = await api.post("/homework/create", {
             title: g.homeworkTitle || `${subject} – ${chapter} (${g.label})`,
             subject,
@@ -333,6 +355,7 @@ export default function DifferentiatedHomework() {
             tags: [subject, chapter, g.difficulty],
             total_marks: questions.reduce((s, q) => s + q.max_points, 0),
             questions,
+            ai_assistant_enabled: true,
           });
           hwId = createRes.data.id;
           await api.post("/homework/assign", {
@@ -342,7 +365,6 @@ export default function DifferentiatedHomework() {
           });
         }
         results.push({ groupLabel: g.label, hwId, studentCount: g.studentIds.length });
-        // Update group record with the assigned homework_id
         if (g._id) dispatch(updateGroup({ id: g._id, homework_id: hwId, assigned: true }));
       }
       dispatch(addDiffAssignment({

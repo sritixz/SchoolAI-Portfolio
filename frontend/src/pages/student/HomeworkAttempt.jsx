@@ -6,7 +6,7 @@ import VinSidePanel from "../../components/VinSidePanel";
 import {
   fetchHomeworkById, fetchHomeworkQuestions,
   uploadSubmissionFile, submitHomework,
-  selectCurrentHomework, selectUploadUrl, selectUploadStatus, selectSubmitResult, selectSubmitStatus,
+  selectCurrentHomework, selectHomeworkQuestions, selectUploadUrl, selectUploadStatus, selectSubmitResult, selectSubmitStatus,
   clearUpload, clearSubmitResult, clearCurrent,
 } from "../../store/slices/homeworkSlice";
 
@@ -299,6 +299,7 @@ export default function HomeworkAttempt() {
   const navigate = useNavigate();
 
   const currentHw    = useSelector(selectCurrentHomework);
+  const apiQuestions = useSelector(selectHomeworkQuestions); // normalized camelCase from /questions endpoint
   const uploadUrl    = useSelector(selectUploadUrl);
   const uploadStatus = useSelector(selectUploadStatus);
   const submitResult = useSelector(selectSubmitResult);
@@ -325,25 +326,41 @@ export default function HomeworkAttempt() {
     if (currentHw.ai_assistant_enabled !== undefined) {
       setAiAssistantEnabled(currentHw.ai_assistant_enabled);
     }
-    if (currentHw.questions?.length) {
+
+    // Prefer apiQuestions (normalized camelCase from /questions endpoint)
+    // Fall back to currentHw.questions (raw snake_case from /homework/:id)
+    const rawQuestions = apiQuestions.length > 0 ? apiQuestions : (currentHw.questions || []);
+
+    if (rawQuestions.length) {
       const normalise = (q, idx) => ({
         id:             q.id || q._id || `q${idx+1}`,
-        questionNumber: q.question_number || q.questionNumber || idx + 1,
-        questionText:   q.question_text   || q.questionText   || q.text || "",
-        answerType:     q.answer_type     || q.answerType     || q.type || "mcq",
-        options:        q.options || [],
+        questionNumber: q.questionNumber || q.question_number || idx + 1,
+        questionText:   q.questionText   || q.question_text   || q.text || "",
+        answerType:     q.answerType     || q.answer_type     || q.type || "mcq",
+        options:        (q.options || []).map((o) => ({
+          id:        o.id || o._id || `o${idx}`,
+          text:      o.text || o.label || String(o),
+          isCorrect: o.is_correct || o.isCorrect || false,
+        })),
         hint:           q.hint,
-        vinNudge:       q.vin_nudge || q.vinNudge,
-        maxPoints:      q.max_points || q.maxPoints || 1,
-        sampleAnswer:   q.sample_answer || q.sampleAnswer,
+        vinNudge:       q.vinNudge || q.vin_nudge,
+        maxPoints:      q.maxPoints || q.max_points || 1,
+        sampleAnswer:   q.sampleAnswer || q.sample_answer,
       });
-      const normalised = currentHw.questions.map((q, i) => normalise(q, i));
+      const normalised = rawQuestions.map((q, i) => normalise(q, i));
       setQuestionSet((prev) => prev
         ? { ...prev, questions: normalised }
-        : { questions: normalised, tags: [], unitTitle: currentHw.title || "Homework", subjectIcon: "menu_book", learningMode: "Self-Study", mathReferenceCard: null }
+        : {
+            questions: normalised,
+            tags: currentHw.tags || [],
+            unitTitle: currentHw.title || "Homework",
+            subjectIcon: "menu_book",
+            learningMode: "Self-Study",
+            mathReferenceCard: null,
+          }
       );
     }
-  }, [currentHw]);
+  }, [currentHw, apiQuestions]);
 
   // Handle file upload via Redux
   const handleFileUpload = async (file) => {
@@ -374,9 +391,9 @@ export default function HomeworkAttempt() {
     return (
       <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
         <div className="text-center">
-          <span className="material-symbols-outlined text-6xl text-slate-300 mb-4 block">assignment</span>
-          <p className="font-bold text-slate-600">No questions found for this homework.</p>
-          <button onClick={() => navigate("/student/homework")} className="mt-4 px-6 py-2 bg-[#5b69e6] text-white rounded-full font-bold">
+          <span className="size-10 border-4 border-[#5b69e6]/20 border-t-[#5b69e6] rounded-full animate-spin block mx-auto mb-4" />
+          <p className="font-bold text-slate-600">Loading questions...</p>
+          <button onClick={() => navigate("/student/homework")} className="mt-4 px-6 py-2 bg-[#5b69e6] text-white rounded-full font-bold text-sm">
             Back to Homework
           </button>
         </div>
