@@ -1308,38 +1308,61 @@ Return ONLY valid JSON (no markdown):
 async def ai_generate_questions(body: AIGenerateQuestionsRequest, user=Depends(require_role("teacher"))):
     """Generate homework questions with AI — returns structured Question objects."""
     type_instructions = {
-        "mcq":    "Multiple choice with 4 options, mark the correct one with is_correct: true",
-        "typed":  "Open-ended question requiring a written answer, include a sample_answer",
-        "upload": "Diagram/graph question requiring a drawn/uploaded answer",
+        "mcq":    "Multiple choice with exactly 4 options. Mark exactly one correct option with is_correct: true. Make distractors plausible but clearly wrong.",
+        "typed":  "Open-ended question requiring a written answer. Include a concise sample_answer (2-3 sentences).",
+        "upload": "Diagram, graph, or drawing question requiring a visual/uploaded answer.",
     }
     types_desc = "; ".join(type_instructions[t] for t in body.question_types if t in type_instructions)
 
+    system_prompt = """You are an expert curriculum-aligned homework question generator for K-12 students.
+Your questions must:
+1. Be clear, unambiguous, and age-appropriate
+2. Align with the specified board curriculum (CBSE/ICSE/State Board)
+3. Match the requested difficulty level precisely
+4. For MCQ: provide exactly 4 options with one clearly correct answer and plausible distractors
+5. For typed: include a concise sample answer (2-3 sentences max)
+6. Include helpful hints that guide without giving away the answer
+7. Include vin_nudge — a short encouraging prompt for the AI assistant (e.g. "Think about what happens when...")
+8. Return ONLY valid JSON, no markdown, no explanation outside the JSON"""
+
     prompt = f"""Generate {body.count} homework questions for:
-Subject: {body.subject}, Topic: {body.topic}, Grade: {body.grade}, Difficulty: {body.difficulty}
-Board: {body.board or 'CBSE'}{f", Chapter: {body.chapter}" if body.chapter else ""}
+Subject: {body.subject}
+Topic: {body.topic}
+Grade: {body.grade}
+Difficulty: {body.difficulty}
+Board: {body.board or 'CBSE'}
+{f"Chapter: {body.chapter}" if body.chapter else ""}
 {f"Learning Objective: {body.learning_objective}" if body.learning_objective else ""}
 {f"Special Instructions: {body.special_instructions}" if body.special_instructions else ""}
-Question types: {types_desc}
+Question types to include: {types_desc}
 
-Return ONLY valid JSON:
+Return ONLY this JSON structure (no markdown, no extra text):
 {{
   "questions": [
     {{
       "id": "q1",
       "question_number": 1,
       "total_questions": {body.count},
-      "question_text": "...",
+      "question_text": "Full question text here",
       "answer_type": "mcq",
-      "options": [{{"id": "o1", "text": "...", "is_correct": false}}],
-      "hint": "...",
-      "vin_nudge": "...",
+      "options": [
+        {{"id": "o1", "text": "Option A text", "is_correct": false}},
+        {{"id": "o2", "text": "Option B text", "is_correct": true}},
+        {{"id": "o3", "text": "Option C text", "is_correct": false}},
+        {{"id": "o4", "text": "Option D text", "is_correct": false}}
+      ],
+      "hint": "A helpful hint that guides without giving the answer",
+      "vin_nudge": "An encouraging prompt like 'Think about what happens when...'",
       "max_points": 1,
       "sample_answer": null
     }}
   ]
 }}"""
 
-    raw = await chat_completion([{"role": "user", "content": prompt}])
+    raw = await chat_completion([
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt},
+    ])
     raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
     try:
         data = json.loads(raw)

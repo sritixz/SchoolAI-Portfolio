@@ -10,6 +10,7 @@ from models.homework import (
     TeacherGradeRequest, AIAnalysisRequest,
 )
 from services.ai_grader import analyse_submission
+from services.ocr import extract_text_from_url
 from services.s3 import upload_file
 
 router = APIRouter(prefix="/homework", tags=["homework"])
@@ -166,10 +167,41 @@ async def trigger_ai_analysis(body: AIAnalysisRequest, background: BackgroundTas
     return {"status": "analysis_queued"}
 
 async def _run_analysis(db, sub, hw):
+    # 1. Run OCR if submission has a file URL
+    file_url = sub.get("submission_file_url")
+    if file_url:
+        extracted_text = await extract_text_from_url(file_url)
+        if extracted_text:
+            await db.homework_submissions.update_one(
+                {"_id": sub["_id"]},
+                {"$set": {"extracted_text": extracted_text}}
+            )
+            # Inject into sub so ai_grader sees it immediately
+            sub["extracted_text"] = extracted_text
+
+    # 2. Run AI grading (unchanged)
     analysis = await analyse_submission(hw or {}, sub)
+
+    # 3. For file_upload submissions with empty answers, backfill per-question
+    #    student_answer from the AI's question_analysis so the frontend can display them
+    updates = {"ai_analysis": analysis, "ai_analysed_at": datetime.utcnow().isoformat()}
+    if not sub.get("answers") and analysis.get("question_analysis"):
+        backfilled = [
+            {
+                "question_id":    qa["question_id"],
+                "answer":         qa.get("student_answer", ""),
+                "answer_type":    "typed",
+                "is_correct":     qa.get("is_correct"),
+                "points_awarded": qa.get("ai_score"),
+                "max_points":     qa.get("max_points", 1),
+            }
+            for qa in analysis["question_analysis"]
+        ]
+        updates["answers"] = backfilled
+
     await db.homework_submissions.update_one(
         {"_id": sub["_id"]},
-        {"$set": {"ai_analysis": analysis, "ai_analysed_at": datetime.utcnow().isoformat()}},
+        {"$set": updates},
     )
 
 @router.post("/grade")
@@ -268,7 +300,7 @@ async def get_homework(homework_id: str, user=Depends(get_current_user), db=Depe
     return _ser(hw)
 
 @router.get("/{homework_id}/questions")
-async def get_questions(homework_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+async def get_questions(homework_id: str, user=Depends(get_current_user), db=Depends(get_db)):
     try:
         hw = await db.homework.find_one({"_id": ObjectId(homework_id)})
     except Exception:
@@ -283,12 +315,24 @@ async def get_questions(homework_id: str, user=Depends(require_role("student")),
     def normalise(q, idx):
         if not isinstance(q, dict):
             return q
+        raw_options = q.get("options", [])
+        # Normalize options to ensure id, text, is_correct are always present
+        norm_options = []
+        for oi, o in enumerate(raw_options):
+            if isinstance(o, dict):
+                norm_options.append({
+                    "id":         o.get("id") or o.get("_id") or f"o{oi+1}",
+                    "text":       o.get("text") or o.get("label") or "",
+                    "is_correct": bool(o.get("is_correct") or o.get("isCorrect")),
+                })
+            else:
+                norm_options.append({"id": f"o{oi+1}", "text": str(o), "is_correct": False})
         return {
             "id":              q.get("id") or q.get("_id") or f"q{idx+1}",
             "questionNumber":  q.get("question_number") or q.get("questionNumber") or idx + 1,
             "questionText":    q.get("question_text")   or q.get("questionText")   or q.get("text", ""),
             "answerType":      q.get("answer_type")     or q.get("answerType")     or q.get("type", "mcq"),
-            "options":         q.get("options", []),
+            "options":         norm_options,
             "hint":            q.get("hint"),
             "vinNudge":        q.get("vin_nudge")       or q.get("vinNudge"),
             "maxPoints":       q.get("max_points")      or q.get("maxPoints", 1),

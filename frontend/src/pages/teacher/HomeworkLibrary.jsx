@@ -5,10 +5,11 @@ import { useAuth } from "../../context/AuthContext";
 import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 import { 
   fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus,
-  assignHomework,
+  assignHomework, fetchHomeworkById, selectCurrentHomework, patchHomeworkQuestions,
 } from "../../store/slices/homeworkSlice";
 import { fetchStudentsByClass, selectStudentsByClass } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
+import api from "../../api";
 
 const STATUS_STYLES = {
   template: "bg-gray-100 text-gray-500",
@@ -49,6 +50,12 @@ export default function HomeworkLibrary() {
   const [dueDate, setDueDate] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+
+  // Edit questions modal state
+  const [editModal, setEditModal] = useState(null); // { homeworkId, title }
+  const [editQuestions, setEditQuestions] = useState([]);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => { dispatch(fetchHomeworkLibrary()); }, [dispatch]);
   useEffect(() => {
@@ -128,6 +135,86 @@ export default function HomeworkLibrary() {
       setAssignError(err.message || "Assignment failed. Please try again.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  // ── Edit questions handlers ──────────────────────────────
+  const openEditModal = async (hw) => {
+    setEditModal({ homeworkId: hw.id, title: hw.title });
+    setEditLoading(true);
+    try {
+      const res = await api.get(`/homework/${hw.id}/questions`);
+      // Normalize to a consistent editable format
+      const qs = (res.data || []).map((q, i) => ({
+        id:          q.id || `q${i+1}`,
+        questionText: q.questionText || q.question_text || "",
+        answerType:  q.answerType || q.answer_type || "typed",
+        maxPoints:   q.maxPoints || q.max_points || 1,
+        hint:        q.hint || "",
+        options:     (q.options || []).map((o) => ({
+          id:        o.id || `o${i}`,
+          text:      o.text || "",
+          isCorrect: o.is_correct || o.isCorrect || false,
+        })),
+      }));
+      setEditQuestions(qs);
+    } catch {
+      setEditQuestions([]);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const closeEditModal = () => { setEditModal(null); setEditQuestions([]); };
+
+  const updateEditQuestion = (idx, field, value) => {
+    setEditQuestions((prev) => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
+  };
+
+  const updateEditOption = (qIdx, oIdx, field, value) => {
+    setEditQuestions((prev) => prev.map((q, i) => {
+      if (i !== qIdx) return q;
+      const opts = q.options.map((o, j) => {
+        if (j !== oIdx) return field === "isCorrect" && value ? { ...o, isCorrect: false } : o;
+        return { ...o, [field]: value };
+      });
+      return { ...q, options: opts };
+    }));
+  };
+
+  const addEditOption = (qIdx) => {
+    setEditQuestions((prev) => prev.map((q, i) => i === qIdx
+      ? { ...q, options: [...q.options, { id: `o-${Date.now()}`, text: "", isCorrect: false }] }
+      : q
+    ));
+  };
+
+  const removeEditOption = (qIdx, oIdx) => {
+    setEditQuestions((prev) => prev.map((q, i) => i === qIdx
+      ? { ...q, options: q.options.filter((_, j) => j !== oIdx) }
+      : q
+    ));
+  };
+
+  const saveEditQuestions = async () => {
+    setEditSaving(true);
+    try {
+      // Convert back to snake_case for backend
+      const payload = editQuestions.map((q) => ({
+        id:            q.id,
+        question_text: q.questionText,
+        answer_type:   q.answerType,
+        max_points:    q.maxPoints,
+        hint:          q.hint,
+        options:       q.options.map((o) => ({ id: o.id, text: o.text, is_correct: o.isCorrect })),
+      }));
+      await dispatch(patchHomeworkQuestions({ id: editModal.homeworkId, questions: payload })).unwrap();
+      closeEditModal();
+      dispatch(fetchHomeworkLibrary());
+    } catch {
+      // keep modal open on error
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -372,6 +459,12 @@ export default function HomeworkLibrary() {
                   >
                     <span className="material-symbols-outlined text-sm">visibility</span> Preview
                   </button>
+                  <button
+                    onClick={() => openEditModal(hw)}
+                    className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">edit</span> Edit Questions
+                  </button>
                   <div className="flex-1" />
                   {hw.status === "assigned" ? (
                     <button
@@ -549,6 +642,117 @@ export default function HomeworkLibrary() {
               >
                 {assigning && <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>}
                 {assigning ? "Assigning..." : "Assign Homework"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Questions Modal */}
+      {editModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={closeEditModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-[#695be6] to-[#8e82f3] px-6 py-4 flex items-center justify-between rounded-t-2xl">
+              <div>
+                <h2 className="text-white font-black text-lg">Edit Questions</h2>
+                <p className="text-white/80 text-sm">{editModal.title}</p>
+              </div>
+              <button onClick={closeEditModal} className="text-white hover:bg-white/20 p-2 rounded-lg">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {editLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <span className="size-8 border-4 border-[#695be6]/20 border-t-[#695be6] rounded-full animate-spin" />
+                </div>
+              ) : editQuestions.length === 0 ? (
+                <p className="text-center text-gray-400 py-12">No questions found for this homework.</p>
+              ) : (
+                editQuestions.map((q, qi) => (
+                  <div key={q.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-[#695be6] bg-[#695be6]/10 px-2 py-0.5 rounded-full">Q{qi + 1}</span>
+                      <select
+                        value={q.answerType}
+                        onChange={(e) => updateEditQuestion(qi, "answerType", e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:border-[#695be6] focus:ring-[#695be6]"
+                      >
+                        <option value="mcq">MCQ</option>
+                        <option value="typed">Typed</option>
+                        <option value="upload">Upload</option>
+                      </select>
+                      <input
+                        type="number" min={1} max={20}
+                        value={q.maxPoints}
+                        onChange={(e) => updateEditQuestion(qi, "maxPoints", parseInt(e.target.value) || 1)}
+                        className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1 focus:border-[#695be6] focus:ring-[#695be6]"
+                      />
+                      <span className="text-xs text-gray-400">pts</span>
+                    </div>
+
+                    <textarea
+                      value={q.questionText}
+                      onChange={(e) => updateEditQuestion(qi, "questionText", e.target.value)}
+                      rows={2}
+                      placeholder="Question text..."
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:border-[#695be6] focus:ring-[#695be6] resize-none"
+                    />
+
+                    <input
+                      value={q.hint}
+                      onChange={(e) => updateEditQuestion(qi, "hint", e.target.value)}
+                      placeholder="Hint (optional)..."
+                      className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 focus:border-[#695be6] focus:ring-[#695be6]"
+                    />
+
+                    {q.answerType === "mcq" && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-gray-500">Options (check the correct one)</p>
+                        {q.options.map((opt, oi) => (
+                          <div key={opt.id} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`correct-${qi}`}
+                              checked={opt.isCorrect}
+                              onChange={() => updateEditOption(qi, oi, "isCorrect", true)}
+                              className="accent-[#695be6]"
+                            />
+                            <input
+                              value={opt.text}
+                              onChange={(e) => updateEditOption(qi, oi, "text", e.target.value)}
+                              placeholder={`Option ${oi + 1}`}
+                              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:border-[#695be6] focus:ring-[#695be6]"
+                            />
+                            <button onClick={() => removeEditOption(qi, oi)} className="text-red-400 hover:text-red-600">
+                              <span className="material-symbols-outlined text-sm">close</span>
+                            </button>
+                          </div>
+                        ))}
+                        {q.options.length < 6 && (
+                          <button onClick={() => addEditOption(qi)} className="text-xs text-[#695be6] font-bold hover:underline flex items-center gap-1">
+                            <span className="material-symbols-outlined text-sm">add</span> Add option
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
+              <button onClick={closeEditModal} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                onClick={saveEditQuestions}
+                disabled={editSaving || editLoading}
+                className="px-6 py-2.5 bg-[#695be6] text-white rounded-xl text-sm font-bold hover:bg-[#5a4dd4] disabled:opacity-50 flex items-center gap-2"
+              >
+                {editSaving && <span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                {editSaving ? "Saving..." : "Save Questions"}
               </button>
             </div>
           </div>

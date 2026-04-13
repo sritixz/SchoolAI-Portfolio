@@ -215,11 +215,12 @@ bcrypt==4.0.1
 # pathspec==0.12.1
 # pbs-installer==2025.12.17
 # pdf2image==1.17.0
-# pdfminer.six==20231228
+pdfminer.six==20231228
 # pexpect==4.9.0
 # pgvector==0.2.5
 # phonenumbers==8.13.39
-# pillow==11.3.0
+pillow==11.3.0
+pillow-heif
 pinecone==5.4.2
 # pinecone-client==3.2.2
 # pinecone-plugin-inference==3.1.0

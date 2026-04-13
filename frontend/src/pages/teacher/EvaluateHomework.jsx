@@ -164,6 +164,8 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
                   </span>
                 )}
               </div>
+            ) : aiQ?.student_answer ? (
+              <p className="text-sm text-gray-700">{aiQ.student_answer}</p>
             ) : (
               <span className="italic text-gray-400 text-sm">No answer</span>
             )}
