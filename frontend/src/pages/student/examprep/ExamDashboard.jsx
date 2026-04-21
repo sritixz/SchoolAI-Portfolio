@@ -148,7 +148,7 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
           {[
             { icon: "home",         label: "Home",     to: "/student" },
             { icon: "description",  label: "Homework", to: "/student/homework" },
-            { icon: "auto_awesome", label: "Vin AI",   to: "/student/vin-ai", fab: true },
+            { icon: "auto_awesome", label: "LumiTutor",   to: "/student/vin-ai", fab: true },
             { icon: "bar_chart",    label: "Progress", to: "/student/learning-gaps" },
             { icon: "person",       label: "Profile",  to: "/student/portfolio" },
           ].map((item) =>

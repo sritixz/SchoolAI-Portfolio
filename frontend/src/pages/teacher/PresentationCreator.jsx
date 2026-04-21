@@ -747,23 +747,33 @@ export default function PresentationCreator() {
                           ))}
                         </div>
                       )}
-                      {/* Image from Pollinations or visual prompt fallback */}
+                      {/* Image from DDGS or Pollinations fallback */}
                       {slide.content?.image_url ? (
                         <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative">
                           <img
                             src={slide.content.image_url}
-                            alt={slide.content.detailed_visual_description || slide.content.visual_prompt || slide.title}
+                            alt={slide.content.image_alt || slide.content.detailed_visual_description || slide.title}
                             className="w-full h-40 object-cover"
                             loading="lazy"
                             onError={(e) => {
                               e.target.style.display = "none";
-                              const desc = slide.content.detailed_visual_description || slide.content.visual_prompt || "";
-                              e.target.parentNode.innerHTML = `<div class="px-3 py-2"><p class="text-[10px] font-bold text-purple-700 mb-1">Visual Prompt</p><p class="text-xs text-gray-600 italic">${desc}</p></div>`;
+                              const parent = e.target.parentNode;
+                              const placeholder = document.createElement("div");
+                              placeholder.className = "h-40 flex items-center justify-center bg-purple-50";
+                              placeholder.innerHTML = `<span class="text-purple-300 text-xs">No image available</span>`;
+                              parent.appendChild(placeholder);
                             }}
                           />
-                          <p className="text-[10px] text-purple-400 italic text-center py-1 bg-purple-50/80 absolute bottom-0 left-0 right-0 pointer-events-none">
-                            {(slide.content.detailed_visual_description || slide.content.visual_prompt || "")?.slice(0, 80)}…
-                          </p>
+                          {slide.content.image_source_url && (
+                            <a
+                              href={slide.content.image_source_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="absolute bottom-0 right-0 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded-tl hover:bg-black/70 transition-colors"
+                            >
+                              🔍 Source
+                            </a>
+                          )}
                         </div>
                       ) : (slide.content?.detailed_visual_description || slide.content?.visual_prompt) ? (
                         <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">

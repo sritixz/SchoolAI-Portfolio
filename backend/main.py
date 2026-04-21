@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from database import connect_db, close_db
-from routers import auth, student, teacher, parent, school_admin, homework, vin_ai, learning_gaps, career, portfolio, storage
+from routers import auth, student, teacher, parent, school_admin, homework, vin_ai, learning_gaps, career, portfolio, storage, media
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,6 +37,7 @@ app.include_router(learning_gaps.router)
 app.include_router(career.router)
 app.include_router(portfolio.router)
 app.include_router(storage.router)
+app.include_router(media.router)
 
 
 

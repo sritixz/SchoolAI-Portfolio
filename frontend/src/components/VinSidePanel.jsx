@@ -187,12 +187,12 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="size-10 rounded-full border-2 border-white/50 bg-white overflow-hidden">
-                <img src={VIN_AVATAR} alt="Vin AI" className="w-full h-full object-cover" />
+                <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
               </div>
               <div className="absolute bottom-0 right-0 size-3 bg-green-400 border-2 border-white rounded-full" />
             </div>
             <div>
-              <h1 className="text-white font-bold text-base leading-tight">Vin AI</h1>
+              <h1 className="text-white font-bold text-base leading-tight">LumiTutor</h1>
               <p className={`text-white/80 text-xs font-medium ${status !== "idle" ? "animate-pulse" : ""}`}>{statusLabel}</p>
             </div>
           </div>
@@ -239,7 +239,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                       <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex flex-col gap-2 max-w-[85%]">
-                      <p className="text-slate-500 text-xs font-medium ml-1">Vin AI</p>
+                      <p className="text-slate-500 text-xs font-medium ml-1">LumiTutor</p>
                       <div className="bg-white border-l-4 border-[#D4C5F9] p-4 rounded-2xl rounded-tl-none shadow-sm">
                         <StreamingMessage
                           xmlBuffer={msg.xmlBuffer}
@@ -277,7 +277,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                 <span className="material-symbols-outlined text-[20px]">send</span>
               </button>
             </div>
-            <p className="text-[10px] text-center text-slate-400">Vin AI can make mistakes. Verify important information.</p>
+            <p className="text-[10px] text-center text-slate-400">LumiTutor can make mistakes. Verify important information.</p>
           </div>
         </footer>
       </div>

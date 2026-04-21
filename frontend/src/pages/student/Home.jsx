@@ -143,7 +143,7 @@ export default function StudentHome() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                   {[
                     { label: "Homework",        icon: "menu_book",      badge: `${pendingHw} Pending`,                                                          gradient: "from-pink-400 to-rose-500",       to: "/student/homework" },
-                    { label: "Vin AI Tutor",    icon: "auto_awesome",   badge: "24/7 Available",                                                        gradient: "from-[#695be6] to-[#8e82f3]",    to: "/student/vin-ai" },
+                    { label: "LumiTutor",    icon: "auto_awesome",   badge: "24/7 Available",                                                        gradient: "from-[#695be6] to-[#8e82f3]",    to: "/student/vin-ai" },
                     { label: "Learning Gaps",   icon: "warning",        badge: "Active Gaps",                                                                   gradient: "from-orange-400 to-amber-500",    to: "/student/learning-gaps" },
                     { label: "My Portfolio",    icon: "account_circle", badge: "Showcase",                                                              gradient: "from-[#A78BFA] to-[#7C3AED]",    to: "/student/portfolio" },
                     { label: "Exam Prep",       icon: "event_repeat",   badge: `${pendingCount} Tasks`,                                                 gradient: "from-[#8e82f3] to-pink-400",     to: "/student/exam-prep" },
@@ -234,7 +234,7 @@ export default function StudentHome() {
           {[
             { icon: "home", label: "Home", active: true, to: "/student" },
             { icon: "description", label: "Homework", active: false, to: "/student/homework" },
-            { icon: "auto_awesome", label: "Vin AI", active: false, fab: true },
+            { icon: "auto_awesome", label: "LumiTutor", active: false, fab: true },
             { icon: "bar_chart", label: "Progress", active: false, to: "/student/learning-gaps" },
             { icon: "person", label: "Profile", active: false, to: "/student/portfolio" },
           ].map((item) =>

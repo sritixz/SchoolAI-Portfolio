@@ -45,9 +45,11 @@ class Settings(BaseSettings):
     IMAGE_API_URL: str = "https://api.openai.com/v1/images/generations"
 
     # Pexels — free forever, no attribution required, 200 req/hr, 20k/month
-    # Get key at: pexels.com/api (instant, no review needed)
-    # Request unlimited at no cost for high-traffic apps
     PEXELS_API_KEY: str = ""
+
+    # Media search
+    YOUTUBE_API_KEY: str = ""
+    MEDIA_CACHE_TTL_DAYS: int = 30
 
     # Dev
     DEBUG: bool = True          # set False in production to hide dev_otp
