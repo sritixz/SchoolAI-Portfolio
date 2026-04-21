@@ -15,11 +15,12 @@ import {
   selectHistoryStatus,
 } from "../../store/slices/vinAiSlice";
 import { parseVinXML } from "../../utils/xmlParser";
+import MediaPanel from "../../components/MediaPanel";
 
 // ─────────────────────────────────────────────────────────────
 // STREAMING MESSAGE RENDERER
 // ─────────────────────────────────────────────────────────────
-function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion }) {
+function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onRequestExamReady, interactionCount }) {
   const parsed = parseVinXML(xmlBuffer);
 
   return (
@@ -65,6 +66,18 @@ function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion }) {
 
       {parsed.question && (
         <PracticeQuestion question={parsed.question} onAnswer={onAnswerQuestion} />
+      )}
+
+      {parsed.examReady && <ExamReadyAnswer examReady={parsed.examReady} />}
+
+      {done && !parsed.examReady && interactionCount >= 1 && (
+        <button
+          onClick={onRequestExamReady}
+          className="w-full py-2.5 border-2 border-[#695be6] text-[#695be6] font-bold rounded-xl text-sm hover:bg-[#695be6] hover:text-white transition-all flex items-center justify-center gap-2"
+        >
+          <span className="material-symbols-outlined text-base">workspace_premium</span>
+          Show Exam-Ready Answer
+        </button>
       )}
 
       {done && parsed.followups.length > 0 && (
@@ -156,13 +169,71 @@ function PracticeQuestion({ question, onAnswer }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TYPING DOTS
+// EXAM-READY ANSWER BLOCK
 // ─────────────────────────────────────────────────────────────
+function ExamReadyAnswer({ examReady }) {
+  return (
+    <div className="mt-4 border-2 border-[#695be6]/30 rounded-xl overflow-hidden">
+      <div className="bg-[#695be6] px-4 py-2.5 flex items-center gap-2">
+        <span className="material-symbols-outlined text-white text-lg">workspace_premium</span>
+        <span className="text-white font-bold text-sm uppercase tracking-wider">Exam-Ready Answer</span>
+      </div>
+      <div className="bg-white divide-y divide-slate-100">
+        {examReady.directAnswer && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-1">Direct Answer</p>
+            <p className="text-sm text-slate-800 font-medium">{examReady.directAnswer}</p>
+          </div>
+        )}
+        {examReady.keyPoints?.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-2">Key Points</p>
+            <ul className="space-y-1.5">
+              {examReady.keyPoints.map((pt, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                  <span className="material-symbols-outlined text-[#695be6] text-base mt-0.5 shrink-0">check_circle</span>
+                  {pt}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {examReady.examFormat && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-1">Exam Format</p>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{examReady.examFormat}</p>
+          </div>
+        )}
+        {examReady.keywords?.length > 0 && (
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-2">Keywords to Use</p>
+            <div className="flex flex-wrap gap-1.5">
+              {examReady.keywords.map((kw, i) => (
+                <span key={i} className="px-2.5 py-1 bg-[#695be6]/10 text-[#695be6] text-xs font-semibold rounded-full">{kw}</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {examReady.realLifeExample && (
+          <div className="px-4 py-3 bg-amber-50">
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">emoji_objects</span>
+              Real-Life Example
+            </p>
+            <p className="text-sm text-amber-800 leading-relaxed">{examReady.realLifeExample}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function TypingDots() {
   return (
     <div className="flex gap-4 items-start">
       <div className="size-8 rounded-full bg-white border border-slate-200 shrink-0 overflow-hidden">
-        <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+        <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
       </div>
       <div className="bg-white border-l-4 border-[#D4C5F9] px-5 py-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (
@@ -200,7 +271,7 @@ function HistoryCard({ item, onStar }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// MAIN VIN AI PAGE
+// MAIN LUMITUTOR PAGE
 // ─────────────────────────────────────────────────────────────
 export default function VinAI() {
   const { user } = useAuth();
@@ -218,7 +289,12 @@ export default function VinAI() {
   const [subjFilter, setSubjFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [uploadStatus, setUploadStatus] = useState("idle"); // idle | uploading | error
+  const [showSidebar, setShowSidebar] = useState(true);
   const [showMobileHistory, setShowMobileHistory] = useState(false);
+  const [interactionCount, setInteractionCount] = useState(0);
+  const [showMediaPanel, setShowMediaPanel] = useState(false);
+  const [mediaQuery, setMediaQuery] = useState("");
+  const [mediaMode, setMediaMode] = useState("images");
 
   const fileInputRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -252,6 +328,7 @@ export default function VinAI() {
         const data = line.slice(6);
         if (data === "[DONE]") {
           setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, done: true } : m));
+          setInteractionCount((c) => c + 1);
           dispatch(fetchDoubtHistory());
           setStatus("idle");
           return xmlBuf;
@@ -288,6 +365,11 @@ export default function VinAI() {
       setStatus("idle");
     }
   }, [status, streamSSE]);
+
+  // ─── REQUEST EXAM-READY ANSWER ──────────────────────────────
+  const handleRequestExamReady = useCallback(() => {
+    sendMessage("Show me the exam-ready answer with all key points, keywords, and a real-life example.");
+  }, [sendMessage]);
 
   // ─── HANDLE PRACTICE ANSWER ─────────────────────────────────
   const handleAnswerQuestion = useCallback(async (questionText, chosenText, isCorrect) => {
@@ -342,28 +424,63 @@ export default function VinAI() {
 
   const handlePastLessons = () => {
     if (sidebarRef.current) {
-      // Desktop: sidebar is visible, scroll it to top
       sidebarRef.current.scrollTo({ top: 0, behavior: "smooth" });
     } else {
-      // Mobile: open the history drawer
       setShowMobileHistory(true);
     }
   };
 
-  const filteredHistory = history.filter((h) => {
+  const openMediaPanel = (mode = "images") => {
+    // Filler words to strip from user messages
+    const FILLER = /^(how to|what is|what are|what's the|whats the|explain|show me|can you|tell me about|help me with|i need help with|resolve|solve|define|describe|difference between|compare|what do you mean by|give me an example of|example of)\s+/i;
+
+    // 1. Get the most recent user message — this is the active topic
+    const userMsgs = messages.filter((m) => m.role === "user");
+    const lastUserMsg = userMsgs[userMsgs.length - 1]?.text?.trim() || "";
+
+    // 2. Clean it: strip filler, remove question marks and trailing clauses
+    let topic = lastUserMsg
+      .replace(FILLER, "")
+      .replace(/\?.*$/s, "")           // drop everything after "?"
+      .replace(/\s+(and|or|but|with|using|for|in|of)\s+.*$/i, "") // drop trailing clauses
+      .trim();
+
+    // 3. If the cleaned topic is too short or generic (e.g. just "it", "this"),
+    //    walk back through user messages to find a more meaningful one
+    if (topic.split(" ").length < 2) {
+      for (let i = userMsgs.length - 2; i >= 0; i--) {
+        const candidate = userMsgs[i].text
+          .replace(FILLER, "")
+          .replace(/\?.*$/s, "")
+          .trim();
+        if (candidate.split(" ").length >= 2) {
+          topic = candidate;
+          break;
+        }
+      }
+    }
+
+    // 4. Append grade for curriculum-relevant results
+    const grade = user?.grade || user?.class_name || "";
+    const q = (grade ? `${topic} ${grade}` : topic).trim();
+
+    setMediaQuery(q);
+    setShowMediaPanel(true);
+    setMediaMode(mode);
+  };  const filteredHistory = history.filter((h) => {
     const matchSubj = subjFilter === "All" || h.subject === subjFilter;
     const matchSearch = !search || h.question?.toLowerCase().includes(search.toLowerCase());
     return matchSubj && matchSearch;
   });
 
   const statusLabel =
-    status === "thinking" ? "Vin is thinking..." :
-    status === "streaming" ? "Vin is typing..." : "Vin is here to help";
+    status === "thinking" ? "LumiTutor is thinking..." :
+    status === "streaming" ? "LumiTutor is typing..." : "LumiTutor is here to help";
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
       {/* ── Chat column ── */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         <header className="h-16 shrink-0 flex items-center justify-between px-6 shadow-md z-10"
           style={{ background: "linear-gradient(90deg, #6B5CE7 0%, #D4C5F9 100%)" }}>
           <div className="flex items-center gap-4">
@@ -373,16 +490,24 @@ export default function VinAI() {
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="size-10 rounded-full border-2 border-white/50 bg-white overflow-hidden">
-                  <img src={VIN_AVATAR} alt="Vin AI" className="w-full h-full object-cover" />
+                  <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
                 </div>
                 <div className="absolute bottom-0 right-0 size-3 bg-green-400 border-2 border-white rounded-full" />
               </div>
               <div>
-                <h1 className="text-white font-bold text-base leading-tight">Vin AI</h1>
+                <h1 className="text-white font-bold text-base leading-tight">LumiTutor</h1>
                 <p className={`text-white/80 text-xs font-medium ${status !== "idle" ? "animate-pulse" : ""}`}>{statusLabel}</p>
               </div>
             </div>
           </div>
+          {/* mobile history trigger */}
+          <button
+            onClick={() => setShowMobileHistory(true)}
+            className="lg:hidden text-white hover:bg-white/10 p-2 rounded-full transition-colors"
+            title="Doubt History"
+          >
+            <span className="material-symbols-outlined">history_edu</span>
+          </button>
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 py-8" style={{ scrollbarWidth: "thin" }}>
@@ -390,10 +515,10 @@ export default function VinAI() {
             {messages.length === 0 && (
               <div className="flex flex-col items-center text-center py-10 gap-4">
                 <div className="size-20 rounded-full bg-white border-2 border-[#695be6]/20 overflow-hidden shadow-lg">
-                  <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+                  <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800">Hi {user?.name?.split(" ")[0] || "there"}, I'm Vin!</h2>
+                  <h2 className="text-2xl font-black text-slate-800">Hi {user?.name?.split(" ")[0] || "there"}, I'm LumiTutor!</h2>
                   <p className="text-slate-500 mt-1 text-sm">Your AI tutor — ask me anything about your subjects.</p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2 mt-2">
@@ -427,16 +552,18 @@ export default function VinAI() {
                 ) : (
                   <div className="flex justify-start items-start gap-3">
                     <div className="size-8 rounded-full bg-white overflow-hidden mt-1 shrink-0 border border-slate-200">
-                      <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+                      <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex flex-col gap-2 max-w-[85%]">
-                      <p className="text-slate-500 text-xs font-medium ml-1">Vin AI</p>
+                      <p className="text-slate-500 text-xs font-medium ml-1">LumiTutor</p>
                       <div className="bg-white border-l-4 border-[#D4C5F9] p-5 rounded-2xl rounded-tl-none shadow-sm">
                         <StreamingMessage
                           xmlBuffer={msg.xmlBuffer}
                           done={msg.done}
                           onFollowup={sendMessage}
                           onAnswerQuestion={handleAnswerQuestion}
+                          onRequestExamReady={handleRequestExamReady}
+                          interactionCount={interactionCount}
                         />
                       </div>
                     </div>
@@ -451,8 +578,7 @@ export default function VinAI() {
         </main>
 
         <footer className="bg-white border-t border-slate-200 p-4 shrink-0">
-          <div className="max-w-4xl mx-auto space-y-3">
-            {/* Hidden file input for Upload Problem */}
+          <div className="max-w-4xl mx-auto space-y-3">            {/* Hidden file input for Upload Problem */}
             <input
               ref={fileInputRef}
               type="file"
@@ -486,6 +612,25 @@ export default function VinAI() {
                   </button>
                 );
               })}
+              {/* Media buttons — appear after 2 completed interactions */}
+              {interactionCount >= 2 && (
+                <>
+                  <button
+                    onClick={() => openMediaPanel("images")}
+                    className="px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">image_search</span>
+                    Get Images
+                  </button>
+                  <button
+                    onClick={() => openMediaPanel("videos")}
+                    className="px-3 py-1 rounded-md text-xs font-semibold flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">play_circle</span>
+                    Get Videos
+                  </button>
+                </>
+              )}
             </div>
             <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-xl p-2 pr-3">
               <textarea
@@ -503,14 +648,81 @@ export default function VinAI() {
                 <span className="material-symbols-outlined">send</span>
               </button>
             </div>
-            <p className="text-[10px] text-center text-slate-400">Vin AI can make mistakes. Verify important information.</p>
+            <p className="text-[10px] text-center text-slate-400">LumiTutor can make mistakes. Verify important information.</p>
           </div>
         </footer>
+
+        {/* ── Media Panel slide-up drawer ── */}
+        {showMediaPanel && (
+          <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col"
+            style={{ height: "60%", maxHeight: "480px" }}>
+            <div
+              className="absolute inset-0 bg-black/20"
+              onClick={() => setShowMediaPanel(false)}
+            />
+            <div className="relative mt-auto bg-white rounded-t-2xl shadow-2xl border-t border-slate-200 flex flex-col overflow-hidden"
+              style={{ height: "100%" }}>
+              <MediaPanel
+                query={mediaQuery}
+                grade={user?.grade || ""}
+                board={user?.board || "CBSE"}
+                defaultTab={mediaMode}
+                onClose={() => setShowMediaPanel(false)}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── History Sidebar ── */}
-      <aside ref={sidebarRef} className="w-[360px] h-full bg-white shrink-0 z-20 flex-col border-l border-slate-200 hidden lg:flex"
+      {/* Always-visible toggle tab when sidebar is closed */}
+      {!showSidebar && (
+        <button
+          onClick={() => setShowSidebar(true)}
+          className="hidden lg:flex fixed right-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-1
+            bg-white border border-slate-200 border-r-0 shadow-lg rounded-l-2xl px-2 py-4
+            hover:bg-[#695be6] hover:border-[#695be6] group transition-all duration-200"
+          title="Show Doubt History"
+        >
+          <span className="material-symbols-outlined text-[#695be6] group-hover:text-white transition-colors text-xl"
+            style={{ fontVariationSettings: "'FILL' 1" }}>history_edu</span>
+          {filteredHistory.length > 0 && (
+            <span className="bg-[#695be6] group-hover:bg-white text-white group-hover:text-[#695be6] text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center transition-colors">
+              {filteredHistory.length > 99 ? "99+" : filteredHistory.length}
+            </span>
+          )}
+          <span className="text-[#695be6] group-hover:text-white transition-colors font-bold"
+            style={{ writingMode: "vertical-rl", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            History
+          </span>
+          <span className="material-symbols-outlined text-[#695be6] group-hover:text-white transition-colors text-base">chevron_left</span>
+        </button>
+      )}
+
+      <aside ref={sidebarRef} className={`relative w-[360px] h-full bg-white shrink-0 z-20 flex-col border-l border-slate-200 transition-all duration-300 ${showSidebar ? "hidden lg:flex" : "hidden"}`}
         style={{ boxShadow: "-4px 0 15px rgba(0,0,0,0.05)" }}>
+
+        {/* Tab that sticks out to the left of the panel */}
+        <button
+          onClick={() => setShowSidebar(false)}
+          className="absolute -left-[38px] top-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1
+            bg-white border border-slate-200 border-r-0 shadow-lg rounded-l-2xl px-2 py-4
+            hover:bg-[#695be6] hover:border-[#695be6] group transition-all duration-200"
+          title="Hide Doubt History"
+        >
+          <span className="material-symbols-outlined text-[#695be6] group-hover:text-white transition-colors text-xl"
+            style={{ fontVariationSettings: "'FILL' 1" }}>history_edu</span>
+          {filteredHistory.length > 0 && (
+            <span className="bg-[#695be6] group-hover:bg-white text-white group-hover:text-[#695be6] text-[9px] font-black rounded-full w-5 h-5 flex items-center justify-center transition-colors">
+              {filteredHistory.length > 99 ? "99+" : filteredHistory.length}
+            </span>
+          )}
+          <span className="text-[#695be6] group-hover:text-white transition-colors font-bold"
+            style={{ writingMode: "vertical-rl", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+            Close
+          </span>
+          <span className="material-symbols-outlined text-[#695be6] group-hover:text-white transition-colors text-base">chevron_right</span>
+        </button>
         <div className="h-16 flex items-center px-6 border-b border-slate-100 shrink-0">
           <h2 className="text-[#2D2D2D] font-semibold text-lg">Doubt History</h2>
         </div>

@@ -295,12 +295,12 @@ export default function StudentHomework() {
           </div>
         </div>
 
-        {/* Vin AI */}
+        {/* LumiTutor */}
         <button
           onClick={() => window.open("/student/vin-ai", "_blank")}
           className="w-full flex items-center justify-center gap-2 mb-8 px-4 py-3 bg-[#6B5CE7] text-white font-bold rounded-xl shadow-lg shadow-[#6B5CE7]/20 hover:scale-[1.02] transition-transform">
           <span className="material-symbols-outlined text-xl">auto_awesome</span>
-          <span>Vin AI Chat</span>
+          <span>LumiTutor Chat</span>
         </button>
 
         {/* Status filters */}
@@ -391,7 +391,7 @@ export default function StudentHomework() {
         </div>
       </main>
 
-      {/* ── Vin AI FAB ── */}
+      {/* ── LumiTutor FAB ── */}
       <div className="fixed bottom-8 right-8 flex flex-col items-end gap-3">
         <div className="bg-white px-4 py-2 rounded-xl shadow-xl border border-gray-100 mb-2 relative">
           <p className="text-sm font-medium text-[#2D2D2D]">Stuck? Ask me anything!</p>

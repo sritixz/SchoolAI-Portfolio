@@ -14,6 +14,7 @@ import {
 } from "../../data/teacher/conceptExplainerData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadConceptPdf } from "../../utils/aiPdfExport";
+import MediaPanel from "../../components/MediaPanel";
 
 export default function ConceptExplainer() {
   const navigate   = useNavigate();
@@ -29,6 +30,7 @@ export default function ConceptExplainer() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showMediaPanel, setShowMediaPanel] = useState(false);
 
   const generating = aiStatus === "loading";
   const displayResult = historyLoaded ? editedResult : (editedResult ?? aiResult);
@@ -315,6 +317,16 @@ export default function ConceptExplainer() {
                     </span>
                   )}
                 </button>
+                {/* Find Media — visible when result is available */}
+                {showOutput && displayResult && !generating && (
+                  <button
+                    onClick={() => setShowMediaPanel(true)}
+                    className="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-sm">perm_media</span>
+                    Find Media
+                  </button>
+                )}
               </div>
             </div>
 
@@ -411,6 +423,21 @@ export default function ConceptExplainer() {
           </div>
         </div>
       </div>
+
+      {/* ── Media Panel modal ── */}
+      {showMediaPanel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col overflow-hidden"
+            style={{ height: "80vh" }}>
+            <MediaPanel
+              query={form.concept}
+              grade={form.grade}
+              board={form.board}
+              onClose={() => setShowMediaPanel(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

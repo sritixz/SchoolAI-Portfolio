@@ -170,8 +170,8 @@ export default function CreateHomework() {
                 <path clipRule="evenodd" d="M24 8.18819L33.4123 11.574L24 15.2071L14.5877 11.574L24 8.18819ZM9 15.8487L21 20.4805V37.6263L9 32.9945V15.8487ZM27 37.6263V20.4805L39 15.8487V32.9945L27 37.6263ZM25.354 2.29885C24.4788 1.98402 23.5212 1.98402 22.646 2.29885L4.98454 8.65208C3.7939 9.08038 3 10.2097 3 11.475V34.3663C3 36.0196 4.01719 37.5026 5.55962 38.098L22.9197 44.7987C23.6149 45.0671 24.3851 45.0671 25.0803 44.7987L42.4404 38.098C43.9828 37.5026 45 36.0196 45 34.3663V11.475C45 10.2097 44.2061 9.08038 43.0155 8.65208L25.354 2.29885Z" fill="currentColor" fillRule="evenodd"></path>
               </svg>
             </div>
-            <h2 className="text-base sm:text-lg font-bold leading-tight tracking-[-0.015em] hidden sm:block">VinSchool</h2>
-            <h2 className="text-sm font-bold leading-tight tracking-[-0.015em] sm:hidden">VinSchool</h2>
+            <h2 className="text-base sm:text-lg font-bold leading-tight tracking-[-0.015em] hidden sm:block">TrueSchoolAI</h2>
+            <h2 className="text-sm font-bold leading-tight tracking-[-0.015em] sm:hidden">TrueSchoolAI</h2>
           </div>
           <nav className="hidden lg:flex items-center gap-4 xl:gap-8">
             <button onClick={() => navigate("/teacher")} className="text-sm font-medium text-gray-600 hover:text-[#932ce2] transition-colors">Dashboard</button>
@@ -430,8 +430,8 @@ export default function CreateHomework() {
                   </div>
                   <div className="flex items-center justify-between p-3 sm:p-4 border border-[#eee8f3] rounded-xl">
                     <div className="flex flex-col">
-                      <span className="font-bold text-sm">AI Assistant (Vin)</span>
-                      <span className="text-xs text-gray-500">Allow students to use Vin AI for help</span>
+                      <span className="font-bold text-sm">LumiTutor</span>
+                      <span className="text-xs text-gray-500">Allow students to use LumiTutor for help</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-2">
                       <input

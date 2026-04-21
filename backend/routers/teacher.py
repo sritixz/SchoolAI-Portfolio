@@ -1589,15 +1589,26 @@ Return ONLY this JSON (start with {{, end with }}, no other text):
     )
     return _robust_json_parse(raw, label=f"slide {slide_number}/{total}")
 
-async def process_pptx_pipeline(job_id: str, params: dict):
+async def process_pptx_pipeline(job_id: str, params: dict, db):
     """
     3-phase pipeline:
-      Phase 0 — Planner: LLM returns a JSON list of N slide outlines
-      Phase 1 — Slides: each slide gets only its own outline as context (semaphore=4)
-      Phase 2 — Pollinations.ai image URLs (instant, stable seed per job)
+      Phase 0 — Planner: LLM returns a JSON list of N slide outlines (each with visual_keyword)
+      Phase 1 — Slides: throttled parallel LLM calls (semaphore=4)
+      Phase 2 — Images: DuckDuckGo search per slide (semaphore=6), Pollinations fallback
+    Job state is persisted to MongoDB so server restarts don't lose progress.
     """
     import logging
     log = logging.getLogger(__name__)
+
+    async def _db_update(fields: dict):
+        """Write-through: update both in-memory dict and MongoDB."""
+        presentation_jobs[job_id].update(fields)
+        try:
+            await db.presentation_jobs.update_one(
+                {"_id": job_id}, {"$set": fields}
+            )
+        except Exception as exc:
+            log.warning("[PPTX] MongoDB update failed for job %s: %s", job_id, exc)
 
     total   = int(params.get("num_slides", 10))
     topic   = params["topic"]
@@ -1607,9 +1618,9 @@ async def process_pptx_pipeline(job_id: str, params: dict):
     chapter = params.get("chapter", "")
     lo      = params.get("learning_objective", "Concept Understanding")
 
-    presentation_jobs[job_id].update({"total_slides": total, "current_slide": 0, "status": "processing"})
+    await _db_update({"total_slides": total, "current_slide": 0, "status": "processing"})
 
-    # ── Phase 0: Planner — generate N slide outlines as a JSON list ──────────
+    # ── Phase 0: Planner ─────────────────────────────────────────────────────
     planner_prompt = f"""You are a curriculum planner. Create a structured outline for a {total}-slide {board} {subject} presentation on "{topic}" for {grade}.
 {f"Chapter: {chapter}." if chapter else ""}
 Learning objective: {lo}.
@@ -1619,8 +1630,8 @@ Return ONLY a JSON array of exactly {total} objects. Each object must have:
 - "title": specific slide title (NOT generic like "Slide 1")
 - "sub_topic": the specific aspect of {topic} this slide covers
 - "key_points": array of 3 specific facts or concepts for this slide
+- "visual_keyword": a short 3-5 word search phrase for finding a diagram (e.g. "mitochondria cell diagram")
 - "visual_hint": a specific visual description unique to this slide's sub-topic
-  (e.g. "Balance scale with x+5 on left, 10 on right" NOT "illustration of {topic}")
 - "slide_type": one of title|hook|content|example|activity|summary|assessment
 
 Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
@@ -1631,48 +1642,76 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
             [{"role": "user", "content": planner_prompt}],
             timeout=120,
         )
-        # Extract array between first [ and last ]
         first_b = raw_plan.find("[")
         last_b  = raw_plan.rfind("]")
         if first_b != -1 and last_b > first_b:
             plan_list = json.loads(raw_plan[first_b : last_b + 1])
             slide_outlines = [json.dumps(item) for item in plan_list]
             log.info("[PPTX] Planner produced %d outlines for job %s", len(slide_outlines), job_id)
-            print(f"[PPTX] Planner OK: {len(slide_outlines)} outlines for job {job_id}")
         else:
             raise ValueError("No JSON array found in planner response")
     except Exception as exc:
-        log.warning("[PPTX] Planner failed for job %s: %s", job_id, exc)
-        print(f"[PPTX] Planner FAILED for job {job_id}: {exc} — proceeding without outlines")
+        log.warning("[PPTX] Planner failed for job %s: %s — proceeding without outlines", job_id, exc)
         slide_outlines = []
 
-    # Pad/trim to exactly `total` entries
     while len(slide_outlines) < total:
         slide_outlines.append("")
     slide_outlines = slide_outlines[:total]
 
-    # ── Phase 1: throttled parallel slides (semaphore = 4 concurrent) ────────
+    # ── Phase 1: throttled parallel slides (semaphore=4) ─────────────────────
     sem = asyncio.Semaphore(4)
 
     async def _throttled_slide(i: int) -> dict:
         outline = slide_outlines[i - 1] if i - 1 < len(slide_outlines) else ""
         async with sem:
             slide = await _safe_llm_slide(i, total, params, outline)
-            presentation_jobs[job_id]["current_slide"] = max(
-                presentation_jobs[job_id].get("current_slide", 0), i
-            )
+            new_current = max(presentation_jobs[job_id].get("current_slide", 0), i)
+            await _db_update({"current_slide": new_current})
             return slide
 
     slides_data: list = list(await asyncio.gather(*[_throttled_slide(i) for i in range(1, total + 1)]))
 
-    # ── Phase 2: Pollinations.ai image URLs (unique seed per slide) ──────────
-    job_seed = abs(hash(job_id)) % 100000
-    for slide in slides_data:
+    # ── Phase 2: Wikipedia image search (semaphore=6, Pollinations fallback) ──
+    from services.media_search import search_images as _wiki_search_images
+
+    img_sem = asyncio.Semaphore(6)
+
+    async def _fetch_slide_image(slide: dict) -> None:
         content = slide.get("content") or {}
+        if not isinstance(content, dict):
+            return
+
+        # Prefer visual_keyword from planner outline, fall back to visual_prompt
+        outline_raw = slide_outlines[slide.get("number", 1) - 1] if slide_outlines else ""
+        visual_keyword = ""
+        try:
+            outline_obj = json.loads(outline_raw) if outline_raw else {}
+            visual_keyword = outline_obj.get("visual_keyword", "")
+        except Exception:
+            pass
+
+        keyword = visual_keyword or content.get("visual_prompt") or slide.get("title", topic)
+        query   = f"{keyword} {grade} {board} educational diagram"
+
+        async with img_sem:
+            try:
+                results = await _wiki_search_images(keyword, grade, board, 3)
+                if results:
+                    content["image_url"]        = results[0]["url"]
+                    content["image_source_url"] = results[0]["source"]
+                    content["image_alt"]        = results[0]["title"]
+                    return
+            except Exception as exc:
+                log.warning("[PPTX] Wikipedia image failed for slide %s: %s", slide.get("number"), exc)
+
+        # Pollinations fallback
         desc = content.get("detailed_visual_description") or content.get("visual_prompt", "")
-        if desc and isinstance(content, dict):
+        if desc:
+            job_seed  = abs(hash(job_id)) % 100000
             slide_num = slide.get("number", 1)
             content["image_url"] = _pollinations_url(desc, job_seed + slide_num)
+
+    await asyncio.gather(*[_fetch_slide_image(s) for s in slides_data])
 
     # ── Build result ──────────────────────────────────────────────────────────
     chapter_str = f" ({chapter})" if chapter else ""
@@ -1700,8 +1739,7 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
         ),
     }
 
-    presentation_jobs[job_id]["status"]      = "completed"
-    presentation_jobs[job_id]["result_data"] = result
+    await _db_update({"status": "completed", "result_data": result})
 
 
 @router.post("/ai-tool/presentation/generate")
@@ -1709,10 +1747,12 @@ async def presentation_generate(
     body: AIToolRequest,
     background_tasks: BackgroundTasks,
     user=Depends(require_role("teacher")),
+    db=Depends(get_db),
 ):
     """
     Kick off a background pipeline to build the presentation slide-by-slide.
     Returns immediately with a job_id the client can poll.
+    Job state is persisted to MongoDB (presentation_jobs collection).
     """
     extra = body.extra or {}
     params = {
@@ -1734,22 +1774,53 @@ async def presentation_generate(
     }
 
     job_id = str(uuid.uuid4())
-    presentation_jobs[job_id] = {
+    job_doc = {
+        "_id":          job_id,
+        "teacher_id":   user["id"],
         "status":       "processing",
         "current_slide": 0,
         "total_slides":  params["num_slides"],
         "result_data":   None,
         "error":         None,
+        "created_at":    datetime.utcnow(),
     }
 
-    background_tasks.add_task(process_pptx_pipeline, job_id, params)
+    # Persist to MongoDB (survives server restarts)
+    try:
+        await db.presentation_jobs.insert_one(job_doc)
+        # Ensure TTL index exists (24h auto-cleanup)
+        await db.presentation_jobs.create_index("created_at", expireAfterSeconds=86400)
+    except Exception:
+        pass  # Index may already exist
+
+    # Also keep in-memory for fast hot-path polling
+    presentation_jobs[job_id] = {k: v for k, v in job_doc.items() if k != "_id"}
+
+    background_tasks.add_task(process_pptx_pipeline, job_id, params, db)
     return {"job_id": job_id, "status": "processing"}
 
 
 @router.get("/ai-tool/status/{job_id}")
-async def presentation_status(job_id: str, user=Depends(require_role("teacher"))):
-    """Poll the live progress of a background presentation task."""
+async def presentation_status(
+    job_id: str,
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db),
+):
+    """Poll the live progress of a background presentation task.
+    Falls back to MongoDB if the in-memory dict is empty (e.g. after server restart).
+    """
     job = presentation_jobs.get(job_id)
+
+    # Fallback to MongoDB on cache miss (server restart scenario)
+    if not job:
+        try:
+            job = await db.presentation_jobs.find_one({"_id": job_id})
+            if job:
+                job.pop("_id", None)
+                presentation_jobs[job_id] = job  # re-warm cache
+        except Exception:
+            pass
+
     if not job:
         raise HTTPException(404, "Job not found")
 
@@ -1884,10 +1955,11 @@ async def image_proxy(url: str):
     from fastapi.responses import Response
     import urllib.parse
 
-    # Only allow Pollinations.ai URLs for security
+    # Allow Pollinations.ai and any direct image URL (DDGS results are direct image links)
     decoded = urllib.parse.unquote(url)
-    if not decoded.startswith("https://image.pollinations.ai/"):
-        raise HTTPException(400, "Only Pollinations.ai URLs are allowed")
+    allowed_prefixes = ("https://image.pollinations.ai/", "https://", "http://")
+    if not any(decoded.startswith(p) for p in allowed_prefixes):
+        raise HTTPException(400, "Invalid image URL")
 
     try:
         async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:

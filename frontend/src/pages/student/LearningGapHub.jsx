@@ -136,7 +136,7 @@ export default function LearningGapHub() {
       <footer className="py-8 border-t border-[#685ae7]/5 text-center">
         <div className="flex items-center justify-center gap-2 text-[#685ae7]/40 mb-1">
           <span className="material-symbols-outlined text-lg">auto_awesome</span>
-          <span className="text-xs font-semibold tracking-widest uppercase">Powered by Vin AI</span>
+          <span className="text-xs font-semibold tracking-widest uppercase">Powered by LumiTutor</span>
         </div>
       </footer>
     </div>

@@ -277,7 +277,7 @@ export default function InterventionAlerts() {
       </main>
 
       <footer className="text-center text-xs text-gray-400 py-6 border-t border-gray-100">
-        © {new Date().getFullYear()} VinSchool AI Platform &nbsp;·&nbsp;
+        © {new Date().getFullYear()} TrueSchoolAI Platform &nbsp;·&nbsp;
         <a href="#" className="hover:underline">Documentation</a> &nbsp;·&nbsp;
         <a href="#" className="hover:underline">Support</a>
       </footer>

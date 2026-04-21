@@ -11,6 +11,7 @@ export function parseVinXML(xmlBuffer) {
     steps: [],
     question: null,
     followups: [],
+    examReady: null,
     complete: false,
   };
 
@@ -18,17 +19,17 @@ export function parseVinXML(xmlBuffer) {
   const subjectMatch = xmlBuffer.match(/<subject>(.*?)<\/subject>/s);
   if (subjectMatch) result.subject = subjectMatch[1].trim();
 
-  // Extract content (may be incomplete during streaming — grab everything after <content> until </content> or end of buffer)
+  // Extract content (may be incomplete during streaming)
   const contentOpen = xmlBuffer.indexOf("<content>");
   if (contentOpen !== -1) {
-    const contentStart = contentOpen + 9; // length of "<content>"
+    const contentStart = contentOpen + 9;
     const contentClose = xmlBuffer.indexOf("</content>");
     result.content = contentClose !== -1
       ? xmlBuffer.slice(contentStart, contentClose).trim()
-      : xmlBuffer.slice(contentStart).replace(/<[^>]*$/, "").trim(); // strip any incomplete tag at end
+      : xmlBuffer.slice(contentStart).replace(/<[^>]*$/, "").trim();
   }
 
-  // Extract hint (only when complete)
+  // Extract hint
   const hintMatch = xmlBuffer.match(/<hint>(.*?)<\/hint>/s);
   if (hintMatch) result.hint = hintMatch[1].trim();
 
@@ -51,11 +52,28 @@ export function parseVinXML(xmlBuffer) {
     result.question = {
       text: questionText,
       options: optionMatches.map((m, i) => ({
-        id: String.fromCharCode(65 + i), // A, B, C, D
+        id: String.fromCharCode(65 + i),
         text: m[2].trim(),
         correct: m[1] === "true",
       })),
     };
+  }
+
+  // Extract exam_ready block
+  const examReadyMatch = xmlBuffer.match(/<exam_ready>(.*?)<\/exam_ready>/s);
+  if (examReadyMatch) {
+    const er = examReadyMatch[1];
+    const directAnswer = er.match(/<direct_answer>(.*?)<\/direct_answer>/s)?.[1]?.trim() || null;
+    const examFormat = er.match(/<exam_format>(.*?)<\/exam_format>/s)?.[1]?.trim() || null;
+    const realLifeExample = er.match(/<real_life_example>(.*?)<\/real_life_example>/s)?.[1]?.trim() || null;
+
+    const keyPointMatches = [...er.matchAll(/<point>(.*?)<\/point>/gs)];
+    const keyPoints = keyPointMatches.map(m => m[1].trim());
+
+    const keywordMatches = [...er.matchAll(/<keyword>(.*?)<\/keyword>/gs)];
+    const keywords = keywordMatches.map(m => m[1].trim());
+
+    result.examReady = { directAnswer, keyPoints, examFormat, keywords, realLifeExample };
   }
 
   // Extract followups
@@ -65,7 +83,6 @@ export function parseVinXML(xmlBuffer) {
     result.followups = followupMatches.map(m => m[1].trim());
   }
 
-  // Check if response is complete
   result.complete = xmlBuffer.includes("</response>");
 
   return result;

@@ -236,7 +236,7 @@ export default function HomeworkResult() {
                 <span className="material-symbols-outlined text-white">smart_toy</span>
               </div>
               <div className="flex-1">
-                <p className="text-xs font-black text-[#5b69e6] uppercase tracking-widest mb-2">Vin AI Analysis</p>
+                <p className="text-xs font-black text-[#5b69e6] uppercase tracking-widest mb-2">LumiTutor Analysis</p>
                 {(aiAnalysis.strength_areas?.length > 0 || aiAnalysis.weakness_areas?.length > 0) && (
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     {aiAnalysis.strength_areas?.length > 0 && (
@@ -514,13 +514,13 @@ export default function HomeworkResult() {
           ))}
         </div>
 
-        {/* Vin AI feedback panel */}
+        {/* LumiTutor feedback panel */}
         <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-xl p-6 flex items-start gap-4">
           <div className="size-12 bg-[#5b69e6] rounded-full flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-white text-2xl">smart_toy</span>
           </div>
           <div>
-            <p className="font-bold text-slate-800 mb-1">Vin AI Feedback</p>
+            <p className="font-bold text-slate-800 mb-1">LumiTutor Feedback</p>
             <p className="text-sm text-slate-600 leading-relaxed">
               {scorePct >= 80
                 ? `Great work on the MCQ section! You correctly answered ${finalMcqCorrect} out of ${finalMcqTotal} objective questions. Your typed explanations show strong conceptual understanding — keep it up!`

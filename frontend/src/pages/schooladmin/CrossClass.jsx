@@ -129,7 +129,7 @@ export default function CrossClass() {
                   <p className="text-xs text-white/70 mb-4">What Top Performers Do Differently</p>
                   {[
                     { title: "Consistent Homework", desc: "Regular assignments with timely feedback", impact: "15% improvement" },
-                    { title: "AI-Assisted Learning", desc: "Students using Vin AI for doubts", impact: "12% improvement" },
+                    { title: "AI-Assisted Learning", desc: "Students using LumiTutor for doubts", impact: "12% improvement" },
                     { title: "Parent Engagement", desc: "Regular teacher-parent communication", impact: "8% improvement" },
                   ].map((bp) => (
                     <div key={bp.title} className="bg-white/10 rounded-xl p-3 mb-3">

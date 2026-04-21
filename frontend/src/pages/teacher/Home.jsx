@@ -87,7 +87,7 @@ export default function TeacherHome() {
             <div className="size-8 bg-blue-500 rounded-lg flex items-center justify-center text-white">
               <span className="material-symbols-outlined text-xl">person_book</span>
             </div>
-            <h2 className="text-lg font-bold tracking-tight">VinSchool</h2>
+            <h2 className="text-lg font-bold tracking-tight">TrueSchoolAI</h2>
           </div>
           <div className="flex items-center gap-4">
             <Link to="/teacher/students"

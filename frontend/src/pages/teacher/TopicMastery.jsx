@@ -223,7 +223,7 @@ export default function TopicMastery() {
     for (let i = 1; i <= pages; i++) {
       doc.setPage(i);
       doc.setFontSize(7); doc.setTextColor(160, 160, 160);
-      doc.text(`VinSchool AI  ·  ${gradeFilter}  ·  Page ${i} of ${pages}`, W / 2, doc.internal.pageSize.getHeight() - 6, { align: "center" });
+      doc.text(`TrueSchoolAI  ·  ${gradeFilter}  ·  Page ${i} of ${pages}`, W / 2, doc.internal.pageSize.getHeight() - 6, { align: "center" });
     }
 
     doc.save(`class-report-${gradeFilter.replace(/\s/g, "-")}.pdf`);

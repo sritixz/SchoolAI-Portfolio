@@ -90,7 +90,7 @@ export default function Login() {
           <div className="size-14 bg-[#695be6] rounded-2xl flex items-center justify-center text-white mb-3 shadow-lg shadow-[#695be6]/30">
             <span className="material-symbols-outlined text-3xl">school</span>
           </div>
-          <h1 className="text-2xl font-black text-[#100e1a] tracking-tight">VinSchool</h1>
+          <h1 className="text-2xl font-black text-[#100e1a] tracking-tight">TrueSchoolAI</h1>
           <p className="text-gray-500 text-sm mt-1">Smart School Management</p>
         </div>
 
