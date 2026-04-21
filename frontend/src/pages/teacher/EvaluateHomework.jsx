@@ -22,7 +22,9 @@ function StatusBadge({ status }) {
 }
 
 // ── AI Analysis Panel ─────────────────────────────────────────
-function AIAnalysisPanel({ analysis, onRefresh, loading }) {
+function AIAnalysisPanel({ analysis, extractedText, onRefresh, loading }) {
+  const [showOcr, setShowOcr] = useState(false);
+
   if (loading) return (
     <div className="bg-[#695be6]/5 border border-[#695be6]/20 rounded-xl p-5 flex items-center gap-3">
       <span className="size-5 border-2 border-[#695be6]/40 border-t-[#695be6] rounded-full animate-spin shrink-0" />
@@ -31,17 +33,60 @@ function AIAnalysisPanel({ analysis, onRefresh, loading }) {
   );
 
   if (!analysis) return (
-    <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
-      <span className="material-symbols-outlined text-3xl text-gray-300 mb-2 block">psychology</span>
-      <p className="text-sm text-gray-400 mb-3">AI analysis not yet available</p>
-      <button onClick={onRefresh} className="text-xs font-bold text-[#695be6] hover:underline flex items-center gap-1 mx-auto">
-        <span className="material-symbols-outlined text-sm">refresh</span> Run AI Analysis
-      </button>
+    <div className="space-y-3">
+      {/* OCR text even before AI runs */}
+      {extractedText && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <button
+            onClick={() => setShowOcr((v) => !v)}
+            className="flex items-center justify-between w-full text-xs font-bold text-slate-500 uppercase tracking-wider"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">document_scanner</span>
+              OCR Extracted Text
+            </span>
+            <span className="material-symbols-outlined text-sm">{showOcr ? "expand_less" : "expand_more"}</span>
+          </button>
+          {showOcr && (
+            <pre className="mt-2 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">
+              {extractedText}
+            </pre>
+          )}
+        </div>
+      )}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
+        <span className="material-symbols-outlined text-3xl text-gray-300 mb-2 block">psychology</span>
+        <p className="text-sm text-gray-400 mb-3">AI analysis not yet available</p>
+        <button onClick={onRefresh} className="text-xs font-bold text-[#695be6] hover:underline flex items-center gap-1 mx-auto">
+          <span className="material-symbols-outlined text-sm">refresh</span> Run AI Analysis
+        </button>
+      </div>
     </div>
   );
 
   return (
     <div className="space-y-4">
+      {/* OCR extracted text — collapsible, shown before AI summary */}
+      {extractedText && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <button
+            onClick={() => setShowOcr((v) => !v)}
+            className="flex items-center justify-between w-full text-xs font-bold text-slate-500 uppercase tracking-wider"
+          >
+            <span className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm">document_scanner</span>
+              OCR Extracted Text
+            </span>
+            <span className="material-symbols-outlined text-sm">{showOcr ? "expand_less" : "expand_more"}</span>
+          </button>
+          {showOcr && (
+            <pre className="mt-2 text-xs text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">
+              {extractedText}
+            </pre>
+          )}
+        </div>
+      )}
+
       {/* Summary */}
       <div className="bg-[#695be6]/5 border border-[#695be6]/20 rounded-xl p-4">
         <div className="flex items-center justify-between mb-2">
@@ -95,6 +140,11 @@ function AIAnalysisPanel({ analysis, onRefresh, loading }) {
           <p className="text-sm text-gray-700 italic">"{analysis.suggested_teacher_feedback}"</p>
         </div>
       )}
+
+      {/* Re-run button */}
+      <button onClick={onRefresh} className="text-xs font-bold text-[#695be6] hover:underline flex items-center gap-1">
+        <span className="material-symbols-outlined text-sm">refresh</span> Re-run AI Analysis
+      </button>
     </div>
   );
 }
@@ -106,6 +156,16 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
   const maxPts  = q?.max_points || aiQ?.max_points || 1;
   const currentPts = override?.points_awarded ?? aiScore ?? (answer?.points_awarded ?? null);
 
+  // Correctness: teacher override > AI > submission
+  const aiCorrect = aiQ?.is_correct ?? answer?.is_correct ?? null;
+  const currentCorrect = override?.is_correct !== undefined ? override.is_correct : aiCorrect;
+
+  const toggleCorrect = () => {
+    const next = currentCorrect === true ? false : true;
+    const autoPts = next ? maxPts : 0;
+    onOverride({ points_awarded: autoPts, comment: override?.comment || "", is_correct: next });
+  };
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
@@ -114,15 +174,40 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
             <span className="text-xs font-black text-[#695be6]">Q{q?.question_number || "?"}</span>
             <span className="text-[10px] font-bold uppercase bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{atype}</span>
             <span className="text-xs text-gray-400">{maxPts} pt{maxPts > 1 ? "s" : ""}</span>
+            {/* AI verdict badge */}
+            {aiCorrect !== null && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${aiCorrect ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                AI: {aiCorrect ? "Correct" : "Incorrect"}
+              </span>
+            )}
           </div>
           <p className="text-sm font-medium text-gray-800">{q?.question_text || "Question"}</p>
         </div>
-        {/* Score input */}
-        <div className="flex items-center gap-1 shrink-0">
+
+        {/* Score + correct/incorrect toggle */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Manual correct/incorrect toggle */}
+          <button
+            onClick={toggleCorrect}
+            title="Toggle correct / incorrect"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border transition-colors ${
+              currentCorrect === true
+                ? "bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
+                : currentCorrect === false
+                ? "bg-red-50 border-red-300 text-red-700 hover:bg-red-100"
+                : "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">
+              {currentCorrect === true ? "check_circle" : currentCorrect === false ? "cancel" : "help"}
+            </span>
+            {currentCorrect === true ? "Correct" : currentCorrect === false ? "Wrong" : "?"}
+          </button>
+          {/* Points input */}
           <input
             type="number" min={0} max={maxPts}
             value={currentPts ?? ""}
-            onChange={(e) => onOverride({ points_awarded: +e.target.value, comment: override?.comment || "" })}
+            onChange={(e) => onOverride({ points_awarded: +e.target.value, comment: override?.comment || "", is_correct: override?.is_correct })}
             className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center outline-none focus:border-[#695be6]"
             placeholder="—"
           />
@@ -144,24 +229,29 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
           <div>
             {answer?.answer != null ? (
               <div className="flex items-center gap-2">
-                {/* If MCQ, show the option text */}
-                {q?.options && typeof answer.answer === "number" ? (
-                  <span className="text-sm text-gray-700">
-                    <span className="font-bold text-[#695be6]">Option {answer.answer + 1}:</span>{" "}
-                    {q.options[answer.answer] ?? `Choice ${answer.answer}`}
-                  </span>
-                ) : (
+                {/* For MCQ: match answer (option id or index) to option text */}
+                {atype === "mcq" && q?.options?.length > 0 ? (() => {
+                  const studentAns = answer.answer;
+                  // Try matching by option id first, then by index
+                  const matchedOpt = q.options.find((o) => o.id === studentAns)
+                    || (typeof studentAns === "number" ? q.options[studentAns] : null);
+                  const correctOpt = q.options.find((o) => o.is_correct);
+                  const isCorrect = matchedOpt?.is_correct ?? false;
+                  return (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        <span className="font-bold text-[#695be6]">Selected:</span>{" "}
+                        {matchedOpt?.text || String(studentAns)}
+                      </p>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        isCorrect ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      }`}>
+                        {isCorrect ? "Correct" : `Correct: ${correctOpt?.text || "—"}`}
+                      </span>
+                    </>
+                  );
+                })() : (
                   <p className="text-sm text-gray-700">{String(answer.answer)}</p>
-                )}
-                {/* Correct/wrong indicator */}
-                {q?.correct != null && (
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    answer.answer === q.correct
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}>
-                    {answer.answer === q.correct ? "Correct" : `Correct: Option ${q.correct + 1}`}
-                  </span>
                 )}
               </div>
             ) : aiQ?.student_answer ? (
@@ -445,6 +535,7 @@ export default function EvaluateHomework() {
             <>
               <AIAnalysisPanel
                 analysis={selected.ai_analysis}
+                extractedText={selected.extracted_text || null}
                 loading={aiLoading}
                 onRefresh={runAI}
               />

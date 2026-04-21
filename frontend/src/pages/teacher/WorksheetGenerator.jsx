@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { saveWorksheetDraft, fetchWorksheetDrafts, updateWorksheetDraft, deleteWorksheetDraft, selectWorksheetDrafts } from "../../store/slices/teacherSlice";
 import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes, boardOptions, learningObjectiveOptions, difficultyStructureOptions } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
@@ -14,16 +15,99 @@ export default function WorksheetGenerator() {
   const { user }  = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
+  const worksheetDrafts = useSelector(selectWorksheetDrafts);
   const [form, setForm] = useState(worksheetDefaults);
+  const [editedResult, setEditedResult] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [savedDraftId, setSavedDraftId] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const generating = aiStatus === "loading";
+  const displayResult = historyLoaded ? editedResult : (editedResult ?? aiResult);
+  const showOutput = generating || !!displayResult || historyLoaded;
 
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchWorksheetDrafts()); }, [dispatch]);
+  useEffect(() => { if (aiResult) { setEditedResult(null); setHistoryLoaded(false); setSavedDraftId(null); } }, [aiResult]);
 
   const toggleQType = (id) =>
     setForm((p) => ({ ...p, questionTypes: { ...p.questionTypes, [id]: !p.questionTypes[id] } }));
 
+  const updateResultField = (field, value) => {
+    setEditedResult((prev) => ({ ...(prev ?? aiResult), [field]: value }));
+  };
+
+  const updateSectionQuestion = (secIdx, qIdx, field, value) => {
+    setEditedResult((prev) => {
+      const base = prev ?? aiResult;
+      const sections = base.sections.map((sec, si) => {
+        if (si !== secIdx) return sec;
+        return {
+          ...sec,
+          questions: sec.questions.map((q, qi) =>
+            qi === qIdx ? { ...q, [field]: value } : q
+          ),
+        };
+      });
+      return { ...base, sections };
+    });
+  };
+
   const { runTool } = useAiToolWithHistory();
+
+  const loadFromHistory = (item) => {
+    // Merge worksheet data with metadata to ensure all fields are present
+    const mergedResult = {
+      ...(item.worksheet ?? {}),
+      subject: item.subject || item.worksheet?.subject,
+      grade: item.grade || item.worksheet?.grade,
+      topic: item.topic || item.worksheet?.topic,
+    };
+    setEditedResult(mergedResult);
+    setHistoryLoaded(true);
+    setSavedDraftId(item._id);
+    setShowHistory(false);
+    if (item.subject) setForm((p) => ({ ...p, subject: item.subject }));
+    if (item.topic)   setForm((p) => ({ ...p, topic: item.topic }));
+    if (item.grade)   setForm((p) => ({ ...p, classLevel: item.grade }));
+  };
+
+  const handleSaveDraft = async () => {
+    if (!displayResult) return;
+    setSavingDraft(true);
+    try {
+      const payload = {
+        title:     displayResult.title || form.title || `${form.topic} Worksheet`,
+        subject:   displayResult.subject || form.subject,
+        topic:     form.topic,
+        grade:     form.classLevel,
+        board:     form.board,
+        chapter:   form.chapter || null,
+        worksheet: displayResult,
+        meta: {
+          difficulty: form.difficulty,
+          questionTypes: form.questionTypes,
+          totalQuestions: form.totalQuestions,
+          learningObjective: form.learningObjective,
+          difficultyStructure: form.difficultyStructure,
+          specialInstructions: form.specialInstructions,
+        },
+      };
+      const action = savedDraftId
+        ? await dispatch(updateWorksheetDraft({ id: savedDraftId, ...payload }))
+        : await dispatch(saveWorksheetDraft(payload));
+      if (saveWorksheetDraft.fulfilled.match(action) || updateWorksheetDraft.fulfilled.match(action)) {
+        setSavedDraftId(action.payload._id);
+      }
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleGenerate = () => {
+    setEditedResult(null);
+    setHistoryLoaded(false);
+    setSavedDraftId(null);
     runTool({
       tool: "worksheet",
       subject: form.subject,
@@ -223,6 +307,38 @@ export default function WorksheetGenerator() {
             <span className="material-symbols-outlined text-base">auto_awesome</span>
             {generating ? "Generating..." : "Generate Worksheet ✨"}
           </button>
+
+          {/* Saved Worksheets Section */}
+          {worksheetDrafts.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h2 className="flex items-center gap-2 font-black text-base mb-3">
+                <span className="size-6 bg-green-100 rounded-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-green-600 text-sm">check_circle</span>
+                </span>
+                Saved Worksheets
+              </h2>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                {worksheetDrafts.map((draft) => (
+                  <div key={draft._id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 hover:border-[#695be6]/30 transition-colors">
+                    <p className="text-xs font-bold text-gray-800 truncate">{draft.title}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {draft.subject}{draft.grade ? ` · ${draft.grade}` : ""}
+                    </p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <button onClick={() => loadFromHistory(draft)}
+                        className="flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/10 px-2 py-1 rounded-lg transition-colors flex-1">
+                        <span className="material-symbols-outlined text-xs">open_in_new</span> Load
+                      </button>
+                      <button onClick={() => dispatch(deleteWorksheetDraft(draft._id))}
+                        className="text-gray-300 hover:text-red-500 transition-colors p-1">
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right: Preview */}
@@ -233,54 +349,192 @@ export default function WorksheetGenerator() {
               <p className="text-sm text-gray-400">Generating worksheet...</p>
             </div>
           )}
-          {!generating && !aiResult && (
+          {!generating && !showOutput && (
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 w-full max-w-md p-10 flex flex-col items-center text-center">
               <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-6">
                 <span className="material-symbols-outlined text-[#695be6] text-5xl">description</span>
               </div>
               <h2 className="font-black text-xl mb-2">Ready to Create?</h2>
-              <p className="text-sm text-gray-400">Fill in the details and click Generate to create a professional worksheet with answer key.</p>
+              <p className="text-sm text-gray-400 mb-4">Fill in the details and click Generate to create a professional worksheet with answer key.</p>
+              {worksheetDrafts.length > 0 && (
+                <button onClick={() => setShowHistory((v) => !v)}
+                  className="flex items-center gap-1.5 border border-[#695be6] text-[#695be6] text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#695be6]/5 transition-colors">
+                  <span className="material-symbols-outlined text-base">history</span>
+                  Saved Worksheets ({worksheetDrafts.length})
+                </button>
+              )}
+              {showHistory && (
+                <div className="w-full mt-4 text-left space-y-2 max-h-60 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                  {worksheetDrafts.map((item) => (
+                    <div key={item._id} className="bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                      <div className="px-3 py-2">
+                        <p className="text-xs font-bold text-gray-800 truncate">{item.title}</p>
+                        <p className="text-[10px] text-gray-400">{item.subject}{item.grade ? ` · ${item.grade}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-1 px-3 pb-2">
+                        <button onClick={() => loadFromHistory(item)}
+                          className="flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/5 px-2 py-1 rounded-lg">
+                          <span className="material-symbols-outlined text-xs">open_in_new</span> Load
+                        </button>
+                        <div className="flex-1" />
+                        <button onClick={() => dispatch(deleteWorksheetDraft(item._id))} className="text-gray-300 hover:text-red-500 p-1">
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {!generating && aiResult && (() => {
+          {!generating && showOutput && displayResult && (() => {
             return (
             <div className="w-full max-w-3xl space-y-4">
               {/* Action bar */}
-              <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3">
+              <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-4 py-3 flex-wrap gap-2">
                 <div>
-                  <p className="font-black text-base">{aiResult.title}</p>
-                  <p className="text-xs text-gray-500">{aiResult.total_marks} marks · {aiResult.estimated_time_minutes} min · {aiResult.difficulty}</p>
+                  <p className="font-black text-base">{displayResult.title}</p>
+                  <p className="text-xs text-gray-500">{displayResult.total_marks} marks · {displayResult.estimated_time_minutes} min · {displayResult.difficulty}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
+                <div className="flex gap-2 flex-wrap">
+                  {editedResult && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-amber-600 border border-amber-200 bg-amber-50 px-2.5 py-1.5 rounded-lg">
+                      <span className="material-symbols-outlined text-sm">edit</span> Edited
+                    </span>
+                  )}
+                  <button
+                    onClick={handleSaveDraft}
+                    disabled={savingDraft}
+                    className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                      savedDraftId ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-500 text-white border-transparent hover:bg-amber-600"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {savingDraft ? "hourglass_empty" : savedDraftId ? "check_circle" : "save"}
+                    </span>
+                    {savingDraft ? "Saving..." : savedDraftId ? "Saved" : "Save Draft"}
+                  </button>
+                  <button
+                    onClick={() => setShowHistory((v) => !v)}
+                    className={`flex items-center gap-1 border text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors ${
+                      showHistory ? "bg-[#695be6] text-white border-[#695be6]" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">history</span>
+                    Saved
+                    {worksheetDrafts.length > 0 && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHistory ? "bg-white text-[#695be6]" : "bg-[#695be6] text-white"}`}>
+                        {worksheetDrafts.length}
+                      </span>
+                    )}
+                  </button>
+                  <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(displayResult, null, 2))}
                     className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50">
                     <span className="material-symbols-outlined text-sm">content_copy</span> Copy
                   </button>
-                  <button onClick={() => downloadWorksheetPdf(aiResult)}
+                  <button onClick={() => downloadWorksheetPdf(displayResult)}
                     className="flex items-center gap-1 bg-[#695be6] text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#5a4dd4]">
                     <span className="material-symbols-outlined text-sm">download</span> Download PDF
                   </button>
+                  <button
+                    onClick={() => {
+                      const allQs = (displayResult.sections || []).flatMap((sec) =>
+                        (sec.questions || []).map((q, i) => ({
+                          id: `ws_${sec.type}_${i}`,
+                          question_text: q.text || "",
+                          answer_type: sec.type === "MCQ" ? "mcq" : "typed",
+                          options: sec.type === "MCQ" && q.options
+                            ? q.options.map((opt, j) => ({
+                                id: `o${j+1}`,
+                                text: typeof opt === "string" ? opt.replace(/^[A-D]\.\s*/,"") : opt,
+                                is_correct: q.correct_answer ? opt.startsWith(q.correct_answer) : j === 0,
+                              }))
+                            : [],
+                          max_points: q.marks || 1,
+                          hint: "",
+                          sample_answer: q.sample_answer || q.marking_points?.join("; ") || "",
+                        }))
+                      );
+                      navigate("/teacher/homework/create", {
+                        state: {
+                          preloadedQuestions: allQs,
+                          subject: displayResult.subject || form.subject,
+                          title: displayResult.title || `${form.topic} Worksheet`,
+                        },
+                      });
+                    }}
+                    className="flex items-center gap-1 bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-green-700">
+                    <span className="material-symbols-outlined text-sm">assignment_add</span> Create Homework
+                  </button>
                 </div>
               </div>
+
+              {/* History panel */}
+              {showHistory && (
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-black text-[#695be6] uppercase tracking-widest">Saved Worksheets</p>
+                    <span className="text-[10px] text-gray-400">{worksheetDrafts.length} saved</span>
+                  </div>
+                  {worksheetDrafts.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">No saved worksheets yet. Generate one and click Save Draft.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                      {worksheetDrafts.map((item) => (
+                        <div key={item._id} className="bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                          <div className="px-3 py-2">
+                            <p className="text-xs font-bold text-gray-800 truncate">{item.title}</p>
+                            <p className="text-[10px] text-gray-400">
+                              {item.subject}{item.grade ? ` · ${item.grade}` : ""}
+                              {item.created_at ? ` · ${new Date(item.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 px-3 pb-2">
+                            <button onClick={() => loadFromHistory(item)}
+                              className="flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/5 px-2 py-1 rounded-lg transition-colors">
+                              <span className="material-symbols-outlined text-xs">open_in_new</span> Load
+                            </button>
+                            <div className="flex-1" />
+                            <button onClick={() => dispatch(deleteWorksheetDraft(item._id))}
+                              className="text-gray-300 hover:text-red-500 transition-colors p-1">
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Printable content */}
               <div id="worksheet-printable" className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
                 {/* Header */}
                 <div className="border-b-2 border-[#695be6] pb-3">
-                  <h1 className="font-black text-xl">{aiResult.title}</h1>
+                  <input
+                    value={displayResult.title || ""}
+                    onChange={(e) => updateResultField("title", e.target.value)}
+                    className="font-black text-xl w-full outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                  />
                   <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-1">
-                    <span>Subject: <strong>{aiResult.subject}</strong></span>
-                    <span>Grade: <strong>{aiResult.grade}</strong></span>
-                    <span>Total Marks: <strong>{aiResult.total_marks}</strong></span>
-                    <span>Time: <strong>{aiResult.estimated_time_minutes} min</strong></span>
+                    <span>Subject: <strong>{displayResult.subject}</strong></span>
+                    <span>Grade: <strong>{displayResult.grade}</strong></span>
+                    <span>Total Marks: <strong>{displayResult.total_marks}</strong></span>
+                    <span>Time: <strong>{displayResult.estimated_time_minutes} min</strong></span>
                     <span>Name: ___________________</span>
                     <span>Date: ___________________</span>
                   </div>
-                  {aiResult.instructions && <p className="text-xs text-gray-600 mt-2 italic">{aiResult.instructions}</p>}
+                  {displayResult.instructions && (
+                    <input
+                      value={displayResult.instructions}
+                      onChange={(e) => updateResultField("instructions", e.target.value)}
+                      className="text-xs text-gray-600 mt-2 italic w-full outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                    />
+                  )}
                 </div>
 
                 {/* Sections */}
-                {(aiResult.sections || []).map((sec, si) => (
+                {(displayResult.sections || []).map((sec, si) => (
                   <div key={si}>
                     <h2 className="font-black text-sm text-[#695be6] uppercase tracking-wide mb-3 border-b border-[#695be6]/20 pb-1">
                       {sec.title || sec.type}
@@ -293,8 +547,21 @@ export default function WorksheetGenerator() {
                             <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{q.number}</span>
                             <div className="flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <p className="text-sm font-medium">{q.text}</p>
-                                <span className="text-[10px] font-bold text-[#695be6] whitespace-nowrap">[{q.marks} mark{q.marks > 1 ? "s" : ""}]</span>
+                                <textarea
+                                  value={q.text || ""}
+                                  onChange={(e) => updateSectionQuestion(si, qi, "text", e.target.value)}
+                                  rows={2}
+                                  className="flex-1 text-sm font-medium resize-none outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                                />
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <input
+                                    type="number" min={1} max={20}
+                                    value={q.marks || 1}
+                                    onChange={(e) => updateSectionQuestion(si, qi, "marks", +e.target.value)}
+                                    className="w-12 text-[10px] font-bold text-[#695be6] border border-[#695be6]/30 rounded px-1 py-0.5 text-center outline-none focus:border-[#695be6]"
+                                  />
+                                  <span className="text-[10px] text-gray-400">mk</span>
+                                </div>
                               </div>
                               {q.options && (
                                 <div className="mt-2 space-y-1">
@@ -318,16 +585,23 @@ export default function WorksheetGenerator() {
                 ))}
 
                 {/* Answer Key */}
-                {aiResult.answer_key?.length > 0 && (
+                {displayResult.answer_key?.length > 0 && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
                     <h3 className="font-black text-sm text-green-800 mb-3 flex items-center gap-2">
                       <span className="material-symbols-outlined text-base">key</span> Answer Key (Teacher Copy)
                     </h3>
                     <div className="grid grid-cols-2 gap-2">
-                      {aiResult.answer_key.map((a, i) => (
+                      {displayResult.answer_key.map((a, i) => (
                         <div key={i} className="flex items-start gap-2 text-xs">
                           <span className="font-bold text-green-700 w-6">Q{a.number}.</span>
-                          <span className="text-gray-700">{a.answer}</span>
+                          <input
+                            value={a.answer || ""}
+                            onChange={(e) => {
+                              const ak = displayResult.answer_key.map((k, ki) => ki === i ? { ...k, answer: e.target.value } : k);
+                              updateResultField("answer_key", ak);
+                            }}
+                            className="flex-1 text-gray-700 bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                          />
                           {a.notes && <span className="text-gray-400 italic">({a.notes})</span>}
                         </div>
                       ))}
@@ -336,10 +610,15 @@ export default function WorksheetGenerator() {
                 )}
 
                 {/* Teacher Notes */}
-                {aiResult.teacher_notes && (
+                {displayResult.teacher_notes && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-xs font-bold text-amber-800 mb-1">Teacher Notes</p>
-                    <p className="text-xs text-gray-700">{aiResult.teacher_notes}</p>
+                    <textarea
+                      value={displayResult.teacher_notes}
+                      onChange={(e) => updateResultField("teacher_notes", e.target.value)}
+                      rows={3}
+                      className="w-full text-xs text-gray-700 bg-transparent outline-none resize-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                    />
                   </div>
                 )}
               </div>

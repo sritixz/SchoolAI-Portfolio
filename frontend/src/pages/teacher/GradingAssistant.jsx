@@ -29,9 +29,12 @@ export default function GradingAssistant() {
   const [editMode, setEditMode]   = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [historyResult, setHistoryResult] = useState(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
 
   const generating = aiStatus === "loading";
-  const evaluated  = !!aiResult && !generating;
+  const activeResult = historyLoaded ? historyResult : aiResult;
+  const evaluated  = !!activeResult && !generating;
   const uploading  = uploadStatus === "loading";
 
   useEffect(() => () => { dispatch(clearAiToolResult()); dispatch(clearUpload()); }, [dispatch]);
@@ -50,7 +53,7 @@ export default function GradingAssistant() {
 
   // Sync feedback text when result arrives
   useEffect(() => {
-    if (aiResult?.feedback) setFeedbackText(aiResult.feedback);
+    if (aiResult?.feedback) { setFeedbackText(aiResult.feedback); setHistoryLoaded(false); }
   }, [aiResult]);
 
   const { runTool } = useAiToolWithHistory();
@@ -60,6 +63,8 @@ export default function GradingAssistant() {
     setFeedbackText("");
     setEditMode(false);
     setSendSuccess(false);
+    setHistoryLoaded(false);
+    setHistoryResult(null);
     runTool(
       {
         tool: "grading",
@@ -93,7 +98,7 @@ export default function GradingAssistant() {
   };
 
   const gradingHistory = history.filter((h) => h.tool === "grading").slice(0, 20);
-  const scorePercent   = evaluated ? Math.round((aiResult.score / aiResult.max_score) * 100) : 0;
+  const scorePercent   = evaluated ? Math.round((activeResult.score / activeResult.max_score) * 100) : 0;
 
   return (
     <div className="bg-[#fff5f8] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -257,10 +262,10 @@ export default function GradingAssistant() {
             )}
 
             {/* Result */}
-            {!generating && evaluated && aiResult && (
+            {!generating && evaluated && activeResult && (
               <div className="flex-1 overflow-y-auto">
                 <SmartFeedback
-                  result={aiResult}
+                  result={activeResult}
                   feedbackText={feedbackText}
                   setFeedbackText={setFeedbackText}
                   editMode={editMode}
@@ -293,8 +298,8 @@ export default function GradingAssistant() {
                   <p className="text-sm">No grading history yet</p>
                 </div>
               ) : gradingHistory.map((item) => (
-                <button key={item.id} onClick={() => setShowHistory(false)}
-                  className="w-full text-left bg-gray-50 hover:bg-[#695be6]/5 border border-gray-100 hover:border-[#695be6]/30 rounded-xl p-3 transition-all">
+                <div key={item.id}
+                  className="bg-gray-50 hover:bg-[#695be6]/5 border border-gray-100 hover:border-[#695be6]/30 rounded-xl p-3 transition-all">
                   <p className="text-sm font-bold truncate">{item.title}</p>
                   <div className="flex items-center gap-3 mt-1">
                     <span className="text-xs text-gray-400">{new Date(item.createdAt).toLocaleDateString()}</span>
@@ -302,7 +307,23 @@ export default function GradingAssistant() {
                       <span className="text-xs font-bold text-[#695be6]">{item.result.score}/{item.result.max_score}</span>
                     )}
                   </div>
-                </button>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        setHistoryResult(item.result ?? null);
+                        setHistoryLoaded(true);
+                        setFeedbackText(item.result?.feedback || "");
+                        setEditMode(false);
+                        setSendSuccess(false);
+                        setShowHistory(false);
+                        if (item.topic) setForm((p) => ({ ...p, question: item.topic }));
+                      }}
+                      className="flex items-center gap-1 text-xs font-bold text-[#695be6] hover:bg-[#695be6]/10 px-2 py-1 rounded-lg transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">open_in_new</span> Load
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

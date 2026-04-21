@@ -47,6 +47,7 @@ async def create_homework(body: HomeworkCreate, user=Depends(require_role("teach
     doc["status"]      = "draft"
     doc["submission_counts"] = {"submitted": 0, "pending": 0, "graded": 0}
     doc["ai_assistant_enabled"] = body.ai_assistant_enabled  # Store AI assistant preference
+    doc["allow_retries"] = body.allow_retries                # Store retry preference
     result = await db.homework.insert_one(doc)
     hw_id = str(result.inserted_id)
     return {"id": hw_id}
@@ -83,6 +84,7 @@ async def update_homework(homework_id: str, body: HomeworkCreate,
         "instructions":                body.instructions,
         "tags":                        body.tags,
         "ai_assistant_enabled":        body.ai_assistant_enabled,  # Update AI assistant preference
+        "allow_retries":               body.allow_retries,          # Update retry preference
         "updated_at":                  datetime.utcnow().isoformat(),
     }
     # Only update questions if provided
@@ -120,7 +122,7 @@ async def assign_homework(body: HomeworkAssign, user=Depends(require_role("teach
     if not hw:
         raise HTTPException(404, "Homework not found or not yours")
 
-    update: dict = {"status": "assigned"}
+    update: dict = {"status": "assigned", "assigned_at": datetime.utcnow().isoformat()}
     if body.due_date:
         update["due_date"] = body.due_date
 
@@ -133,10 +135,51 @@ async def assign_homework(body: HomeworkAssign, user=Depends(require_role("teach
     await db.homework.update_one({"_id": ObjectId(body.homework_id)}, {"$set": update})
     return {"assigned": len(body.student_ids)}
 
+@router.delete("/{homework_id}")
+async def delete_homework(homework_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """
+    Permanently delete a homework (draft or assigned).
+    Also deletes all student submissions for this homework so students
+    no longer see it in their list.
+    """
+    try:
+        hw = await db.homework.find_one({"_id": ObjectId(homework_id), "created_by": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid homework ID")
+    if not hw:
+        raise HTTPException(404, "Homework not found or not yours")
+
+    # Delete all submissions first
+    del_subs = await db.homework_submissions.delete_many({"homework_id": homework_id})
+    # Delete the homework itself
+    await db.homework.delete_one({"_id": ObjectId(homework_id)})
+
+    return {
+        "deleted": True,
+        "submissions_removed": del_subs.deleted_count,
+    }
+
 @router.get("/library")
 async def homework_library(user=Depends(require_role("teacher")), db=Depends(get_db)):
     docs = await db.homework.find({"created_by": user["id"]}).sort("created_at", -1).to_list(None)
-    return [_ser(d) for d in docs]
+    result = []
+    for d in docs:
+        d = _ser(d)
+        # Resolve assigned student names for history display
+        student_ids = d.get("assigned_students", [])
+        assigned_names = []
+        if student_ids:
+            try:
+                students = await db.users.find(
+                    {"_id": {"$in": [ObjectId(sid) for sid in student_ids[:20]]}},
+                    {"name": 1}
+                ).to_list(None)
+                assigned_names = [s.get("name", "") for s in students if s.get("name")]
+            except Exception:
+                pass
+        d["assigned_student_names"] = assigned_names
+        result.append(d)
+    return result
 
 @router.get("/{homework_id}/submissions")
 async def list_submissions(homework_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
@@ -207,6 +250,57 @@ async def _run_analysis(db, sub, hw):
 @router.post("/grade")
 async def grade_homework(body: TeacherGradeRequest, user=Depends(require_role("teacher")), db=Depends(get_db)):
     """Teacher finalises grade — optionally overriding AI suggestions."""
+    # Apply question-level overrides back into the answers array and ai_analysis
+    sub = await db.homework_submissions.find_one(
+        {"homework_id": body.homework_id, "student_id": body.student_id}
+    )
+    if not sub:
+        raise HTTPException(404, "Submission not found")
+
+    extra_updates = {}
+    if body.question_overrides:
+        ov_map = {o["question_id"]: o for o in body.question_overrides}
+
+        # Patch answers array
+        answers = sub.get("answers") or []
+        patched_answers = []
+        for ans in answers:
+            ov = ov_map.get(ans.get("question_id"))
+            if ov:
+                ans = {**ans}
+                if "points_awarded" in ov and ov["points_awarded"] is not None:
+                    ans["points_awarded"] = ov["points_awarded"]
+                if "is_correct" in ov and ov["is_correct"] is not None:
+                    ans["is_correct"] = ov["is_correct"]
+                if "comment" in ov:
+                    ans["teacher_comment"] = ov["comment"]
+            patched_answers.append(ans)
+        extra_updates["answers"] = patched_answers
+
+        # Patch ai_analysis.question_analysis to keep feedback consistent
+        ai_analysis = sub.get("ai_analysis") or {}
+        qa_list = ai_analysis.get("question_analysis") or []
+        patched_qa = []
+        for qa in qa_list:
+            ov = ov_map.get(qa.get("question_id"))
+            if ov:
+                qa = {**qa}
+                if "points_awarded" in ov and ov["points_awarded"] is not None:
+                    qa["ai_score"] = ov["points_awarded"]
+                if "is_correct" in ov and ov["is_correct"] is not None:
+                    qa["is_correct"] = ov["is_correct"]
+                    # Fix feedback to match corrected verdict
+                    feedback = qa.get("feedback", "")
+                    if ov["is_correct"] and feedback.lower().startswith("incorrect"):
+                        qa["feedback"] = "Correct (teacher verified). " + feedback.replace("Incorrect.", "").replace("incorrect.", "").strip()
+                    elif not ov["is_correct"] and feedback.lower().startswith("correct"):
+                        qa["feedback"] = "Incorrect (teacher corrected). " + feedback.replace("Correct.", "").replace("correct.", "").strip()
+                if "comment" in ov and ov["comment"]:
+                    qa["teacher_comment"] = ov["comment"]
+            patched_qa.append(qa)
+        if patched_qa:
+            extra_updates["ai_analysis"] = {**ai_analysis, "question_analysis": patched_qa}
+
     update = {
         "final_grade":        body.final_grade,
         "final_score":        body.final_score,
@@ -215,6 +309,7 @@ async def grade_homework(body: TeacherGradeRequest, user=Depends(require_role("t
         "graded_by":          user["id"],
         "graded_at":          datetime.utcnow().isoformat(),
         "status":             "graded" if body.publish else "draft_grade",
+        **extra_updates,
     }
     result = await db.homework_submissions.update_one(
         {"homework_id": body.homework_id, "student_id": body.student_id},
@@ -286,6 +381,9 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             "attachments":              d.get("attachments", []),
             "studentSubmissionUrl":     sub.get("submission_file_url") if sub else None,
             "tags":                     d.get("tags", []),
+            "submission_type":          d.get("submission_type", "online_quiz"),
+            "allow_retries":            d.get("allow_retries", False),
+            "ai_assistant_enabled":     d.get("ai_assistant_enabled", True),
         })
     return result
 
@@ -350,6 +448,15 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
         hw = await db.homework.find_one({"_id": ObjectId(body.homework_id)})
     except Exception:
         raise HTTPException(400, "Invalid homework ID")
+
+    # Check if student already submitted and retries are not allowed
+    existing_sub = await db.homework_submissions.find_one(
+        {"homework_id": body.homework_id, "student_id": user["id"]}
+    )
+    if existing_sub and existing_sub.get("status") in ("submitted", "graded"):
+        allow_retries = hw.get("allow_retries", False) if hw else False
+        if not allow_retries:
+            raise HTTPException(400, "Retries are not allowed for this homework")
 
     questions = {q["id"]: q for q in (hw.get("questions", []) if hw else [])}
     scored_answers = []

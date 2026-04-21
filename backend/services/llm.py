@@ -11,14 +11,14 @@ HEADERS = {
     "X-Title": "Bawan AI",
 }
 
-async def chat_completion(messages: list[dict], model: str = None, stream: bool = False) -> str:
+async def chat_completion(messages: list[dict], model: str = None, stream: bool = False, timeout: int = 120) -> str:
     """Send a chat completion request to OpenRouter. Returns full text."""
     payload = {
         "model": model or settings.OPENROUTER_MODEL,
         "messages": messages,
         "stream": stream,
     }
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{settings.OPENROUTER_BASE_URL}/chat/completions",
             headers=HEADERS,

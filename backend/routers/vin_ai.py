@@ -22,6 +22,10 @@ SYSTEM_PROMPT = """You are Vin, a warm and Socratic AI tutor for school students
 Your job is to GUIDE students to the answer — not just give it. Ask them to think first.
 Always be encouraging, patient, and clear.
 
+When homework context is provided (subject, title, question), use it to give targeted help.
+Reference the specific question the student is working on. Don't give away the answer directly —
+nudge them toward it with hints and guided steps.
+
 You MUST respond ONLY in this exact XML format — no text outside the tags:
 
 <response>
@@ -108,6 +112,8 @@ async def _save_conversation(db, student_id: str, question: str, full_xml: str):
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] = []   # [{role: "user"|"assistant", content: "..."}]
+    # Optional homework context injected by HomeworkAttempt
+    homework_context: Optional[dict] = None  # {subject, title, question_text, answer_type, hint, vin_nudge}
 
 class AnswerRequest(BaseModel):
     question: str              # the MCQ question text
@@ -127,6 +133,28 @@ async def chat(
 ):
     """SSE streaming chat. Returns text/event-stream of XML tokens."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # Inject homework context as a system-level context message if provided
+    if body.homework_context:
+        ctx = body.homework_context
+        context_lines = [
+            "=== CURRENT HOMEWORK CONTEXT ===",
+            f"Subject: {ctx.get('subject', 'Unknown')}",
+            f"Assignment: {ctx.get('title', 'Homework')}",
+        ]
+        if ctx.get("question_text"):
+            context_lines.append(f"Current Question: {ctx['question_text']}")
+        if ctx.get("answer_type"):
+            context_lines.append(f"Answer Type: {ctx['answer_type']}")
+        if ctx.get("hint"):
+            context_lines.append(f"Question Hint: {ctx['hint']}")
+        if ctx.get("vin_nudge"):
+            context_lines.append(f"Vin Nudge: {ctx['vin_nudge']}")
+        if ctx.get("sample_answer"):
+            context_lines.append(f"Expected Answer (DO NOT reveal directly): {ctx['sample_answer']}")
+        context_lines.append("=== END CONTEXT ===")
+        context_lines.append("Use this context to give targeted, question-specific help.")
+        messages.append({"role": "system", "content": "\n".join(context_lines)})
 
     # Last 10 turns (20 messages) as context
     for h in body.history[-20:]:

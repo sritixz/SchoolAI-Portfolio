@@ -53,6 +53,7 @@ class HomeworkCreate(BaseModel):
     total_marks: int = 0
     instructions: Optional[str] = None
     ai_assistant_enabled: bool = True    # Allow students to use Vin AI assistant
+    allow_retries: bool = False          # Allow students to re-attempt after submitting
 
 class HomeworkAssign(BaseModel):
     homework_id: str

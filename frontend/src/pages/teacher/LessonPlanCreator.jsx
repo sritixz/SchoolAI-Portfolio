@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { selectAiHistory, removeHistoryItem, fetchHistory } from "../../store/slices/aiHistorySlice";
 import {
   lessonPlanDefaults,
   aiTips,
@@ -22,15 +23,25 @@ export default function LessonPlanCreator() {
   const { user } = useAuth();
   const aiResult  = useSelector(selectAiToolResult);
   const aiStatus  = useSelector(selectAiToolStatus);
+  const allHistory = useSelector(selectAiHistory);
+  const lessonHistory = allHistory.filter((h) => h.tool === "lessonplan");
   const [form, setForm] = useState(lessonPlanDefaults);
   const [newMethod, setNewMethod] = useState("");
   const [newObjectiveText, setNewObjectiveText] = useState("");
   const [newObjectiveTag, setNewObjectiveTag] = useState("concept");
   const [showAddObjective, setShowAddObjective] = useState(false);
   const [formError, setFormError] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [editedResult, setEditedResult] = useState(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const generating = aiStatus === "loading";
 
+  // The displayed result — history-loaded item takes priority, then live AI result
+  const displayResult = historyLoaded ? editedResult : (editedResult ?? aiResult);
+
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchHistory()); }, [dispatch]);
 
   const toggleObjective = (id) =>
     setForm((p) => ({
@@ -109,6 +120,9 @@ export default function LessonPlanCreator() {
       return;
     }
     setFormError("");
+    setEditedResult(null);
+    setHistoryLoaded(false);
+    setIsEditing(false);
     dispatch(clearAiToolResult());
     const selectedSections = form.lessonSections.filter(s => s.selected);
     runTool({
@@ -137,7 +151,39 @@ export default function LessonPlanCreator() {
   };
 
   const handlePrint = () => {
-    downloadLessonPlanPdf(aiResult, form);
+    downloadLessonPlanPdf(displayResult, form);
+  };
+
+  // Deep-update a field in the edited result (supports dot-path like "differentiation.support")
+  const updateField = (path, value) => {
+    const base = editedResult ?? (aiResult ? JSON.parse(JSON.stringify(aiResult)) : {});
+    const keys = path.split(".");
+    const updated = { ...base };
+    let ref = updated;
+    for (let i = 0; i < keys.length - 1; i++) {
+      ref[keys[i]] = { ...ref[keys[i]] };
+      ref = ref[keys[i]];
+    }
+    ref[keys[keys.length - 1]] = value;
+    setEditedResult(updated);
+  };
+
+  const updateProcedureField = (idx, field, value) => {
+    const base = editedResult ?? (aiResult ? JSON.parse(JSON.stringify(aiResult)) : {});
+    const key = base.lesson_procedures ? "lesson_procedures" : base.sections ? "sections" : base.procedures ? "procedures" : "activities";
+    const arr = [...(base[key] || [])];
+    arr[idx] = { ...arr[idx], [field]: value };
+    setEditedResult({ ...base, [key]: arr });
+  };
+
+  const loadFromHistory = (item) => {
+    setEditedResult(item.result ?? null);
+    setHistoryLoaded(true);
+    setIsEditing(false);
+    setShowHistory(false);
+    if (item.subject) setForm((p) => ({ ...p, subject: item.subject }));
+    if (item.topic)   setForm((p) => ({ ...p, topic: item.topic }));
+    if (item.grade)   setForm((p) => ({ ...p, classLevel: item.grade }));
   };
 
   return (
@@ -638,6 +684,63 @@ export default function LessonPlanCreator() {
             <p className="text-xs text-gray-600">Once you generate, you can still edit specific timings for each section.</p>
           </div>
 
+          {/* History */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${showHistory ? "bg-[#695be6] text-white" : "hover:bg-gray-50 text-gray-700"}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-base">history</span>
+                <span className="text-xs font-black">History</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {lessonHistory.length > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHistory ? "bg-white text-[#695be6]" : "bg-[#695be6] text-white"}`}>
+                    {lessonHistory.length}
+                  </span>
+                )}
+                <span className="material-symbols-outlined text-sm">{showHistory ? "expand_less" : "expand_more"}</span>
+              </div>
+            </button>
+            {showHistory && (
+              <div className="p-3 space-y-2 max-h-72 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+                {lessonHistory.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">No history yet. Generate a plan to see it here.</p>
+                ) : (
+                  lessonHistory.map((item) => (
+                    <div key={item.id} className="bg-gray-50 border border-gray-100 rounded-xl overflow-hidden">
+                      <div className="px-3 py-2">
+                        <p className="text-xs font-bold text-gray-800 truncate">{item.title}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {item.subject}{item.grade ? ` · ${item.grade}` : ""}
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 px-3 pb-2">
+                        <button
+                          onClick={() => loadFromHistory(item)}
+                          className="flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/5 px-2 py-1 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-xs">open_in_new</span> Load
+                        </button>
+                        <div className="flex-1" />
+                        <button
+                          onClick={() => dispatch(removeHistoryItem(item.id))}
+                          className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Generate */}
           <div>
             <div className="flex items-center justify-end mb-2">
@@ -659,7 +762,7 @@ export default function LessonPlanCreator() {
       </div>
 
       {/* ── AI Result Panel ── */}
-      {(generating || aiResult) && (
+      {(generating || displayResult || historyLoaded) && (
         <div className="max-w-[1200px] mx-auto px-6 pb-12">
           {generating && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 flex flex-col items-center gap-3">
@@ -667,7 +770,7 @@ export default function LessonPlanCreator() {
               <p className="text-sm text-gray-400">AI is drafting your professional lesson plan...</p>
             </div>
           )}
-          {aiResult && !generating && (
+          {displayResult && !generating && (
             <div id="lesson-plan-printable" className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               {/* Header */}
               <div className="bg-gradient-to-r from-[#695be6] to-[#8b5cf6] p-6 text-white">
@@ -677,6 +780,13 @@ export default function LessonPlanCreator() {
                     Lesson Plan
                   </h3>
                   <div className="flex gap-2">
+                    <button
+                      onClick={() => { setIsEditing((v) => !v); if (!editedResult && aiResult) setEditedResult(JSON.parse(JSON.stringify(aiResult))); }}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${isEditing ? "bg-white text-[#695be6]" : "bg-white/20 hover:bg-white/30"}`}
+                    >
+                      <span className="material-symbols-outlined text-sm">{isEditing ? "check" : "edit"}</span>
+                      {isEditing ? "Done Editing" : "Edit"}
+                    </button>
                     <button 
                       onClick={handlePrint}
                       className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors">
@@ -684,7 +794,7 @@ export default function LessonPlanCreator() {
                     </button>
                     <button 
                       onClick={() => {
-                        const planText = `LESSON PLAN\n\nSubject: ${form.subject}\nTopic: ${form.topic}\nGrade: ${form.classLevel}\nDuration: ${form.durationMinutes} minutes\n\n${JSON.stringify(aiResult, null, 2)}`;
+                        const planText = `LESSON PLAN\n\nSubject: ${form.subject}\nTopic: ${form.topic}\nGrade: ${form.classLevel}\nDuration: ${form.durationMinutes} minutes\n\n${JSON.stringify(displayResult, null, 2)}`;
                         navigator.clipboard?.writeText(planText);
                       }}
                       className="flex items-center gap-1 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-bold transition-colors">
@@ -721,7 +831,7 @@ export default function LessonPlanCreator() {
               {/* Content */}
               <div className="p-6 space-y-6">
                 {/* Learning Objectives */}
-                {aiResult.learning_objectives?.length > 0 && (
+                {displayResult.learning_objectives?.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">flag</span>
@@ -729,10 +839,22 @@ export default function LessonPlanCreator() {
                     </div>
                     <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
                       <ul className="space-y-2">
-                        {aiResult.learning_objectives.map((o, i) => (
+                        {displayResult.learning_objectives.map((o, i) => (
                           <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
                             <span className="material-symbols-outlined text-blue-600 text-base mt-0.5">check_circle</span>
-                            <span>{typeof o === "string" ? o : o.text || JSON.stringify(o)}</span>
+                            {isEditing ? (
+                              <input
+                                value={typeof o === "string" ? o : o.text || ""}
+                                onChange={(e) => {
+                                  const arr = [...displayResult.learning_objectives];
+                                  arr[i] = typeof o === "string" ? e.target.value : { ...o, text: e.target.value };
+                                  updateField("learning_objectives", arr);
+                                }}
+                                className="flex-1 border-b border-blue-300 bg-transparent outline-none text-sm focus:border-[#695be6]"
+                              />
+                            ) : (
+                              <span>{typeof o === "string" ? o : o.text || JSON.stringify(o)}</span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -741,14 +863,14 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Prerequisite Knowledge */}
-                {aiResult.prerequisite_knowledge?.length > 0 && (
+                {displayResult.prerequisite_knowledge?.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">history_edu</span>
                       <h4 className="font-black text-lg">Prerequisite Knowledge</h4>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {aiResult.prerequisite_knowledge.map((p, i) => (
+                      {displayResult.prerequisite_knowledge.map((p, i) => (
                         <span key={i} className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-sm px-3 py-1.5 rounded-full">{p}</span>
                       ))}
                     </div>
@@ -756,18 +878,32 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Key Vocabulary */}
-                {aiResult.key_vocabulary?.length > 0 && (
+                {displayResult.key_vocabulary?.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">spellcheck</span>
                       <h4 className="font-black text-lg">Key Vocabulary</h4>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {aiResult.key_vocabulary.map((v, i) => (
+                      {displayResult.key_vocabulary.map((v, i) => (
                         <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                          <span className="font-bold text-sm text-[#695be6]">{v.term}</span>
-                          <span className="text-gray-500 text-sm"> — </span>
-                          <span className="text-sm text-gray-700">{v.definition}</span>
+                          {isEditing ? (
+                            <div className="flex gap-2 items-center">
+                              <input value={v.term}
+                                onChange={(e) => { const arr = [...displayResult.key_vocabulary]; arr[i] = { ...v, term: e.target.value }; updateField("key_vocabulary", arr); }}
+                                className="font-bold text-sm text-[#695be6] border-b border-[#695be6]/40 bg-transparent outline-none w-24 focus:border-[#695be6]" />
+                              <span className="text-gray-400 text-sm">—</span>
+                              <input value={v.definition}
+                                onChange={(e) => { const arr = [...displayResult.key_vocabulary]; arr[i] = { ...v, definition: e.target.value }; updateField("key_vocabulary", arr); }}
+                                className="flex-1 text-sm text-gray-700 border-b border-gray-300 bg-transparent outline-none focus:border-[#695be6]" />
+                            </div>
+                          ) : (
+                            <>
+                              <span className="font-bold text-sm text-[#695be6]">{v.term}</span>
+                              <span className="text-gray-500 text-sm"> — </span>
+                              <span className="text-sm text-gray-700">{v.definition}</span>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -775,14 +911,14 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Materials */}
-                {(aiResult.materials?.length > 0 || form.resources?.length > 0) && (
+                {(displayResult.materials?.length > 0 || form.resources?.length > 0) && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">inventory_2</span>
                       <h4 className="font-black text-lg">Materials & Resources</h4>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {(aiResult.materials || form.resources || []).map((r, i) => (
+                      {(displayResult.materials || form.resources || []).map((r, i) => (
                         <span key={i} className="bg-gray-100 text-gray-700 text-sm px-3 py-1.5 rounded-full font-medium">
                           {typeof r === "string" ? r : r.name || JSON.stringify(r)}
                         </span>
@@ -792,14 +928,14 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Lesson Procedures — primary key */}
-                {(aiResult.lesson_procedures || aiResult.sections || aiResult.procedures || aiResult.activities) && (
+                {(displayResult.lesson_procedures || displayResult.sections || displayResult.procedures || displayResult.activities) && (
                   <section>
                     <div className="flex items-center gap-2 mb-4">
                       <span className="material-symbols-outlined text-[#695be6]">list_alt</span>
                       <h4 className="font-black text-lg">Lesson Procedures</h4>
                     </div>
                     <div className="space-y-4">
-                      {(aiResult.lesson_procedures || aiResult.sections || aiResult.procedures || aiResult.activities || []).map((proc, i) => {
+                      {(displayResult.lesson_procedures || displayResult.sections || displayResult.procedures || displayResult.activities || []).map((proc, i) => {
                         const phase = proc.phase || proc.name || proc.title || proc.section || `Step ${i + 1}`;
                         const duration = proc.duration_minutes || proc.duration;
                         const purpose = proc.purpose;
@@ -807,29 +943,62 @@ export default function LessonPlanCreator() {
                         const studentActions = proc.student_actions || proc.student_activity;
                         const keyQuestions = proc.key_questions;
                         const notes = proc.notes;
+                        const phaseKey = proc.phase !== undefined ? "phase" : proc.name !== undefined ? "name" : proc.title !== undefined ? "title" : "section";
+                        const durationKey = proc.duration_minutes !== undefined ? "duration_minutes" : "duration";
+                        const teacherKey = proc.teacher_actions !== undefined ? "teacher_actions" : "teacher_activity";
+                        const studentKey = proc.student_actions !== undefined ? "student_actions" : "student_activity";
                         return (
                           <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
                             <div className="flex items-center gap-3 bg-[#695be6]/5 px-4 py-3 border-b border-gray-200">
                               <span className="size-7 rounded-full bg-[#695be6] text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
-                              <h5 className="font-bold text-base flex-1">{phase}</h5>
-                              {duration && (
-                                <span className="text-xs bg-[#695be6] text-white px-2.5 py-1 rounded-full font-bold">{duration} min</span>
+                              {isEditing ? (
+                                <input value={phase} onChange={(e) => updateProcedureField(i, phaseKey, e.target.value)}
+                                  className="font-bold text-base flex-1 border-b border-[#695be6]/40 bg-transparent outline-none focus:border-[#695be6]" />
+                              ) : (
+                                <h5 className="font-bold text-base flex-1">{phase}</h5>
+                              )}
+                              {duration != null && (
+                                isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <input type="number" value={duration}
+                                      onChange={(e) => updateProcedureField(i, durationKey, parseInt(e.target.value) || 0)}
+                                      className="w-14 text-xs font-bold text-white bg-[#695be6] border border-white/30 rounded-full px-2 py-1 text-center outline-none" />
+                                    <span className="text-xs text-white/80">min</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs bg-[#695be6] text-white px-2.5 py-1 rounded-full font-bold">{duration} min</span>
+                                )
                               )}
                             </div>
                             <div className="p-4 space-y-3">
                               {purpose && (
-                                <p className="text-xs text-gray-500 italic">{purpose}</p>
+                                isEditing ? (
+                                  <input value={purpose} onChange={(e) => updateProcedureField(i, "purpose", e.target.value)}
+                                    className="w-full text-xs text-gray-500 italic border-b border-gray-200 bg-transparent outline-none focus:border-[#695be6]" />
+                                ) : (
+                                  <p className="text-xs text-gray-500 italic">{purpose}</p>
+                                )
                               )}
                               {teacherActions && (
                                 <div>
                                   <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-1">Teacher Actions</p>
-                                  <p className="text-sm text-gray-700 leading-relaxed">{teacherActions}</p>
+                                  {isEditing ? (
+                                    <textarea value={teacherActions} rows={2} onChange={(e) => updateProcedureField(i, teacherKey, e.target.value)}
+                                      className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#695be6] resize-none" />
+                                  ) : (
+                                    <p className="text-sm text-gray-700 leading-relaxed">{teacherActions}</p>
+                                  )}
                                 </div>
                               )}
                               {studentActions && (
                                 <div>
                                   <p className="text-xs font-black text-gray-400 uppercase tracking-wide mb-1">Student Actions</p>
-                                  <p className="text-sm text-gray-700 leading-relaxed">{studentActions}</p>
+                                  {isEditing ? (
+                                    <textarea value={studentActions} rows={2} onChange={(e) => updateProcedureField(i, studentKey, e.target.value)}
+                                      className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#695be6] resize-none" />
+                                  ) : (
+                                    <p className="text-sm text-gray-700 leading-relaxed">{studentActions}</p>
+                                  )}
                                 </div>
                               )}
                               {keyQuestions?.length > 0 && (
@@ -838,7 +1007,13 @@ export default function LessonPlanCreator() {
                                   <ul className="space-y-1">
                                     {keyQuestions.map((q, j) => (
                                       <li key={j} className="flex items-start gap-2 text-sm text-gray-700">
-                                        <span className="text-[#695be6] font-bold flex-shrink-0">Q:</span> {q}
+                                        <span className="text-[#695be6] font-bold flex-shrink-0">Q:</span>
+                                        {isEditing ? (
+                                          <input value={q} onChange={(e) => {
+                                            const arr = [...keyQuestions]; arr[j] = e.target.value;
+                                            updateProcedureField(i, "key_questions", arr);
+                                          }} className="flex-1 border-b border-gray-200 bg-transparent outline-none text-sm focus:border-[#695be6]" />
+                                        ) : q}
                                       </li>
                                     ))}
                                   </ul>
@@ -847,10 +1022,14 @@ export default function LessonPlanCreator() {
                               {notes && (
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
                                   <p className="text-xs font-black text-yellow-700 uppercase tracking-wide mb-1">Notes / Tips</p>
-                                  <p className="text-xs text-gray-700">{notes}</p>
+                                  {isEditing ? (
+                                    <textarea value={notes} rows={2} onChange={(e) => updateProcedureField(i, "notes", e.target.value)}
+                                      className="w-full text-xs text-gray-700 bg-transparent outline-none border-b border-yellow-300 focus:border-[#695be6] resize-none" />
+                                  ) : (
+                                    <p className="text-xs text-gray-700">{notes}</p>
+                                  )}
                                 </div>
                               )}
-                              {/* fallback for string-type items */}
                               {typeof proc === "string" && <p className="text-sm text-gray-700">{proc}</p>}
                             </div>
                           </div>
@@ -861,48 +1040,66 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Assessment */}
-                {(aiResult.formative_assessment || aiResult.summative_assessment || aiResult.assessment) && (
+                {(displayResult.formative_assessment || displayResult.summative_assessment || displayResult.assessment) && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">assignment_turned_in</span>
                       <h4 className="font-black text-lg">Assessment</h4>
                     </div>
                     <div className="space-y-3">
-                      {aiResult.formative_assessment && (
+                      {displayResult.formative_assessment && (
                         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
                           <p className="font-bold text-sm text-amber-800 mb-2">Formative Assessment (During Lesson)</p>
-                          {typeof aiResult.formative_assessment === "object" ? (
+                          {typeof displayResult.formative_assessment === "object" ? (
                             <>
-                              {aiResult.formative_assessment.during_lesson?.length > 0 && (
+                              {displayResult.formative_assessment.during_lesson?.length > 0 && (
                                 <ul className="space-y-1 mb-2">
-                                  {aiResult.formative_assessment.during_lesson.map((s, i) => (
+                                  {displayResult.formative_assessment.during_lesson.map((s, i) => (
                                     <li key={i} className="text-sm text-gray-700 flex items-start gap-2">
                                       <span className="text-amber-600 mt-0.5">•</span>{s}
                                     </li>
                                   ))}
                                 </ul>
                               )}
-                              {aiResult.formative_assessment.exit_ticket && (
+                              {displayResult.formative_assessment.exit_ticket && (
                                 <div className="mt-2 bg-white border border-amber-200 rounded-lg p-3">
                                   <p className="text-xs font-bold text-amber-700 mb-1">Exit Ticket:</p>
-                                  <p className="text-sm text-gray-700">{aiResult.formative_assessment.exit_ticket}</p>
+                                  {isEditing ? (
+                                    <textarea value={displayResult.formative_assessment.exit_ticket} rows={2}
+                                      onChange={(e) => updateField("formative_assessment.exit_ticket", e.target.value)}
+                                      className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-amber-200 focus:border-[#695be6] resize-none" />
+                                  ) : (
+                                    <p className="text-sm text-gray-700">{displayResult.formative_assessment.exit_ticket}</p>
+                                  )}
                                 </div>
                               )}
                             </>
                           ) : (
-                            <p className="text-sm text-gray-700">{aiResult.formative_assessment}</p>
+                            isEditing ? (
+                              <textarea value={displayResult.formative_assessment} rows={2}
+                                onChange={(e) => updateField("formative_assessment", e.target.value)}
+                                className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-amber-200 focus:border-[#695be6] resize-none" />
+                            ) : (
+                              <p className="text-sm text-gray-700">{displayResult.formative_assessment}</p>
+                            )
                           )}
                         </div>
                       )}
-                      {aiResult.summative_assessment && (
+                      {displayResult.summative_assessment && (
                         <div className="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-lg">
                           <p className="font-bold text-sm text-orange-800 mb-1">Summative Assessment</p>
-                          <p className="text-sm text-gray-700">{aiResult.summative_assessment}</p>
+                          {isEditing ? (
+                            <textarea value={displayResult.summative_assessment} rows={2}
+                              onChange={(e) => updateField("summative_assessment", e.target.value)}
+                              className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-orange-200 focus:border-[#695be6] resize-none" />
+                          ) : (
+                            <p className="text-sm text-gray-700">{displayResult.summative_assessment}</p>
+                          )}
                         </div>
                       )}
-                      {aiResult.assessment && !aiResult.formative_assessment && !aiResult.summative_assessment && (
+                      {displayResult.assessment && !displayResult.formative_assessment && !displayResult.summative_assessment && (
                         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg">
-                          <p className="text-sm text-gray-700">{typeof aiResult.assessment === "string" ? aiResult.assessment : JSON.stringify(aiResult.assessment)}</p>
+                          <p className="text-sm text-gray-700">{typeof displayResult.assessment === "string" ? displayResult.assessment : JSON.stringify(displayResult.assessment)}</p>
                         </div>
                       )}
                     </div>
@@ -910,35 +1107,59 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Differentiation */}
-                {aiResult.differentiation && (
+                {displayResult.differentiation && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">diversity_3</span>
                       <h4 className="font-black text-lg">Differentiation & Accommodations</h4>
                     </div>
                     <div className="grid md:grid-cols-2 gap-3">
-                      {aiResult.differentiation.support && (
+                      {displayResult.differentiation.support && (
                         <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
                           <p className="font-bold text-sm text-green-800 mb-2">Support (Struggling Learners)</p>
-                          <p className="text-sm text-gray-700">{aiResult.differentiation.support}</p>
+                          {isEditing ? (
+                            <textarea value={displayResult.differentiation.support} rows={2}
+                              onChange={(e) => updateField("differentiation.support", e.target.value)}
+                              className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-green-200 focus:border-[#695be6] resize-none" />
+                          ) : (
+                            <p className="text-sm text-gray-700">{displayResult.differentiation.support}</p>
+                          )}
                         </div>
                       )}
-                      {aiResult.differentiation.enrichment && (
+                      {displayResult.differentiation.enrichment && (
                         <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
                           <p className="font-bold text-sm text-purple-800 mb-2">Enrichment (Advanced Learners)</p>
-                          <p className="text-sm text-gray-700">{aiResult.differentiation.enrichment}</p>
+                          {isEditing ? (
+                            <textarea value={displayResult.differentiation.enrichment} rows={2}
+                              onChange={(e) => updateField("differentiation.enrichment", e.target.value)}
+                              className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-purple-200 focus:border-[#695be6] resize-none" />
+                          ) : (
+                            <p className="text-sm text-gray-700">{displayResult.differentiation.enrichment}</p>
+                          )}
                         </div>
                       )}
-                      {aiResult.differentiation.ell_accommodations && (
+                      {displayResult.differentiation.ell_accommodations && (
                         <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                           <p className="font-bold text-sm text-blue-800 mb-2">ELL Accommodations</p>
-                          <p className="text-sm text-gray-700">{aiResult.differentiation.ell_accommodations}</p>
+                          {isEditing ? (
+                            <textarea value={displayResult.differentiation.ell_accommodations} rows={2}
+                              onChange={(e) => updateField("differentiation.ell_accommodations", e.target.value)}
+                              className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-blue-200 focus:border-[#695be6] resize-none" />
+                          ) : (
+                            <p className="text-sm text-gray-700">{displayResult.differentiation.ell_accommodations}</p>
+                          )}
                         </div>
                       )}
-                      {aiResult.differentiation.iep_accommodations && (
+                      {displayResult.differentiation.iep_accommodations && (
                         <div className="bg-rose-50 border border-rose-200 p-4 rounded-lg">
                           <p className="font-bold text-sm text-rose-800 mb-2">IEP Accommodations</p>
-                          <p className="text-sm text-gray-700">{aiResult.differentiation.iep_accommodations}</p>
+                          {isEditing ? (
+                            <textarea value={displayResult.differentiation.iep_accommodations} rows={2}
+                              onChange={(e) => updateField("differentiation.iep_accommodations", e.target.value)}
+                              className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-rose-200 focus:border-[#695be6] resize-none" />
+                          ) : (
+                            <p className="text-sm text-gray-700">{displayResult.differentiation.iep_accommodations}</p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -946,14 +1167,14 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Cross-Curricular Connections */}
-                {aiResult.cross_curricular_connections?.length > 0 && (
+                {displayResult.cross_curricular_connections?.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">hub</span>
                       <h4 className="font-black text-lg">Cross-Curricular Connections</h4>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {aiResult.cross_curricular_connections.map((c, i) => (
+                      {displayResult.cross_curricular_connections.map((c, i) => (
                         <span key={i} className="bg-teal-50 text-teal-700 border border-teal-200 text-sm px-3 py-1.5 rounded-full">{c}</span>
                       ))}
                     </div>
@@ -961,29 +1182,41 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Homework */}
-                {aiResult.homework_assignment && (
+                {displayResult.homework_assignment && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">home_work</span>
                       <h4 className="font-black text-lg">Homework Assignment</h4>
                     </div>
                     <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
-                      <p className="text-sm text-gray-700">{aiResult.homework_assignment}</p>
+                      {isEditing ? (
+                        <textarea value={displayResult.homework_assignment} rows={3}
+                          onChange={(e) => updateField("homework_assignment", e.target.value)}
+                          className="w-full text-sm text-gray-700 bg-transparent outline-none border-b border-gray-300 focus:border-[#695be6] resize-none" />
+                      ) : (
+                        <p className="text-sm text-gray-700">{displayResult.homework_assignment}</p>
+                      )}
                     </div>
                   </section>
                 )}
 
                 {/* Teacher Reflection Prompts */}
-                {aiResult.teacher_reflection_prompts?.length > 0 && (
+                {displayResult.teacher_reflection_prompts?.length > 0 && (
                   <section>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#695be6]">self_improvement</span>
                       <h4 className="font-black text-lg">Teacher Reflection Prompts</h4>
                     </div>
                     <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-2">
-                      {aiResult.teacher_reflection_prompts.map((r, i) => (
+                      {displayResult.teacher_reflection_prompts.map((r, i) => (
                         <p key={i} className="text-sm text-gray-600 flex items-start gap-2">
-                          <span className="text-slate-400 font-bold flex-shrink-0">{i + 1}.</span> {r}
+                          <span className="text-slate-400 font-bold flex-shrink-0">{i + 1}.</span>
+                          {isEditing ? (
+                            <input value={r} onChange={(e) => {
+                              const arr = [...displayResult.teacher_reflection_prompts]; arr[i] = e.target.value;
+                              updateField("teacher_reflection_prompts", arr);
+                            }} className="flex-1 border-b border-gray-200 bg-transparent outline-none text-sm focus:border-[#695be6]" />
+                          ) : r}
                         </p>
                       ))}
                     </div>
@@ -991,18 +1224,21 @@ export default function LessonPlanCreator() {
                 )}
 
                 {/* Fallback for unstructured content */}
-                {!aiResult.learning_objectives && !aiResult.lesson_procedures && !aiResult.sections && aiResult.content && (
+                {!displayResult.learning_objectives && !displayResult.lesson_procedures && !displayResult.sections && displayResult.content && (
                   <section>
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{aiResult.content}</pre>
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">{displayResult.content}</pre>
                   </section>
                 )}
               </div>
 
               {/* Footer */}
               <div className="bg-gray-50 border-t border-gray-200 p-4 flex items-center justify-between">
-                <p className="text-xs text-gray-500">Generated by VinSchool AI • {new Date().toLocaleDateString()}</p>
-                <button 
-                  onClick={() => dispatch(clearAiToolResult())}
+                <p className="text-xs text-gray-500">
+                  Generated by VinSchool AI • {new Date().toLocaleDateString()}
+                  {editedResult && <span className="ml-2 text-amber-600 font-semibold">· Edited</span>}
+                </p>
+                <button
+                  onClick={() => { dispatch(clearAiToolResult()); setEditedResult(null); setHistoryLoaded(false); setIsEditing(false); }}
                   className="text-xs text-[#695be6] font-bold hover:underline">
                   Generate New Plan
                 </button>

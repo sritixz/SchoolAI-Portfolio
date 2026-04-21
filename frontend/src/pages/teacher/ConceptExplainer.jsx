@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
-import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
+import { selectAiHistory, removeHistoryItem, fetchHistory } from "../../store/slices/aiHistorySlice";
 import {
   conceptExplainerDefaults,
   gradeOptions,
@@ -20,11 +21,21 @@ export default function ConceptExplainer() {
   const { user }   = useAuth();
   const aiResult   = useSelector(selectAiToolResult);
   const aiStatus   = useSelector(selectAiToolStatus);
+  const allHistory = useSelector(selectAiHistory);
+  const conceptHistory = allHistory.filter((h) => h.tool === "concept");
+
   const [form, setForm] = useState(conceptExplainerDefaults);
+  const [editedResult, setEditedResult] = useState(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
   const generating = aiStatus === "loading";
-  const generated  = !!aiResult && !generating;
+  const displayResult = historyLoaded ? editedResult : (editedResult ?? aiResult);
+  const showOutput = generating || !!displayResult || historyLoaded;
 
   useEffect(() => () => { dispatch(clearAiToolResult()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchHistory()); }, [dispatch]);
 
   const toggleElement = (id) =>
     setForm((p) => ({
@@ -37,6 +48,9 @@ export default function ConceptExplainer() {
   const handleGenerate = () => {
     if (!form.concept.trim()) return;
     dispatch(clearAiToolResult());
+    setEditedResult(null);
+    setHistoryLoaded(false);
+    setIsEditing(false);
     runTool(
       {
         tool: "concept",
@@ -52,6 +66,29 @@ export default function ConceptExplainer() {
       },
       { tool: "concept", title: `Concept: ${form.concept}`, topic: form.concept, grade: form.grade }
     );
+  };
+
+  const loadFromHistory = (item) => {
+    setEditedResult(item.result ?? null);
+    setHistoryLoaded(true);
+    setIsEditing(false);
+    setShowHistory(false);
+    if (item.topic) setForm((p) => ({ ...p, concept: item.topic }));
+    if (item.grade) setForm((p) => ({ ...p, grade: item.grade }));
+  };
+
+  // Update a top-level string field in the edited result
+  const updateField = (key, value) => {
+    const base = editedResult ?? (aiResult ? JSON.parse(JSON.stringify(aiResult)) : {});
+    setEditedResult({ ...base, [key]: value });
+  };
+
+  // Update an array item field: updateArrayField("key_vocabulary", 0, "definition", "new val")
+  const updateArrayField = (key, idx, field, value) => {
+    const base = editedResult ?? (aiResult ? JSON.parse(JSON.stringify(aiResult)) : {});
+    const arr = [...(base[key] || [])];
+    arr[idx] = field ? { ...arr[idx], [field]: value } : value;
+    setEditedResult({ ...base, [key]: arr });
   };
 
   return (
@@ -227,33 +264,105 @@ export default function ConceptExplainer() {
 
           {/* ── Right: Output ── */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+            {/* Output toolbar */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50 flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
                 <div className="size-3 rounded-full bg-red-400" />
                 <div className="size-3 rounded-full bg-yellow-400" />
                 <div className="size-3 rounded-full bg-green-400" />
               </div>
-              {generated && aiResult && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => navigator.clipboard?.writeText(JSON.stringify(aiResult, null, 2))}
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    <span className="material-symbols-outlined text-sm">content_copy</span> Copy
-                  </button>
-                  <button
-                    onClick={() => downloadConceptPdf(aiResult)}
-                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    <span className="material-symbols-outlined text-sm">download</span> Save PDF
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {showOutput && displayResult && !generating && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setIsEditing((v) => !v);
+                        if (!editedResult && aiResult) setEditedResult(JSON.parse(JSON.stringify(aiResult)));
+                      }}
+                      className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                        isEditing ? "bg-[#695be6] text-white border-[#695be6]" : "border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">{isEditing ? "check" : "edit"}</span>
+                      {isEditing ? "Done" : "Edit"}
+                    </button>
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(JSON.stringify(displayResult, null, 2))}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded-lg"
+                    >
+                      <span className="material-symbols-outlined text-sm">content_copy</span> Copy
+                    </button>
+                    <button
+                      onClick={() => downloadConceptPdf(displayResult)}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded-lg"
+                    >
+                      <span className="material-symbols-outlined text-sm">download</span> PDF
+                    </button>
+                  </>
+                )}
+                {/* History button — always visible */}
+                <button
+                  onClick={() => setShowHistory((v) => !v)}
+                  className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                    showHistory ? "bg-[#695be6] text-white border-[#695be6]" : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">history</span>
+                  History
+                  {conceptHistory.length > 0 && (
+                    <span className={`ml-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHistory ? "bg-white text-[#695be6]" : "bg-[#695be6] text-white"}`}>
+                      {conceptHistory.length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
+
+            {/* History panel */}
+            {showHistory && (
+              <div className="border-b border-gray-100 bg-[#faf9ff] p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-black text-[#695be6] uppercase tracking-widest">History</p>
+                  <span className="text-[10px] text-gray-400">{conceptHistory.length} saved</span>
+                </div>
+                {conceptHistory.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">No history yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin" }}>
+                    {conceptHistory.map((item) => (
+                      <div key={item.id} className="bg-white rounded-xl border border-[#e8e3f5] overflow-hidden">
+                        <div className="px-3 py-2 border-b border-gray-50">
+                          <p className="text-xs font-bold text-gray-800 truncate">{item.title}</p>
+                          <p className="text-[10px] text-gray-400">
+                            {item.grade ? `${item.grade} · ` : ""}
+                            {item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 px-3 py-2">
+                          <button
+                            onClick={() => loadFromHistory(item)}
+                            className="flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/5 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-xs">open_in_new</span> Load
+                          </button>
+                          <div className="flex-1" />
+                          <button
+                            onClick={() => dispatch(removeHistoryItem(item.id))}
+                            className="text-gray-300 hover:text-red-500 transition-colors p-1"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex-1 overflow-y-auto">
               {/* Empty state */}
-              {!generating && !generated && (
+              {!generating && !showOutput && (
                 <div className="flex flex-col items-center justify-center h-full p-10 text-center">
                   <div className="size-20 bg-[#695be6]/10 rounded-2xl flex items-center justify-center mb-5">
                     <span className="material-symbols-outlined text-[#695be6] text-4xl">lightbulb</span>
@@ -274,14 +383,30 @@ export default function ConceptExplainer() {
               )}
 
               {/* Result */}
-              {!generating && generated && aiResult && (
-                <ConceptOutput result={aiResult} />
+              {!generating && displayResult && (
+                <ConceptOutput
+                  result={displayResult}
+                  isEditing={isEditing}
+                  updateField={updateField}
+                  updateArrayField={updateArrayField}
+                />
               )}
             </div>
 
             <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
               <span className="text-[10px] font-bold text-gray-400 uppercase">Preview Mode</span>
-              <span className="text-[10px] font-bold text-green-500">AI Ready</span>
+              <div className="flex items-center gap-2">
+                {editedResult && <span className="text-[10px] font-bold text-amber-500">Edited</span>}
+                {showOutput && displayResult && (
+                  <button
+                    onClick={() => { dispatch(clearAiToolResult()); setEditedResult(null); setHistoryLoaded(false); setIsEditing(false); }}
+                    className="text-[10px] text-[#695be6] font-bold hover:underline"
+                  >
+                    Clear
+                  </button>
+                )}
+                <span className="text-[10px] font-bold text-green-500">AI Ready</span>
+              </div>
             </div>
           </div>
         </div>
@@ -300,7 +425,18 @@ function Section({ title, children }) {
   );
 }
 
-function ConceptOutput({ result }) {
+function EditableText({ value, onChange, rows = 2, className = "" }) {
+  return (
+    <textarea
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      rows={rows}
+      className={`w-full bg-transparent outline-none border-b border-[#695be6]/30 focus:border-[#695be6] resize-none text-sm text-gray-700 ${className}`}
+    />
+  );
+}
+
+function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
   return (
     <div className="p-5 space-y-5 text-sm">
 
@@ -317,14 +453,22 @@ function ConceptOutput({ result }) {
       {/* 1. Simple Definition */}
       {result.one_line_summary && (
         <Section title="🔷 1. Simple Definition">
-          <p className="text-gray-700 leading-relaxed">{result.one_line_summary}</p>
+          {isEditing ? (
+            <EditableText value={result.one_line_summary} onChange={(v) => updateField("one_line_summary", v)} rows={2} />
+          ) : (
+            <p className="text-gray-700 leading-relaxed">{result.one_line_summary}</p>
+          )}
         </Section>
       )}
 
       {/* 2. Easy Explanation */}
       {result.plain_english_explanation && (
         <Section title="🔷 2. Easy Explanation">
-          <p className="text-gray-700 leading-relaxed whitespace-pre-line">{result.plain_english_explanation}</p>
+          {isEditing ? (
+            <EditableText value={result.plain_english_explanation} onChange={(v) => updateField("plain_english_explanation", v)} rows={4} />
+          ) : (
+            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{result.plain_english_explanation}</p>
+          )}
         </Section>
       )}
 
@@ -337,7 +481,16 @@ function ConceptOutput({ result }) {
                 <span className="size-5 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-black flex items-center justify-center flex-shrink-0 mt-0.5">
                   {s.step || i + 1}
                 </span>
-                <span><strong>{s.action}</strong>{s.explanation ? ` — ${s.explanation}` : ""}</span>
+                {isEditing ? (
+                  <div className="flex-1 space-y-1">
+                    <input value={s.action || ""} onChange={(e) => updateArrayField("step_by_step_process", i, "action", e.target.value)}
+                      className="w-full font-bold bg-transparent border-b border-[#695be6]/30 outline-none text-sm focus:border-[#695be6]" placeholder="Action" />
+                    <input value={s.explanation || ""} onChange={(e) => updateArrayField("step_by_step_process", i, "explanation", e.target.value)}
+                      className="w-full bg-transparent border-b border-gray-200 outline-none text-xs text-gray-500 focus:border-[#695be6]" placeholder="Explanation" />
+                  </div>
+                ) : (
+                  <span><strong>{s.action}</strong>{s.explanation ? ` — ${s.explanation}` : ""}</span>
+                )}
               </li>
             ))}
           </ol>
@@ -348,7 +501,12 @@ function ConceptOutput({ result }) {
       {result.diagram_description && (
         <Section title="🔷 4. Visual Representation 📊">
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-            <p className="text-xs text-blue-800 leading-relaxed whitespace-pre-line">{result.diagram_description}</p>
+            {isEditing ? (
+              <EditableText value={result.diagram_description} onChange={(v) => updateField("diagram_description", v)} rows={3}
+                className="text-xs text-blue-800" />
+            ) : (
+              <p className="text-xs text-blue-800 leading-relaxed whitespace-pre-line">{result.diagram_description}</p>
+            )}
           </div>
         </Section>
       )}
@@ -357,10 +515,19 @@ function ConceptOutput({ result }) {
       {result.primary_analogy && (
         <Section title="🔷 5. Analogy 🍳">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
-            <p className="font-semibold text-gray-800">{result.primary_analogy.analogy}</p>
-            <p className="text-xs text-gray-600">{result.primary_analogy.explanation}</p>
-            {result.primary_analogy.limitations && (
-              <p className="text-xs text-amber-700 italic">⚠ Limitation: {result.primary_analogy.limitations}</p>
+            {isEditing ? (
+              <>
+                <EditableText value={result.primary_analogy.analogy} onChange={(v) => updateField("primary_analogy", { ...result.primary_analogy, analogy: v })} rows={2} className="font-semibold" />
+                <EditableText value={result.primary_analogy.explanation} onChange={(v) => updateField("primary_analogy", { ...result.primary_analogy, explanation: v })} rows={2} className="text-xs text-gray-600" />
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-gray-800">{result.primary_analogy.analogy}</p>
+                <p className="text-xs text-gray-600">{result.primary_analogy.explanation}</p>
+                {result.primary_analogy.limitations && (
+                  <p className="text-xs text-amber-700 italic">⚠ Limitation: {result.primary_analogy.limitations}</p>
+                )}
+              </>
             )}
           </div>
         </Section>
@@ -370,7 +537,11 @@ function ConceptOutput({ result }) {
       {result.technical_explanation && (
         <Section title="🔷 6. Technical Explanation 🧪">
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <p className="text-xs text-gray-700 leading-relaxed">{result.technical_explanation}</p>
+            {isEditing ? (
+              <EditableText value={result.technical_explanation} onChange={(v) => updateField("technical_explanation", v)} rows={3} className="text-xs" />
+            ) : (
+              <p className="text-xs text-gray-700 leading-relaxed">{result.technical_explanation}</p>
+            )}
           </div>
         </Section>
       )}
@@ -381,8 +552,19 @@ function ConceptOutput({ result }) {
           <div className="space-y-2">
             {result.real_world_examples.map((ex, i) => (
               <div key={i} className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-xs font-bold text-green-800">{ex.example}</p>
-                <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
+                {isEditing ? (
+                  <>
+                    <input value={ex.example || ""} onChange={(e) => updateArrayField("real_world_examples", i, "example", e.target.value)}
+                      className="w-full text-xs font-bold text-green-800 bg-transparent border-b border-green-300 outline-none focus:border-[#695be6] mb-1" />
+                    <input value={ex.connection || ""} onChange={(e) => updateArrayField("real_world_examples", i, "connection", e.target.value)}
+                      className="w-full text-xs text-gray-600 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-green-800">{ex.example}</p>
+                    <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -395,9 +577,20 @@ function ConceptOutput({ result }) {
           <div className="space-y-2">
             {result.common_misconceptions.map((m, i) => (
               <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
-                <p className="text-xs text-green-700 font-semibold">✅ {m.correction}</p>
-                {m.how_to_address && <p className="text-xs text-gray-500 italic mt-1">{m.how_to_address}</p>}
+                {isEditing ? (
+                  <>
+                    <input value={m.misconception || ""} onChange={(e) => updateArrayField("common_misconceptions", i, "misconception", e.target.value)}
+                      className="w-full text-xs font-bold text-red-700 bg-transparent border-b border-red-200 outline-none focus:border-[#695be6] mb-1" />
+                    <input value={m.correction || ""} onChange={(e) => updateArrayField("common_misconceptions", i, "correction", e.target.value)}
+                      className="w-full text-xs text-green-700 font-semibold bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
+                    <p className="text-xs text-green-700 font-semibold">✅ {m.correction}</p>
+                    {m.how_to_address && <p className="text-xs text-gray-500 italic mt-1">{m.how_to_address}</p>}
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -410,7 +603,17 @@ function ConceptOutput({ result }) {
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 space-y-1">
             {result.key_vocabulary.map((v, i) => (
               <p key={i} className="text-xs text-gray-700">
-                <strong className="text-[#695be6]">{v.term}</strong>: {v.definition}
+                {isEditing ? (
+                  <span className="flex gap-2">
+                    <input value={v.term || ""} onChange={(e) => updateArrayField("key_vocabulary", i, "term", e.target.value)}
+                      className="font-bold text-[#695be6] bg-transparent border-b border-[#695be6]/30 outline-none w-24 focus:border-[#695be6]" />
+                    <span className="text-gray-400">:</span>
+                    <input value={v.definition || ""} onChange={(e) => updateArrayField("key_vocabulary", i, "definition", e.target.value)}
+                      className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
+                  </span>
+                ) : (
+                  <><strong className="text-[#695be6]">{v.term}</strong>: {v.definition}</>
+                )}
               </p>
             ))}
           </div>
@@ -423,7 +626,12 @@ function ConceptOutput({ result }) {
           <div className="space-y-2">
             {result.quick_check_questions.map((q, i) => (
               <div key={i} className="border border-gray-200 rounded-lg p-3">
-                <p className="text-xs font-bold text-gray-700">Q{i + 1}. {q.question}</p>
+                {isEditing ? (
+                  <input value={q.question || ""} onChange={(e) => updateArrayField("quick_check_questions", i, "question", e.target.value)}
+                    className="w-full text-xs font-bold text-gray-700 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
+                ) : (
+                  <p className="text-xs font-bold text-gray-700">Q{i + 1}. {q.question}</p>
+                )}
                 {q.options?.length > 0 && (
                   <ul className="mt-1 space-y-0.5">
                     {q.options.map((opt, j) => (
@@ -446,12 +654,16 @@ function ConceptOutput({ result }) {
       {result.exam_answer_format && (
         <Section title="🔷 11. Exam Answer Format 📝">
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-3">
-            <p className="text-xs text-gray-700 leading-relaxed">{result.exam_answer_format}</p>
+            {isEditing ? (
+              <EditableText value={result.exam_answer_format} onChange={(v) => updateField("exam_answer_format", v)} rows={3} className="text-xs" />
+            ) : (
+              <p className="text-xs text-gray-700 leading-relaxed">{result.exam_answer_format}</p>
+            )}
           </div>
         </Section>
       )}
 
-      {/* 12. Key Vocabulary */}
+      {/* 12. Key Vocabulary (extended) */}
       {result.key_vocabulary?.length > 0 && (
         <Section title="🔷 12. Key Vocabulary 📖">
           <div className="space-y-1">
@@ -473,7 +685,10 @@ function ConceptOutput({ result }) {
               {result.teaching_tips.map((t, i) => (
                 <li key={i} className="text-xs text-gray-700 flex items-start gap-1.5">
                   <span className="material-symbols-outlined text-purple-500 text-sm flex-shrink-0">tips_and_updates</span>
-                  {t}
+                  {isEditing ? (
+                    <input value={t} onChange={(e) => updateArrayField("teaching_tips", i, null, e.target.value)}
+                      className="flex-1 bg-transparent border-b border-purple-200 outline-none focus:border-[#695be6]" />
+                  ) : t}
                 </li>
               ))}
             </ul>
@@ -481,11 +696,15 @@ function ConceptOutput({ result }) {
         </Section>
       )}
 
-      {/* Simplified version (for Basic level) */}
+      {/* Simplified version */}
       {result.simplified_version && (
         <Section title="📗 Simplified Version">
           <div className="bg-teal-50 border border-teal-200 rounded-xl p-3">
-            <p className="text-xs text-gray-700 leading-relaxed">{result.simplified_version}</p>
+            {isEditing ? (
+              <EditableText value={result.simplified_version} onChange={(v) => updateField("simplified_version", v)} rows={3} className="text-xs" />
+            ) : (
+              <p className="text-xs text-gray-700 leading-relaxed">{result.simplified_version}</p>
+            )}
           </div>
         </Section>
       )}
@@ -494,7 +713,11 @@ function ConceptOutput({ result }) {
       {result.extension_for_advanced && (
         <Section title="🚀 Extension for Advanced Learners">
           <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
-            <p className="text-xs text-gray-700 leading-relaxed">{result.extension_for_advanced}</p>
+            {isEditing ? (
+              <EditableText value={result.extension_for_advanced} onChange={(v) => updateField("extension_for_advanced", v)} rows={3} className="text-xs" />
+            ) : (
+              <p className="text-xs text-gray-700 leading-relaxed">{result.extension_for_advanced}</p>
+            )}
           </div>
         </Section>
       )}
@@ -505,7 +728,11 @@ function ConceptOutput({ result }) {
           <div className="space-y-1">
             {result.discussion_questions.map((q, i) => (
               <p key={i} className="text-xs text-gray-700 flex items-start gap-2">
-                <span className="text-[#695be6] font-bold flex-shrink-0">Q{i + 1}.</span>{q}
+                <span className="text-[#695be6] font-bold flex-shrink-0">Q{i + 1}.</span>
+                {isEditing ? (
+                  <input value={q} onChange={(e) => updateArrayField("discussion_questions", i, null, e.target.value)}
+                    className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
+                ) : q}
               </p>
             ))}
           </div>

@@ -112,6 +112,48 @@ export const deleteGroup = createAsyncThunk("teacher/deleteGroup", async (id, { 
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+// ── Quiz Drafts ───────────────────────────────────────────────
+export const saveQuizDraft = createAsyncThunk("teacher/saveQuizDraft", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/quiz-drafts", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const fetchQuizDrafts = createAsyncThunk("teacher/fetchQuizDrafts", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/teacher/quiz-drafts")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const updateQuizDraft = createAsyncThunk("teacher/updateQuizDraft", async ({ id, ...body }, { rejectWithValue }) => {
+  try { return (await api.patch(`/teacher/quiz-drafts/${id}`, body)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const deleteQuizDraft = createAsyncThunk("teacher/deleteQuizDraft", async (id, { rejectWithValue }) => {
+  try { await api.delete(`/teacher/quiz-drafts/${id}`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+// ── Worksheet Drafts ─────────────────────────────────────────
+export const saveWorksheetDraft = createAsyncThunk("teacher/saveWorksheetDraft", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/teacher/worksheet-drafts", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const fetchWorksheetDrafts = createAsyncThunk("teacher/fetchWorksheetDrafts", async (_, { rejectWithValue }) => {
+  try { return (await api.get("/teacher/worksheet-drafts")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const updateWorksheetDraft = createAsyncThunk("teacher/updateWorksheetDraft", async ({ id, ...body }, { rejectWithValue }) => {
+  try { return (await api.patch(`/teacher/worksheet-drafts/${id}`, body)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const deleteWorksheetDraft = createAsyncThunk("teacher/deleteWorksheetDraft", async (id, { rejectWithValue }) => {
+  try { await api.delete(`/teacher/worksheet-drafts/${id}`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 const teacherSlice = createSlice({
   name: "teacher",
   initialState: {
@@ -134,6 +176,10 @@ const teacherSlice = createSlice({
     diffGroups:         [],
     diffContext:        null,
     diffAssignments:    [],
+    // Quiz drafts
+    quizDrafts:         [], quizDraftsStatus: "idle",
+    // Worksheet drafts
+    worksheetDrafts:    [], worksheetDraftsStatus: "idle",
   },  reducers: {
     clearGeneratedQuestions(s) { s.generatedQuestions = []; s.generateStatus = "idle"; s.generateError = null; },
     clearAiToolResult(s)       { s.aiToolResult = null; s.aiToolStatus = "idle"; s.aiToolError = null; },
@@ -198,6 +244,32 @@ const teacherSlice = createSlice({
       s.groups = s.groups.filter((g) => g._id !== a.payload);
       s.diffGroups = s.groups;
     });
+
+    // Quiz Drafts
+    b.addCase(fetchQuizDrafts.pending,   (s) => { s.quizDraftsStatus = "loading"; })
+     .addCase(fetchQuizDrafts.fulfilled, (s, a) => { s.quizDraftsStatus = "succeeded"; s.quizDrafts = a.payload; })
+     .addCase(fetchQuizDrafts.rejected,  (s) => { s.quizDraftsStatus = "failed"; });
+
+    b.addCase(saveQuizDraft.fulfilled, (s, a) => { s.quizDrafts = [a.payload, ...s.quizDrafts]; });
+    b.addCase(updateQuizDraft.fulfilled, (s, a) => {
+      s.quizDrafts = s.quizDrafts.map((d) => d._id === a.payload._id ? a.payload : d);
+    });
+    b.addCase(deleteQuizDraft.fulfilled, (s, a) => {
+      s.quizDrafts = s.quizDrafts.filter((d) => d._id !== a.payload);
+    });
+
+    // Worksheet Drafts
+    b.addCase(fetchWorksheetDrafts.pending,   (s) => { s.worksheetDraftsStatus = "loading"; })
+     .addCase(fetchWorksheetDrafts.fulfilled, (s, a) => { s.worksheetDraftsStatus = "succeeded"; s.worksheetDrafts = a.payload; })
+     .addCase(fetchWorksheetDrafts.rejected,  (s) => { s.worksheetDraftsStatus = "failed"; });
+
+    b.addCase(saveWorksheetDraft.fulfilled, (s, a) => { s.worksheetDrafts = [a.payload, ...s.worksheetDrafts]; });
+    b.addCase(updateWorksheetDraft.fulfilled, (s, a) => {
+      s.worksheetDrafts = s.worksheetDrafts.map((d) => d._id === a.payload._id ? a.payload : d);
+    });
+    b.addCase(deleteWorksheetDraft.fulfilled, (s, a) => {
+      s.worksheetDrafts = s.worksheetDrafts.filter((d) => d._id !== a.payload);
+    });
   },
 });
 
@@ -227,5 +299,11 @@ export const selectDiffContext         = (s) => s.teacher.diffContext;
 export const selectDiffAssignments     = (s) => s.teacher.diffAssignments;
 export const selectGroups              = (s) => s.teacher.groups;
 export const selectGroupsStatus        = (s) => s.teacher.groupsStatus;
+
+export const selectQuizDrafts          = (s) => s.teacher.quizDrafts;
+export const selectQuizDraftsStatus    = (s) => s.teacher.quizDraftsStatus;
+
+export const selectWorksheetDrafts     = (s) => s.teacher.worksheetDrafts;
+export const selectWorksheetDraftsStatus = (s) => s.teacher.worksheetDraftsStatus;
 
 export default teacherSlice.reducer;

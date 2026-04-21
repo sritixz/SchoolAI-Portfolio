@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   fetchStudentsByClass, generateAiQuestions,
@@ -45,35 +45,130 @@ function ErrorBanner({ msg, onClose }) {
 }
 
 // ── Question card (expandable) ───────────────────────────────
-function QuestionCard({ q, idx, onRemove }) {
+function QuestionCard({ q, idx, onRemove, onUpdate }) {
   const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const typeColor = { mcq:"text-blue-600 bg-blue-50", typed:"text-purple-600 bg-purple-50", upload:"text-orange-600 bg-orange-50" };
+
+  const updateField = (field, value) => onUpdate(idx, { ...q, [field]: value });
+
+  const updateOption = (oIdx, field, value) => {
+    const opts = (q.options || []).map((o, j) => {
+      if (field === "is_correct" && value) return j === oIdx ? { ...o, is_correct: true } : { ...o, is_correct: false };
+      return j === oIdx ? { ...o, [field]: value } : o;
+    });
+    onUpdate(idx, { ...q, options: opts });
+  };
+
   return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50" onClick={() => setOpen(!open)}>
+    <div className={`bg-white border rounded-xl shadow-sm overflow-hidden transition-colors ${editMode ? "border-[#695be6]" : "border-gray-100"}`}>
+      {/* Header row */}
+      <div className="flex items-center gap-3 px-4 py-3">
         <span className="size-7 rounded-full bg-[#695be6]/10 text-[#695be6] text-xs font-black flex items-center justify-center shrink-0">{idx+1}</span>
         <p className="flex-1 text-sm font-medium truncate">{q.question_text || "Untitled question"}</p>
         <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${typeColor[q.answer_type] || "bg-gray-100 text-gray-500"}`}>{q.answer_type}</span>
-        <span className="text-xs text-gray-400 shrink-0">{q.max_points}pt</span>
-        <button onClick={(e)=>{e.stopPropagation();onRemove(idx);}} className="p-1 hover:bg-red-50 rounded text-gray-300 hover:text-red-400">
+        <input
+          type="number" min={1} max={20}
+          value={q.max_points || 1}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => updateField("max_points", +e.target.value)}
+          className="w-12 text-xs font-bold text-[#695be6] border border-[#695be6]/30 rounded px-1.5 py-0.5 text-center outline-none focus:border-[#695be6]"
+          title="Marks"
+        />
+        <span className="text-[10px] text-gray-400">pt</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); setEditMode(!editMode); setOpen(true); }}
+          className={`p-1 rounded transition-colors ${editMode ? "bg-[#695be6] text-white" : "hover:bg-[#695be6]/10 text-gray-400 hover:text-[#695be6]"}`}
+          title="Edit"
+        >
+          <span className="material-symbols-outlined text-base">edit</span>
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onRemove(idx); }} className="p-1 hover:bg-red-50 rounded text-gray-300 hover:text-red-400">
           <span className="material-symbols-outlined text-base">delete</span>
         </button>
-        <span className={`material-symbols-outlined text-gray-400 text-base transition-transform ${open?"rotate-180":""}`}>expand_more</span>
+        <span
+          className={`material-symbols-outlined text-gray-400 text-base transition-transform cursor-pointer ${open ? "rotate-180" : ""}`}
+          onClick={() => setOpen(!open)}
+        >expand_more</span>
       </div>
+
+      {/* Expanded body */}
       {open && (
-        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-2">
-          <p className="text-sm text-gray-700">{q.question_text}</p>
-          {q.answer_type === "mcq" && q.options?.length > 0 && (
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {q.options.map((o) => (
-                <div key={o.id} className={`text-xs px-3 py-2 rounded-lg border ${o.is_correct?"border-green-400 bg-green-50 text-green-700 font-bold":"border-gray-200 text-gray-600"}`}>
-                  {o.is_correct && <span className="material-symbols-outlined text-xs mr-1">check</span>}{o.text}
+        <div className="border-t border-gray-100 px-4 py-3 bg-gray-50 space-y-3">
+          {/* Question text */}
+          {editMode ? (
+            <textarea
+              value={q.question_text || ""}
+              onChange={(e) => updateField("question_text", e.target.value)}
+              rows={2}
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-[#695be6] resize-none bg-white"
+              placeholder="Question text..."
+            />
+          ) : (
+            <p className="text-sm text-gray-700">{q.question_text}</p>
+          )}
+
+          {/* MCQ options */}
+          {q.answer_type === "mcq" && (
+            <div className="space-y-2">
+              {(q.options || []).map((o, oIdx) => (
+                <div key={o.id || oIdx} className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border ${o.is_correct ? "border-green-400 bg-green-50" : "border-gray-200 bg-white"}`}>
+                  <button
+                    onClick={() => updateOption(oIdx, "is_correct", true)}
+                    className={`size-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${o.is_correct ? "border-green-500 bg-green-500" : "border-gray-300 hover:border-green-400"}`}
+                    title="Mark correct"
+                  >
+                    {o.is_correct && <span className="material-symbols-outlined text-white text-[10px]">check</span>}
+                  </button>
+                  {editMode ? (
+                    <input
+                      value={o.text || ""}
+                      onChange={(e) => updateOption(oIdx, "text", e.target.value)}
+                      className={`flex-1 bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors ${o.is_correct ? "text-green-700 font-bold" : "text-gray-600"}`}
+                    />
+                  ) : (
+                    <span className={o.is_correct ? "text-green-700 font-bold" : "text-gray-600"}>{o.text}</span>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          {q.hint && <p className="text-xs text-amber-600 flex items-center gap-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>}
-          {q.sample_answer && <p className="text-xs text-slate-500"><span className="font-bold">Sample: </span>{q.sample_answer}</p>}
+
+          {/* Hint */}
+          {editMode ? (
+            <input
+              value={q.hint || ""}
+              onChange={(e) => updateField("hint", e.target.value)}
+              placeholder="Hint (optional)..."
+              className="w-full text-xs border border-gray-200 rounded-lg px-3 py-1.5 outline-none focus:border-[#695be6] bg-white"
+            />
+          ) : (
+            q.hint && <p className="text-xs text-amber-600 flex items-center gap-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>
+          )}
+
+          {/* Sample answer (typed) */}
+          {q.answer_type === "typed" && (
+            editMode ? (
+              <textarea
+                value={q.sample_answer || ""}
+                onChange={(e) => updateField("sample_answer", e.target.value)}
+                rows={2}
+                placeholder="Sample answer..."
+                className="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-[#695be6] resize-none bg-white"
+              />
+            ) : (
+              q.sample_answer && <p className="text-xs text-slate-500"><span className="font-bold">Sample: </span>{q.sample_answer}</p>
+            )
+          )}
+
+          {editMode && (
+            <button
+              onClick={() => setEditMode(false)}
+              className="text-xs font-bold text-[#695be6] hover:underline"
+            >
+              Done editing
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -138,6 +233,7 @@ export default function CreateTest() {
   const { } = useAuth();
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   // ── State ──
   const [step,      setStep]      = useState(0);
@@ -160,6 +256,17 @@ export default function CreateTest() {
   const [error,        setError]        = useState("");
   const patchTimer = useRef(null);
 
+  // ── Pre-load questions from AI tool navigation state ──────
+  const preloadState = location.state;
+  useEffect(() => {
+    if (!preloadState?.preloadedQuestions?.length) return;
+    setQuestions(preloadState.preloadedQuestions);
+    if (preloadState.subject) setForm((p) => ({ ...p, subject: preloadState.subject }));
+    if (preloadState.title)   setForm((p) => ({ ...p, title: preloadState.title }));
+    // Skip to step 1 so teacher sees the preloaded questions immediately
+    setStep(1);
+  }, []);
+
   // ── Load actual sections from backend ─────────────────────
   useEffect(() => {
     import("../../api").then(({ default: api }) => {
@@ -169,7 +276,13 @@ export default function CreateTest() {
             const names = res.data.map((s) => s.class_name).filter(Boolean);
             if (names.length) {
               setClasses(names);
-              setForm((p) => ({ ...p, class_level: names[0] }));
+              // Only set default class if NOT loading from a template/edit/AI-preload
+              const isFromTemplate = new URLSearchParams(window.location.search).get("from");
+              const isFromEdit     = new URLSearchParams(window.location.search).get("edit");
+              const isFromAiTool   = !!preloadState?.preloadedQuestions?.length;
+              if (!isFromTemplate && !isFromEdit && !isFromAiTool) {
+                setForm((p) => ({ ...p, class_level: names[0] }));
+              }
             }
           }
         })
@@ -301,6 +414,44 @@ export default function CreateTest() {
   // ── Step 1 → 2: ensure questions are patched, move on ─────
   const handleQuestionsNext = async () => {
     if (questions.length === 0) { setError("Add at least one question"); return; }
+
+    // If no hwId yet (came from AI tool), create the shell first
+    if (!hwId) {
+      if (!form.title.trim()) { setError("Add a title before continuing"); return; }
+      setSavingShell(true);
+      setError("");
+      try {
+        const payload = {
+          title:                       form.title,
+          subject:                     form.subject,
+          assigned_to_class:           form.class_level,
+          description:                 form.instructions || "",
+          submission_type:             form.submission_type,
+          difficulty_level:            form.difficulty_level,
+          estimated_duration_minutes:  +form.estimated_duration_minutes,
+          instructions:                form.instructions,
+          due_date:                    "TBD",
+          questions:                   [],
+          tags:                        [],
+          assigned_students:           [],
+          total_marks:                 0,
+        };
+        const data = await dispatch(createHomework(payload)).unwrap();
+        if (!data?.id) throw new Error("No ID returned");
+        setHwId(data.id);
+        // Patch questions with the new ID
+        await dispatch(patchHomeworkQuestions({ id: data.id, questions })).unwrap();
+      } catch (e) {
+        const detail = e?.detail ?? e?.message ?? "Could not save homework.";
+        setError(detail);
+        return;
+      } finally {
+        setSavingShell(false);
+      }
+      setStep(2);
+      return;
+    }
+
     // Force-patch now (don't wait for debounce)
     clearTimeout(patchTimer.current);
     setPatchingQs(true);
@@ -489,6 +640,39 @@ export default function CreateTest() {
 
         {/* ── STEP 1: Questions ── */}
         {step === 1 && (
+          <div className="space-y-4">
+
+          {/* Compact setup banner — shown when coming from AI tool (no hwId yet) */}
+          {!hwId && (
+            <div className="bg-[#695be6]/5 border border-[#695be6]/20 rounded-xl p-4">
+              <p className="text-xs font-black text-[#695be6] mb-3 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm">assignment_add</span>
+                Questions imported from AI tool — fill in details to save
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-1">
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Title *</label>
+                  <input value={form.title} onChange={f("title")} placeholder="e.g. Linear Equations Quiz"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#695be6] bg-white" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Subject</label>
+                  <select value={form.subject} onChange={f("subject")}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#695be6] bg-white">
+                    {SUBJECTS.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Class</label>
+                  <select value={form.class_level} onChange={f("class_level")}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#695be6] bg-white">
+                    {classes.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {/* AI generator panel — sticky sidebar */}
@@ -573,10 +757,12 @@ export default function CreateTest() {
               ) : (
                 questions.map((q, i) => (
                   <QuestionCard key={q.id||i} q={q} idx={i}
-                    onRemove={(idx) => setQuestions((p) => p.filter((_,j) => j!==idx))} />
+                    onRemove={(idx) => setQuestions((p) => p.filter((_,j) => j!==idx))}
+                    onUpdate={(idx, updated) => setQuestions((p) => p.map((x, j) => j === idx ? updated : x))} />
                 ))
               )}
             </div>
+          </div>
           </div>
         )}
 

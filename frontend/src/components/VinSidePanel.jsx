@@ -87,7 +87,7 @@ function TypingDots() {
 }
 
 // ── Main Side Panel Component ──
-export default function VinSidePanel({ isOpen, onClose, context = null }) {
+export default function VinSidePanel({ isOpen, onClose, context = null, homeworkContext = null }) {
   const { user } = useAuth();
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
@@ -158,7 +158,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null }) {
     setTimeout(() => setStatus("streaming"), 300);
 
     try {
-      const xmlBuf = await streamSSE("/vin-ai/chat", { message: trimmed, history: chatHistoryRef.current }, assistantId);
+      const xmlBuf = await streamSSE("/vin-ai/chat", { message: trimmed, history: chatHistoryRef.current, homework_context: homeworkContext || null }, assistantId);
       chatHistoryRef.current = [...chatHistoryRef.current, { role: "assistant", content: xmlBuf }];
     } catch (err) {
       console.error("Stream error:", err);

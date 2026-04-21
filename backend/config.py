@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     CLIENT_URL: str = "http://localhost:3000"
     is_production: str = "development"
 
+    # Redis / Celery
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # Image generation (optional — leave blank to skip images)
+    IMAGE_API_KEY: str = ""
+    IMAGE_API_URL: str = "https://api.openai.com/v1/images/generations"
+
+    # Pexels — free forever, no attribution required, 200 req/hr, 20k/month
+    # Get key at: pexels.com/api (instant, no review needed)
+    # Request unlimited at no cost for high-traffic apps
+    PEXELS_API_KEY: str = ""
+
     # Dev
     DEBUG: bool = True          # set False in production to hide dev_otp
 

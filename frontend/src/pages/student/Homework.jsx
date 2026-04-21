@@ -31,7 +31,8 @@ const DIFFICULTY_COLORS = {
 // ── Helpers ──────────────────────────────────────────────────
 function formatDueDate(dateStr, status) {
   const due = new Date(dateStr);
-  const today = new Date("2026-03-27");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const diffDays = Math.round((due - today) / 86400000);
 
   if (status === "completed") return null; // handled separately
@@ -161,7 +162,57 @@ function HomeworkCard({ hw }) {
       {/* Actions */}
       <div className="flex gap-3">
         <button
-          onClick={() => navigate(`/student/homework/${hw.id}`)}
+          onClick={() => {
+            if (hw.status === "completed") {
+              import("../../api").then(({ default: api }) => {
+                // Fetch submission result + homework questions in parallel
+                Promise.all([
+                  api.get(`/homework/${hw.id}/result`),
+                  api.get(`/homework/${hw.id}/questions`).catch(() => ({ data: [] })),
+                ]).then(([{ data }, { data: questions }]) => {
+                  const isFile = hw.submissionType === "file_upload" || hw.submissionType === "handwritten"
+                    || data.submission_type === "file_upload" || data.submission_type === "handwritten"
+                    || hw.submission_type === "file_upload" || hw.submission_type === "handwritten";
+                  const questionSet = {
+                    questions: questions || [],
+                    unitTitle: hw.title || "Homework",
+                    tags: hw.tags || [],
+                    subjectIcon: "menu_book",
+                  };
+                  navigate(`/student/homework/${hw.id}/result`, {
+                    state: {
+                      answers: {},
+                      questionSet,
+                      fileSubmission: isFile,
+                      submissionDoc: data,
+                      allowRetries: hw.allow_retries || false,
+                      apiResult: {
+                        status: data.status || "completed",
+                        grade: data.final_grade || data.grade,
+                        feedback: data.teacher_feedback || data.feedback,
+                        auto_score_pct: data.auto_score_pct,
+                        mcq_earned: data.mcq_earned,
+                        mcq_total: data.mcq_total,
+                      },
+                    },
+                  });
+                }).catch(() => {
+                  const isFile = hw.submissionType === "file_upload" || hw.submissionType === "handwritten";
+                  navigate(`/student/homework/${hw.id}/result`, {
+                    state: {
+                      answers: {},
+                      questionSet: { questions: [], unitTitle: hw.title || "Homework", tags: hw.tags || [], subjectIcon: "menu_book" },
+                      fileSubmission: isFile,
+                      allowRetries: hw.allow_retries || false,
+                      apiResult: { status: "completed", grade: hw.grade, feedback: hw.teacherFeedback },
+                    },
+                  });
+                });
+              });
+            } else {
+              navigate(`/student/homework/${hw.id}`);
+            }
+          }}
           className={`flex-1 py-4 font-bold rounded-full transition-all text-lg ${actionBtn.cls}`}
         >
           {actionBtn.label}
