@@ -33,6 +33,9 @@
 # betterproto-beta9==2.0.1
 # black==25.1.0
 # bleach==6.1.0
+celery==5.4.0
+redis==5.0.8
+python-pptx==1.0.2
 boto3==1.35.36
 botocore==1.35.36
 # build==1.3.0

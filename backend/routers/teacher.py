@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from bson import ObjectId
 from datetime import datetime
 from dependencies import require_role
@@ -7,9 +7,13 @@ from services.llm import chat_completion
 from services.analytics import get_class_performance
 from pydantic import BaseModel
 from typing import Optional, List
-import json
+import json, uuid, asyncio, httpx
 
 router = APIRouter(prefix="/teacher", tags=["teacher"])
+
+# ── In-memory job store for background presentation tasks ─────────────────────
+# { job_id: { status, current_slide, total_slides, result_data, error } }
+presentation_jobs: dict = {}
 
 def _ser(doc):
     if doc and "_id" in doc:
@@ -28,12 +32,13 @@ class AIGenerateQuestionsRequest(BaseModel):
     topic: str
     grade: str
     count: int = 5
-    difficulty: str = "medium"
+    difficulty: Optional[str] = "medium"
     question_types: List[str] = ["mcq"]
     board: Optional[str] = "CBSE"
     chapter: Optional[str] = None
     learning_objective: Optional[str] = None
     special_instructions: Optional[str] = None
+    extra: Optional[dict] = None
 
 # ── Student Groups models ─────────────────────────────────────
 class GroupMember(BaseModel):
@@ -706,7 +711,7 @@ WORKSHEET DETAILS:
 - Difficulty: {extra.get('difficulty', 'Medium')}
 - Difficulty Structure: {extra.get('difficulty_structure', 'Medium')} — Easy=Basic concept (1-step), Medium=Application (2-3 steps), Hard=Case-based/multi-step
 - Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — align all questions to this objective
-- Total Questions: {extra.get('totalQuestions', 10)}
+- Total Questions: {extra.get('total_questions', extra.get('totalQuestions', 10))}
 - Question Types: {', '.join(extra.get('question_types', ['mcq', 'shortAnswer']))}
 - Title: {extra.get('title', f'{body.topic} Worksheet')}
 - Special Instructions: {extra.get('special_instructions', 'None')}
@@ -918,7 +923,7 @@ QUIZ DETAILS:
 - Board: {extra.get('board', 'CBSE')}
 - Chapter: {extra.get('chapter', '') or 'Not specified'}
 - Number of Questions: {extra.get('count', 10)}
-- Difficulty: {extra.get('difficulty', 'Mixed')}
+- Difficulty Distribution: Easy={extra.get('difficulty', {}).get('easy', 30) if isinstance(extra.get('difficulty'), dict) else 30}%, Medium={extra.get('difficulty', {}).get('medium', 50) if isinstance(extra.get('difficulty'), dict) else 50}%, Hard={extra.get('difficulty', {}).get('hard', 20) if isinstance(extra.get('difficulty'), dict) else 20}%
 - Question Types: {', '.join(extra.get('question_types', ['mcq', 'short_answer']))}
 - Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — align all questions to this objective
 - Special Instructions: {extra.get('special_instructions', 'None')}
@@ -1062,27 +1067,43 @@ Return ONLY valid JSON (no markdown):
   "extension_for_advanced": "Deeper exploration for advanced students"
 }}""",
 
-        "presentation": f"""You are an expert instructional designer. Create a comprehensive, classroom-ready presentation outline.
+        "presentation": f"""You are a Senior Instructional Designer and Presentation Expert. Generate a structured, classroom-ready lesson deck.
 
 PRESENTATION DETAILS:
 - Topic: {body.topic}
 - Subject: {body.subject}
 - Grade/Class: {body.grade or extra.get('classLevel', '')}
+- Target Audience: {extra.get('target_audience', 'students')}
 - Board: {extra.get('board', 'CBSE')}
 - Chapter: {extra.get('chapter', '') or 'Not specified'}
 - Number of Slides: {extra.get('num_slides', 12)}
 - Duration: {extra.get('duration_minutes', 45)} minutes
 - Purpose: {extra.get('purpose', 'Teaching New Concept')}
 - Visual Style: {extra.get('visual_style', 'Modern/Clean')}
-- Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — structure slides to build toward this objective
+- Learning Objective: {extra.get('learning_objective', 'Concept Understanding')}
+- Tone: {extra.get('tone', 'Engaging')}
+- Content Depth: {extra.get('content_depth', 'Concise')}
+- Include Mini Quiz: {extra.get('include_mini_quiz', False)}
 - Special Instructions: {extra.get('special_instructions', 'None')}
 
-BOARD-SPECIFIC GUIDANCE:
-- CBSE/NCERT: Reference NCERT chapters, use standard curriculum flow
-- ICSE: Include analytical and application-focused slides
-- State Board: Use state syllabus structure and regional examples
-- IB: Include inquiry questions, ATL skills, and conceptual understanding
-- Cambridge: Use Cambridge learning objectives and command words
+USER MODELING CONSTRAINTS:
+1. Adjust vocabulary and complexity for the grade level and target audience specified above.
+2. Content Depth rules:
+   - "Concise": Max 3 bullets per slide, high-level summaries only.
+   - "Detailed": Comprehensive explanations, data points, and full context.
+3. Board alignment:
+   - CBSE/NCERT: Linear conceptual flow, reference NCERT chapters.
+   - IB: Inquiry-based questions, ATL skills, conceptual understanding.
+   - ICSE: Analytical and application-focused slides.
+   - State Board: State syllabus structure and regional examples.
+   - Cambridge: Cambridge learning objectives and command words.
+
+PEDAGOGICAL INSTRUCTIONS:
+- Tone "Engaging": Use analogies, "Did you know?" facts, and real-world examples.
+- Tone "Formal": Professional, structured, academic language.
+- Tone "Reflection": Reflective prompts and deeper thinking questions.
+- If Include Mini Quiz is true: the final 2 slides MUST be type "assessment" containing MCQ questions with 4 options each.
+- Visuals: Provide a unique, vibrant, modern visual_prompt for EVERY slide describing an image for an AI image generator.
 
 Return ONLY valid JSON (no markdown):
 {{
@@ -1091,6 +1112,10 @@ Return ONLY valid JSON (no markdown):
   "grade": "{body.grade or extra.get('classLevel', '')}",
   "total_slides": {extra.get('num_slides', 12)},
   "duration_minutes": {extra.get('duration_minutes', 45)},
+  "metadata": {{
+    "duration": "{extra.get('duration_minutes', 45)} min",
+    "objectives": ["By the end, students will be able to..."]
+  }},
   "learning_objectives": ["By the end, students will be able to..."],
   "slides": [
     {{
@@ -1098,75 +1123,92 @@ Return ONLY valid JSON (no markdown):
       "type": "title",
       "title": "Presentation title",
       "subtitle": "Subject | Grade",
+      "content": {{
+        "bullets": [],
+        "steps": [],
+        "visual_prompt": "A vibrant 3D isometric classroom scene with glowing books and floating equations, modern purple and blue lighting, high resolution"
+      }},
       "speaker_notes": "Welcome students, introduce the topic",
-      "duration_minutes": 2,
-      "engagement_prompt": null
+      "engagement_prompt": null,
+      "vibrant_accent_color": "#695be6",
+      "duration_minutes": 2
     }},
     {{
       "number": 2,
-      "type": "objectives",
-      "title": "What We Will Learn Today",
-      "bullets": ["Objective 1", "Objective 2"],
-      "speaker_notes": "Walk through each objective. Ask what students already know.",
-      "duration_minutes": 2,
-      "engagement_prompt": "What do you already know about this topic?"
+      "type": "hook",
+      "title": "Did You Know?",
+      "content": {{
+        "bullets": ["Surprising fact or real-world scenario"],
+        "steps": [],
+        "visual_prompt": "A vibrant photorealistic scene illustrating a surprising real-world application of the topic, vivid colors, modern style"
+      }},
+      "speaker_notes": "Use this to spark curiosity. Pause and let students react.",
+      "engagement_prompt": "Where have you seen this in real life?",
+      "vibrant_accent_color": "#f97316",
+      "duration_minutes": 3
     }},
     {{
       "number": 3,
-      "type": "hook",
-      "title": "Did You Know?",
-      "content": "Surprising fact or real-world scenario",
-      "speaker_notes": "Use this to spark curiosity.",
-      "duration_minutes": 3,
-      "engagement_prompt": "Where have you seen this in real life?"
+      "type": "content",
+      "title": "Core Concept",
+      "content": {{
+        "bullets": ["Key point 1", "Key point 2", "Key point 3"],
+        "steps": [],
+        "visual_prompt": "A clean modern infographic diagram explaining the core concept with vibrant color-coded sections, high resolution"
+      }},
+      "speaker_notes": "Explain each bullet with an example. Check for understanding.",
+      "engagement_prompt": "Can anyone give me an example?",
+      "vibrant_accent_color": "#3b82f6",
+      "duration_minutes": 5
     }},
     {{
       "number": 4,
-      "type": "content",
-      "title": "Core Concept",
-      "bullets": ["Key point 1", "Key point 2", "Key point 3"],
-      "explanation": "Detailed explanation for teacher reference",
-      "speaker_notes": "Explain each bullet with an example.",
-      "duration_minutes": 5,
-      "engagement_prompt": "Can anyone give me an example?"
+      "type": "activity",
+      "title": "Try It Yourself",
+      "content": {{
+        "bullets": ["Practice problem description"],
+        "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
+        "visual_prompt": "Students collaborating at desks with glowing tablets and colorful sticky notes, vibrant warm lighting, modern classroom"
+      }},
+      "speaker_notes": "Give students 3-4 minutes. Circulate and support.",
+      "engagement_prompt": "Work with your partner.",
+      "vibrant_accent_color": "#22c55e",
+      "duration_minutes": 5
     }},
     {{
       "number": 5,
-      "type": "example",
-      "title": "Worked Example",
-      "content": "Step-by-step worked example",
-      "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
-      "speaker_notes": "Work through slowly. Ask students to predict each step.",
-      "duration_minutes": 5,
-      "engagement_prompt": "What should we do next?"
+      "type": "summary",
+      "title": "Key Takeaways",
+      "content": {{
+        "bullets": ["Main point 1", "Main point 2", "Main point 3"],
+        "steps": [],
+        "visual_prompt": "A vibrant mind-map with glowing nodes summarizing key concepts, purple and gold color scheme, high resolution"
+      }},
+      "speaker_notes": "Ask students to recall before revealing bullets.",
+      "engagement_prompt": "What were the 3 main things we learned?",
+      "vibrant_accent_color": "#8b5cf6",
+      "duration_minutes": 3
     }},
     {{
       "number": 6,
-      "type": "activity",
-      "title": "Try It Yourself",
-      "content": "Practice problem description",
-      "instructions": "Step-by-step activity instructions",
-      "speaker_notes": "Give students 3-4 minutes. Circulate.",
-      "duration_minutes": 5,
-      "engagement_prompt": "Work with your partner."
-    }},
-    {{
-      "number": 7,
-      "type": "summary",
-      "title": "Key Takeaways",
-      "bullets": ["Main point 1", "Main point 2", "Main point 3"],
-      "speaker_notes": "Ask students to recall before showing.",
-      "duration_minutes": 3,
-      "engagement_prompt": "What were the 3 main things we learned?"
-    }},
-    {{
-      "number": 8,
       "type": "assessment",
       "title": "Check Your Understanding",
-      "questions": ["Exit ticket question 1", "Exit ticket question 2"],
-      "speaker_notes": "Give 2 minutes. Collect responses.",
-      "duration_minutes": 3,
-      "engagement_prompt": null
+      "content": {{
+        "bullets": [],
+        "steps": [],
+        "visual_prompt": "A modern quiz interface with glowing answer buttons on a dark background, vibrant neon accents, high resolution",
+        "questions": [
+          {{
+            "question": "MCQ question text?",
+            "options": ["A. Option 1", "B. Option 2", "C. Option 3", "D. Option 4"],
+            "correct": "A"
+          }}
+        ]
+      }},
+      "speaker_notes": "Give 2 minutes. Collect responses as exit ticket.",
+      "engagement_prompt": null,
+      "vibrant_accent_color": "#ef4444",
+      "duration_minutes": 3
     }}
   ],
   "teacher_preparation_notes": "What to prepare, materials needed, potential student questions",
@@ -1304,6 +1346,565 @@ Return ONLY valid JSON (no markdown):
     except Exception:
         return {"content": raw}
 
+
+# ── Background presentation pipeline (FastAPI BackgroundTasks) ────────────────
+
+def _pollinations_url(detailed_description: str, seed: int) -> str:
+    """Build a Pollinations.ai image URL with a stable seed for visual cohesion."""
+    import urllib.parse
+    encoded = urllib.parse.quote(detailed_description[:300])
+    return (
+        f"https://image.pollinations.ai/prompt/{encoded}"
+        f"?width=1024&height=768&nologo=true&model=flux&seed={seed}"
+    )
+
+
+async def _generate_image_pollinations(visual_prompt: str, job_seed: int = 42) -> str | None:
+    """
+    Return a Pollinations.ai URL for the given visual description.
+    Uses job_seed for visual cohesion across all slides in a presentation.
+    No API key required — URL is returned immediately (image generated on first fetch).
+    """
+    try:
+        return _pollinations_url(visual_prompt, job_seed)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Pollinations URL build failed: %s", exc)
+        return None
+
+
+def _robust_json_parse(raw: str, label: str = "") -> dict:
+    """
+    Parse LLM output that may be wrapped in markdown fences or partially complete.
+    Strategy: extract the content between the FIRST { and LAST } — the strictest
+    possible extraction — then fall back to progressively looser strategies.
+    Logs the raw output on failure so we can diagnose stub triggers.
+    """
+    import re
+    import logging
+    log = logging.getLogger(__name__)
+
+    text = raw.strip() if raw else ""
+
+    # ── Strategy 1: strict first-{ to last-} extraction ──────────────────────
+    first = text.find("{")
+    last  = text.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        candidate = text[first : last + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    # ── Strategy 2: strip markdown fences then direct parse ──────────────────
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text)
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # ── Strategy 3: close unclosed braces/brackets ───────────────────────────
+    try:
+        open_b  = cleaned.count("{") - cleaned.count("}")
+        open_sq = cleaned.count("[") - cleaned.count("]")
+        patched = cleaned + ("]" * max(0, open_sq)) + ("}" * max(0, open_b))
+        return json.loads(patched)
+    except json.JSONDecodeError:
+        pass
+
+    # ── All strategies failed — log raw output so we can diagnose ────────────
+    log.error(
+        "JSON parse FAILED%s. Raw output (first 500 chars):\n%s",
+        f" [{label}]" if label else "",
+        text[:500],
+    )
+    print(f"[PPTX] JSON parse FAILED{' [' + label + ']' if label else ''}. Raw:\n{text[:500]}")
+    raise ValueError(f"Cannot parse JSON from LLM output: {text[:200]}")
+
+
+async def _safe_llm_slide(i: int, total: int, params: dict, slide_outline: str = "") -> dict:
+    """Wrapper that never raises — retries once, then returns a minimal fallback slide."""
+    import logging
+    log = logging.getLogger(__name__)
+    for attempt in range(2):
+        try:
+            return await _llm_single_slide(i, total, params, slide_outline)
+        except Exception as exc:
+            log.warning("Slide %d/%d generation failed (attempt %d): %s", i, total, attempt + 1, exc)
+            print(f"[PPTX] Slide {i}/{total} attempt {attempt + 1} FAILED: {exc}")
+            if attempt == 0:
+                await asyncio.sleep(3)
+    topic = params.get("topic", "this topic")
+    print(f"[PPTX] Slide {i}/{total} falling back to stub after 2 failed attempts")
+    return {
+        "number": i, "type": "content", "title": f"Slide {i}: {topic}",
+        "content": {
+            "bullets": [f"Key concept {i} of {topic}"],
+            "steps": [], "explanation": "", "key_terms": [],
+            "diagram": {"type": "none", "nodes": [], "connections": [], "mermaid": ""},
+            "visual_prompt": f"A hyper-realistic educational illustration of {topic}, vibrant colors, modern style",
+            "detailed_visual_description": f"A hyper-realistic educational illustration of {topic}, vibrant colors, modern style",
+        },
+        "speaker_notes": f"Discuss slide {i} with students.",
+        "engagement_prompt": "What do you think about this?",
+        "vibrant_accent_color": "#695be6",
+    }
+
+
+async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_outline: str = "") -> dict:
+    """Call LLM to generate one slide's content using a specific slide outline for context."""
+    topic                = params["topic"]
+    subject              = params["subject"]
+    grade                = params.get("grade", "")
+    board                = params.get("board", "CBSE")
+    chapter              = params.get("chapter", "")
+    tone                 = params.get("tone", "Engaging")
+    content_depth        = params.get("content_depth", "Concise")
+    purpose              = params.get("purpose", "teaching")
+    target_audience      = params.get("target_audience", "students")
+    include_quiz         = params.get("include_mini_quiz", False)
+    learning_objective   = params.get("learning_objective", "Concept Understanding")
+    special_instructions = params.get("special_instructions", "")
+    visual_style         = params.get("visual_style", "modern")
+    duration_minutes     = params.get("duration_minutes", 30)
+
+    depth_rule = (
+        "3-4 concise bullets + a 2-sentence explanation."
+        if content_depth == "Concise"
+        else "4-6 detailed bullets + a 3-4 sentence explanation with data points and worked examples."
+    )
+    tone_rule = {
+        "Engaging":   "Use analogies, 'Did you know?' hooks, and relatable real-world examples.",
+        "Formal":     "Professional, structured, academic language with precise terminology.",
+        "Reflection": "Pose Socratic questions and reflective prompts to encourage metacognition.",
+    }.get(tone, "")
+    purpose_rule = {
+        "teaching":  "Introduce and explain the concept clearly from scratch.",
+        "revision":  "Summarise key points and highlight common mistakes.",
+        "template":  "Provide a structured template students can fill in themselves.",
+    }.get(purpose, "")
+    style_rule = {
+        "modern":   "Clean, minimal layout.",
+        "colorful": "Vibrant, engaging layout with bold accent colors.",
+        "ncert":    "NCERT-aligned: definition box, examples, exercises.",
+    }.get(visual_style, "")
+
+    chapter_context  = f"Chapter: {chapter}." if chapter else ""
+    special_context  = f"Special instructions: {special_instructions}" if special_instructions else ""
+    outline_context  = (
+        f"\n\nSLIDE OUTLINE (use this as your primary content source for THIS slide):\n{slide_outline}"
+        if slide_outline else ""
+    )
+
+    type_map   = ["title", "hook", "content", "content", "example", "activity", "summary", "assessment"]
+    slide_type = type_map[min(slide_number - 1, len(type_map) - 1)]
+    if include_quiz and slide_number >= total - 1:
+        slide_type = "assessment"
+
+    assessment_extra = ""
+    if slide_type == "assessment":
+        assessment_extra = """,
+    "questions": [
+      {
+        "question": "Question text here?",
+        "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+        "correct": "A"
+      }
+    ]"""
+
+    system_prompt = (
+        f"You are a Senior Instructional Designer for {board} {subject}, {grade}. "
+        f"Generate ONE presentation slide as a raw JSON object. "
+        f"Learning objective: {learning_objective}. "
+        f"Purpose: {purpose_rule} "
+        f"Visual style: {style_rule} "
+        f"Tone: {tone_rule} "
+        f"Content depth: {depth_rule} "
+        f"Target audience: {target_audience}. "
+        f"CRITICAL RULES: "
+        f"(1) Output ONLY the JSON object — no markdown fences, no prose before or after. "
+        f"(2) Start your response with {{ and end with }}. "
+        f"(3) Every string value must be complete — no truncation. "
+        f"(4) The 'detailed_visual_description' MUST be a rich, specific AI image prompt (not generic)."
+    )
+
+    user_prompt = f"""Generate slide {slide_number} of {total} for a {board} {subject} presentation on "{topic}".
+
+COMPLETE CONTEXT:
+- Subject: {subject}  |  Grade: {grade}  |  Board: {board}
+- {chapter_context}
+- Topic: {topic}
+- Slide type: {slide_type}
+- Learning objective: {learning_objective}
+- Target audience: {target_audience}
+- Tone: {tone}
+- Content depth: {content_depth}
+- Visual style: {visual_style}
+- Purpose: {purpose}
+- Duration budget: {duration_minutes} min total
+- {special_context}{outline_context}
+
+VISUAL DESCRIPTION RULE — CRITICAL:
+The "detailed_visual_description" MUST be a UNIQUE, SPECIFIC, RICH AI image prompt for THIS slide's sub-topic.
+DO NOT use generic descriptions like "educational illustration of {topic}".
+DO NOT repeat the same description for multiple slides.
+
+Examples of GOOD prompts:
+  Slide 1 (intro): "A coordinate plane with a straight line y=2x+1 drawn in vibrant blue, grid lines visible, educational poster style, high quality"
+  Slide 2 (balance): "A balance scale with 'x + 5' on the left pan and '10' on the right pan, 3D render, bright classroom colors, realistic"
+  Slide 3 (solving): "Step-by-step algebra working on a whiteboard showing 2x+3=7 being solved, chalk style, high contrast, educational"
+
+Return ONLY this JSON (start with {{, end with }}, no other text):
+{{
+  "number": {slide_number},
+  "type": "{slide_type}",
+  "title": "Specific engaging title for slide {slide_number} about {topic}",
+  "subtitle": "One-line hook or sub-heading",
+  "content": {{
+    "bullets": ["Specific fact or concept about {topic}", "Another substantive point", "Third point with example"],
+    "steps": [],
+    "explanation": "2-3 sentences of context with a Did you know? fact specific to this slide's sub-topic.",
+    "key_terms": [{{"term": "Relevant term", "definition": "Clear one-line definition"}}],
+    "diagram": {{
+      "type": "none",
+      "nodes": [],
+      "connections": [],
+      "mermaid": ""
+    }},
+    "visual_prompt": "Short 5-word search phrase specific to this slide",
+    "detailed_visual_description": "UNIQUE rich AI image prompt specific to slide {slide_number}'s sub-topic (NOT generic)"{assessment_extra}
+  }},
+  "speaker_notes": "3-4 sentence teacher script with specific analogies and talking points for {topic}.",
+  "engagement_prompt": "Specific question or activity about this slide's sub-topic",
+  "vibrant_accent_color": "#695be6"
+}}"""
+
+    raw = await chat_completion(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_prompt},
+        ],
+        timeout=120,
+    )
+    return _robust_json_parse(raw, label=f"slide {slide_number}/{total}")
+
+async def process_pptx_pipeline(job_id: str, params: dict):
+    """
+    3-phase pipeline:
+      Phase 0 — Planner: LLM returns a JSON list of N slide outlines
+      Phase 1 — Slides: each slide gets only its own outline as context (semaphore=4)
+      Phase 2 — Pollinations.ai image URLs (instant, stable seed per job)
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    total   = int(params.get("num_slides", 10))
+    topic   = params["topic"]
+    subject = params["subject"]
+    grade   = params.get("grade", "")
+    board   = params.get("board", "CBSE")
+    chapter = params.get("chapter", "")
+    lo      = params.get("learning_objective", "Concept Understanding")
+
+    presentation_jobs[job_id].update({"total_slides": total, "current_slide": 0, "status": "processing"})
+
+    # ── Phase 0: Planner — generate N slide outlines as a JSON list ──────────
+    planner_prompt = f"""You are a curriculum planner. Create a structured outline for a {total}-slide {board} {subject} presentation on "{topic}" for {grade}.
+{f"Chapter: {chapter}." if chapter else ""}
+Learning objective: {lo}.
+
+Return ONLY a JSON array of exactly {total} objects. Each object must have:
+- "slide_number": integer
+- "title": specific slide title (NOT generic like "Slide 1")
+- "sub_topic": the specific aspect of {topic} this slide covers
+- "key_points": array of 3 specific facts or concepts for this slide
+- "visual_hint": a specific visual description unique to this slide's sub-topic
+  (e.g. "Balance scale with x+5 on left, 10 on right" NOT "illustration of {topic}")
+- "slide_type": one of title|hook|content|example|activity|summary|assessment
+
+Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
+
+    slide_outlines: list[str] = []
+    try:
+        raw_plan = await chat_completion(
+            [{"role": "user", "content": planner_prompt}],
+            timeout=120,
+        )
+        # Extract array between first [ and last ]
+        first_b = raw_plan.find("[")
+        last_b  = raw_plan.rfind("]")
+        if first_b != -1 and last_b > first_b:
+            plan_list = json.loads(raw_plan[first_b : last_b + 1])
+            slide_outlines = [json.dumps(item) for item in plan_list]
+            log.info("[PPTX] Planner produced %d outlines for job %s", len(slide_outlines), job_id)
+            print(f"[PPTX] Planner OK: {len(slide_outlines)} outlines for job {job_id}")
+        else:
+            raise ValueError("No JSON array found in planner response")
+    except Exception as exc:
+        log.warning("[PPTX] Planner failed for job %s: %s", job_id, exc)
+        print(f"[PPTX] Planner FAILED for job {job_id}: {exc} — proceeding without outlines")
+        slide_outlines = []
+
+    # Pad/trim to exactly `total` entries
+    while len(slide_outlines) < total:
+        slide_outlines.append("")
+    slide_outlines = slide_outlines[:total]
+
+    # ── Phase 1: throttled parallel slides (semaphore = 4 concurrent) ────────
+    sem = asyncio.Semaphore(4)
+
+    async def _throttled_slide(i: int) -> dict:
+        outline = slide_outlines[i - 1] if i - 1 < len(slide_outlines) else ""
+        async with sem:
+            slide = await _safe_llm_slide(i, total, params, outline)
+            presentation_jobs[job_id]["current_slide"] = max(
+                presentation_jobs[job_id].get("current_slide", 0), i
+            )
+            return slide
+
+    slides_data: list = list(await asyncio.gather(*[_throttled_slide(i) for i in range(1, total + 1)]))
+
+    # ── Phase 2: Pollinations.ai image URLs (unique seed per slide) ──────────
+    job_seed = abs(hash(job_id)) % 100000
+    for slide in slides_data:
+        content = slide.get("content") or {}
+        desc = content.get("detailed_visual_description") or content.get("visual_prompt", "")
+        if desc and isinstance(content, dict):
+            slide_num = slide.get("number", 1)
+            content["image_url"] = _pollinations_url(desc, job_seed + slide_num)
+
+    # ── Build result ──────────────────────────────────────────────────────────
+    chapter_str = f" ({chapter})" if chapter else ""
+    result = {
+        "title":            topic,
+        "subject":          subject,
+        "grade":            grade,
+        "board":            board,
+        "chapter":          chapter,
+        "total_slides":     total,
+        "duration_minutes": params.get("duration_minutes", 30),
+        "purpose":          params.get("purpose", "teaching"),
+        "tone":             params.get("tone", "Engaging"),
+        "visual_style":     params.get("visual_style", "modern"),
+        "learning_objectives": [
+            f"By the end, students will demonstrate {lo.lower()} of {topic}.",
+            f"Students will be able to apply {topic} concepts to real-world scenarios.",
+            f"Students will connect {topic} to the broader {subject} curriculum.",
+        ],
+        "slides": slides_data,
+        "teacher_preparation_notes": (
+            f"Review {topic}{chapter_str} materials aligned to {board} curriculum. "
+            f"Prepare {params.get('tone', 'Engaging').lower()} examples and activities. "
+            f"Estimated delivery time: {params.get('duration_minutes', 30)} minutes."
+        ),
+    }
+
+    presentation_jobs[job_id]["status"]      = "completed"
+    presentation_jobs[job_id]["result_data"] = result
+
+
+@router.post("/ai-tool/presentation/generate")
+async def presentation_generate(
+    body: AIToolRequest,
+    background_tasks: BackgroundTasks,
+    user=Depends(require_role("teacher")),
+):
+    """
+    Kick off a background pipeline to build the presentation slide-by-slide.
+    Returns immediately with a job_id the client can poll.
+    """
+    extra = body.extra or {}
+    params = {
+        "topic":                body.topic,
+        "subject":              body.subject,
+        "grade":                body.grade or extra.get("classLevel", ""),
+        "board":                extra.get("board", "CBSE"),
+        "chapter":              extra.get("chapter", ""),
+        "num_slides":           int(extra.get("num_slides", 10)),
+        "duration_minutes":     int(extra.get("duration_minutes", 45)),
+        "purpose":              extra.get("purpose", "teaching"),
+        "visual_style":         extra.get("visual_style", "modern"),
+        "learning_objective":   extra.get("learning_objective", "Concept Understanding"),
+        "special_instructions": extra.get("special_instructions", ""),
+        "target_audience":      extra.get("target_audience", "students"),
+        "tone":                 extra.get("tone", "Engaging"),
+        "content_depth":        extra.get("content_depth", "Concise"),
+        "include_mini_quiz":    bool(extra.get("include_mini_quiz", False)),
+    }
+
+    job_id = str(uuid.uuid4())
+    presentation_jobs[job_id] = {
+        "status":       "processing",
+        "current_slide": 0,
+        "total_slides":  params["num_slides"],
+        "result_data":   None,
+        "error":         None,
+    }
+
+    background_tasks.add_task(process_pptx_pipeline, job_id, params)
+    return {"job_id": job_id, "status": "processing"}
+
+
+@router.get("/ai-tool/status/{job_id}")
+async def presentation_status(job_id: str, user=Depends(require_role("teacher"))):
+    """Poll the live progress of a background presentation task."""
+    job = presentation_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    current = job["current_slide"]
+    total   = job["total_slides"]
+    pct     = round((current / total) * 100) if total else 0
+
+    base = {
+        "job_id":        job_id,
+        "status":        job["status"],
+        "current_slide": current,
+        "total_slides":  total,
+        "progress_pct":  pct,
+    }
+
+    if job["status"] == "completed":
+        return {**base, **job["result_data"]}
+
+    if job["status"] == "failed":
+        return {**base, "error": job.get("error", "Unknown error")}
+
+    return base
+
+
+@router.post("/ai-tool/presentation/save-history")
+async def save_presentation_history(
+    body: dict,
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db),
+):
+    """Save a generated presentation to history."""
+    from datetime import datetime
+    from bson import ObjectId
+    
+    history_doc = {
+        "teacher_id": user["_id"],
+        "subject": body.get("subject", ""),
+        "topic": body.get("topic", ""),
+        "grade": body.get("grade", ""),
+        "board": body.get("board", "CBSE"),
+        "chapter": body.get("chapter", ""),
+        "title": body.get("title", body.get("topic", "Untitled")),
+        "total_slides": body.get("total_slides", 0),
+        "duration_minutes": body.get("duration_minutes", 30),
+        "purpose": body.get("purpose", "teaching"),
+        "visual_style": body.get("visual_style", "modern"),
+        "tone": body.get("tone", "Engaging"),
+        "content_depth": body.get("content_depth", "Concise"),
+        "target_audience": body.get("target_audience", "students"),
+        "learning_objective": body.get("learning_objective", ""),
+        "include_mini_quiz": body.get("include_mini_quiz", False),
+        "special_instructions": body.get("special_instructions", ""),
+        "slides": body.get("slides", []),
+        "learning_objectives": body.get("learning_objectives", []),
+        "teacher_preparation_notes": body.get("teacher_preparation_notes", ""),
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+    
+    result = await db["presentation_history"].insert_one(history_doc)
+    return {"_id": str(result.inserted_id), "status": "saved"}
+
+
+@router.get("/ai-tool/presentation/history")
+async def get_presentation_history(
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db),
+):
+    """Get all saved presentations for the teacher."""
+    from bson import ObjectId
+    
+    docs = await db["presentation_history"].find(
+        {"teacher_id": user["_id"]}
+    ).sort("created_at", -1).to_list(100)
+    
+    for doc in docs:
+        doc["_id"] = str(doc["_id"])
+    
+    return {"presentations": docs}
+
+
+@router.get("/ai-tool/presentation/{presentation_id}")
+async def get_presentation_detail(
+    presentation_id: str,
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db),
+):
+    """Get a specific saved presentation."""
+    from bson import ObjectId
+    
+    try:
+        doc = await db["presentation_history"].find_one({
+            "_id": ObjectId(presentation_id),
+            "teacher_id": user["_id"]
+        })
+        if not doc:
+            raise HTTPException(404, "Presentation not found")
+        doc["_id"] = str(doc["_id"])
+        return doc
+    except Exception as e:
+        raise HTTPException(400, f"Invalid presentation ID: {str(e)}")
+
+
+@router.delete("/ai-tool/presentation/{presentation_id}")
+async def delete_presentation(
+    presentation_id: str,
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db),
+):
+    """Delete a saved presentation."""
+    from bson import ObjectId
+    
+    try:
+        result = await db["presentation_history"].delete_one({
+            "_id": ObjectId(presentation_id),
+            "teacher_id": user["_id"]
+        })
+        if result.deleted_count == 0:
+            raise HTTPException(404, "Presentation not found")
+        return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(400, f"Invalid presentation ID: {str(e)}")
+
+
+@router.get("/image-proxy")
+async def image_proxy(url: str):
+    """
+    Proxy an external image URL (e.g. Pollinations.ai) to avoid browser CORS restrictions.
+    No auth required — URL is restricted to Pollinations.ai only.
+    Returns the raw image bytes with the correct Content-Type header.
+    """
+    from fastapi.responses import Response
+    import urllib.parse
+
+    # Only allow Pollinations.ai URLs for security
+    decoded = urllib.parse.unquote(url)
+    if not decoded.startswith("https://image.pollinations.ai/"):
+        raise HTTPException(400, "Only Pollinations.ai URLs are allowed")
+
+    try:
+        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
+            resp = await client.get(decoded, headers={"User-Agent": "EduAI/1.0"})
+            resp.raise_for_status()
+            content_type = resp.headers.get("content-type", "image/jpeg")
+            return Response(
+                content=resp.content,
+                media_type=content_type,
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Image fetch timed out")
+    except Exception as exc:
+        raise HTTPException(502, f"Image fetch failed: {exc}")
+
+
 @router.post("/ai-generate-questions")
 async def ai_generate_questions(body: AIGenerateQuestionsRequest, user=Depends(require_role("teacher"))):
     """Generate homework questions with AI — returns structured Question objects."""
@@ -1318,22 +1919,44 @@ async def ai_generate_questions(body: AIGenerateQuestionsRequest, user=Depends(r
 Your questions must:
 1. Be clear, unambiguous, and age-appropriate
 2. Align with the specified board curriculum (CBSE/ICSE/State Board)
-3. Match the requested difficulty level precisely
+3. Match the requested difficulty distribution precisely — generate the right proportion of easy/medium/hard questions
 4. For MCQ: provide exactly 4 options with one clearly correct answer and plausible distractors
-5. For typed: include a concise sample answer (2-3 sentences max)
+5. For typed: include a concise sample answer (2-3 sentences max) and a marking rubric hint
 6. Include helpful hints that guide without giving away the answer
 7. Include vin_nudge — a short encouraging prompt for the AI assistant (e.g. "Think about what happens when...")
-8. Return ONLY valid JSON, no markdown, no explanation outside the JSON"""
+8. Align questions to the specified learning objective (recall, application, analysis, etc.)
+9. Follow any special instructions provided by the teacher exactly
+10. Return ONLY valid JSON, no markdown, no explanation outside the JSON"""
+
+    # Resolve difficulty description from either string or distribution dict
+    extra = body.extra or {}
+    difficulty_val = extra.get("difficulty", body.difficulty)
+    if isinstance(difficulty_val, dict):
+        easy_pct   = difficulty_val.get('easy', 30)
+        medium_pct = difficulty_val.get('medium', 50)
+        hard_pct   = difficulty_val.get('hard', 20)
+        difficulty_desc = (
+            f"Easy={easy_pct}% (~{round(body.count * easy_pct / 100)} questions), "
+            f"Medium={medium_pct}% (~{round(body.count * medium_pct / 100)} questions), "
+            f"Hard={hard_pct}% (~{round(body.count * hard_pct / 100)} questions)"
+        )
+    else:
+        difficulty_desc = str(difficulty_val or "mixed")
+
+    board_val              = extra.get('board', body.board) or 'CBSE'
+    chapter_val            = extra.get('chapter', body.chapter)
+    learning_objective_val = extra.get('learning_objective', body.learning_objective)
+    special_instructions_val = extra.get('special_instructions', body.special_instructions)
 
     prompt = f"""Generate {body.count} homework questions for:
 Subject: {body.subject}
 Topic: {body.topic}
 Grade: {body.grade}
-Difficulty: {body.difficulty}
-Board: {body.board or 'CBSE'}
-{f"Chapter: {body.chapter}" if body.chapter else ""}
-{f"Learning Objective: {body.learning_objective}" if body.learning_objective else ""}
-{f"Special Instructions: {body.special_instructions}" if body.special_instructions else ""}
+Board: {board_val}
+Difficulty Distribution: {difficulty_desc}
+{f"Chapter: {chapter_val}" if chapter_val else ""}
+{f"Learning Objective: {learning_objective_val} — focus questions on this cognitive level" if learning_objective_val else ""}
+{f"Special Instructions (MUST follow): {special_instructions_val}" if special_instructions_val else ""}
 Question types to include: {types_desc}
 
 Return ONLY this JSON structure (no markdown, no extra text):
@@ -1836,3 +2459,156 @@ async def delete_group(group_id: str, user=Depends(require_role("teacher")), db=
     if result.deleted_count == 0:
         raise HTTPException(404, "Group not found")
     return {"deleted": group_id}
+
+
+# ─────────────────────────────────────────────────────────────
+# QUIZ DRAFTS — save generated questions as reusable drafts
+# ─────────────────────────────────────────────────────────────
+
+class QuizDraftSave(BaseModel):
+    title: str
+    subject: str
+    topic: str
+    grade: Optional[str] = None
+    board: Optional[str] = "CBSE"
+    chapter: Optional[str] = None
+    questions: List[dict]
+    meta: Optional[dict] = None  # stores form config (difficulty, types, etc.)
+
+@router.post("/quiz-drafts")
+async def save_quiz_draft(body: QuizDraftSave, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Save AI-generated questions as a reusable quiz draft."""
+    doc = {
+        "teacher_id": user["id"],
+        "title":      body.title,
+        "subject":    body.subject,
+        "topic":      body.topic,
+        "grade":      body.grade,
+        "board":      body.board,
+        "chapter":    body.chapter,
+        "questions":  body.questions,
+        "meta":       body.meta or {},
+        "status":     "draft",
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    result = await db.quiz_drafts.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+@router.get("/quiz-drafts")
+async def list_quiz_drafts(user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """List all quiz drafts for this teacher."""
+    docs = await db.quiz_drafts.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(None)
+    return [_ser(d) for d in docs]
+
+@router.patch("/quiz-drafts/{draft_id}")
+async def update_quiz_draft(draft_id: str, body: QuizDraftSave, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Update an existing quiz draft."""
+    try:
+        existing = await db.quiz_drafts.find_one({"_id": ObjectId(draft_id), "teacher_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid draft ID")
+    if not existing:
+        raise HTTPException(404, "Draft not found")
+    update = {
+        "title":      body.title,
+        "subject":    body.subject,
+        "topic":      body.topic,
+        "grade":      body.grade,
+        "board":      body.board,
+        "chapter":    body.chapter,
+        "questions":  body.questions,
+        "meta":       body.meta or {},
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    await db.quiz_drafts.update_one({"_id": ObjectId(draft_id)}, {"$set": update})
+    updated = await db.quiz_drafts.find_one({"_id": ObjectId(draft_id)})
+    return _ser(updated)
+
+@router.delete("/quiz-drafts/{draft_id}")
+async def delete_quiz_draft(draft_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Delete a quiz draft."""
+    try:
+        result = await db.quiz_drafts.delete_one({"_id": ObjectId(draft_id), "teacher_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid draft ID")
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Draft not found")
+    return {"deleted": True}
+
+
+# WORKSHEET DRAFTS — save generated worksheets as reusable drafts
+# ───────────────────────────────────────────────────────────────
+
+class WorksheetDraftSave(BaseModel):
+    title: str
+    subject: Optional[str] = None
+    topic: Optional[str] = None
+    grade: Optional[str] = None
+    board: Optional[str] = "CBSE"
+    chapter: Optional[str] = None
+    worksheet: dict          # full AI result object
+    meta: Optional[dict] = None  # stores form config
+
+@router.post("/worksheet-drafts")
+async def save_worksheet_draft(body: WorksheetDraftSave, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Save an AI-generated worksheet as a reusable draft."""
+    doc = {
+        "teacher_id": user["id"],
+        "title":      body.title,
+        "subject":    body.subject,
+        "topic":      body.topic,
+        "grade":      body.grade,
+        "board":      body.board,
+        "chapter":    body.chapter,
+        "worksheet":  body.worksheet,
+        "meta":       body.meta or {},
+        "status":     "draft",
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    result = await db.worksheet_drafts.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+@router.get("/worksheet-drafts")
+async def list_worksheet_drafts(user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """List all worksheet drafts for this teacher."""
+    docs = await db.worksheet_drafts.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(None)
+    return [_ser(d) for d in docs]
+
+@router.patch("/worksheet-drafts/{draft_id}")
+async def update_worksheet_draft(draft_id: str, body: WorksheetDraftSave, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Update an existing worksheet draft."""
+    try:
+        existing = await db.worksheet_drafts.find_one({"_id": ObjectId(draft_id), "teacher_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid draft ID")
+    if not existing:
+        raise HTTPException(404, "Draft not found")
+    update = {
+        "title":      body.title,
+        "subject":    body.subject,
+        "topic":      body.topic,
+        "grade":      body.grade,
+        "board":      body.board,
+        "chapter":    body.chapter,
+        "worksheet":  body.worksheet,
+        "meta":       body.meta or {},
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    await db.worksheet_drafts.update_one({"_id": ObjectId(draft_id)}, {"$set": update})
+    updated = await db.worksheet_drafts.find_one({"_id": ObjectId(draft_id)})
+    return _ser(updated)
+
+@router.delete("/worksheet-drafts/{draft_id}")
+async def delete_worksheet_draft(draft_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Delete a worksheet draft."""
+    try:
+        result = await db.worksheet_drafts.delete_one({"_id": ObjectId(draft_id), "teacher_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid draft ID")
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Draft not found")
+    return {"deleted": True}

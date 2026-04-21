@@ -26,6 +26,23 @@ export const presentationPurposes = [
   { id: "template",  label: "Student Template" },
 ];
 
+export const presentationTargetAudiences = [
+  { id: "students",  label: "Students" },
+  { id: "parents",   label: "Parents" },
+  { id: "admin",     label: "School Admin" },
+];
+
+export const presentationTones = [
+  { id: "Engaging",   label: "Engaging",   desc: "Analogies, fun facts, real-world examples" },
+  { id: "Formal",     label: "Formal",     desc: "Professional, structured, academic" },
+  { id: "Reflection", label: "Reflection", desc: "Reflective prompts, deeper thinking" },
+];
+
+export const presentationContentDepths = [
+  { id: "Concise",  label: "Concise",  desc: "Max 3 bullets, high-level summaries" },
+  { id: "Detailed", label: "Detailed", desc: "Comprehensive explanations & data points" },
+];
+
 export const presentationDefaults = {
   topic: "Linear Equations",
   subject: "Math",
@@ -38,4 +55,8 @@ export const presentationDefaults = {
   chapter: "",
   learningObjective: "Concept Understanding",
   specialInstructions: "",
+  targetAudience: "students",
+  tone: "Engaging",
+  contentDepth: "Concise",
+  includeMiniQuiz: false,
 };

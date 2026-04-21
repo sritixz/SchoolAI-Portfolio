@@ -6,6 +6,7 @@ export const quizGeneratorDefaults = {
   topic: "Linear Equations",
   subject: "Math",
   classLevel: "Grade 8",
+  questionCount: 5,
   questionTypes: { mcq: true, shortAnswer: true, numerical: false, caseBased: false },
   difficulty: { easy: 30, medium: 50, hard: 20 },
   board: "CBSE",

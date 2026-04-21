@@ -6,10 +6,10 @@ export const homeworkSubjects = ["Math", "Physics", "Chemistry", "Biology", "Eng
 export const homeworkChapters = ["Linear Equations", "Quadratic Equations", "Probability", "Geometry", "Trigonometry"];
 
 export const homeworkTypes = [
-  { id: "online",  icon: "cloud_upload",  label: "Online",  desc: "Auto-graded system" },
-  { id: "offline", icon: "print",         label: "Offline", desc: "Printable worksheets" },
-  { id: "guided",  icon: "help_outline",  label: "Guided",  desc: "AI hints enabled" },
-  { id: "mixed",   icon: "layers",        label: "Mixed",   desc: "Combo of formats" },
+  { id: "online_quiz",  icon: "cloud_upload",  label: "Online Quiz",  desc: "Auto-graded MCQ/typed" },
+  { id: "file_upload",  icon: "upload_file",   label: "File Upload",  desc: "Student uploads PDF/image" },
+  { id: "handwritten",  icon: "draw",          label: "Handwritten",  desc: "Photo of written work" },
+  { id: "online_quiz",  icon: "layers",        label: "Mixed",        desc: "Combo of formats" },
 ];
 
 export const topicFilters = [

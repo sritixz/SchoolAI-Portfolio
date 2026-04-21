@@ -63,6 +63,11 @@ export const assignHomework = createAsyncThunk("homework/assign", async (payload
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const deleteHomework = createAsyncThunk("homework/delete", async (id, { rejectWithValue }) => {
+  try { await api.delete(`/homework/${id}`); return id; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const fetchSubmissions = createAsyncThunk("homework/fetchSubmissions", async (homeworkId, { rejectWithValue }) => {
   try { return (await api.get(`/homework/${homeworkId}/submissions`)).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
@@ -148,6 +153,10 @@ const homeworkSlice = createSlice({
     b.addCase(gradeHomework.pending,   (s) => { s.gradeStatus = "loading"; })
      .addCase(gradeHomework.fulfilled, (s) => { s.gradeStatus = "succeeded"; })
      .addCase(gradeHomework.rejected,  (s) => { s.gradeStatus = "failed"; });
+
+    b.addCase(deleteHomework.fulfilled, (s, a) => {
+      s.library = s.library.filter((hw) => (hw._id || hw.id) !== a.payload);
+    });
   },
 });
 

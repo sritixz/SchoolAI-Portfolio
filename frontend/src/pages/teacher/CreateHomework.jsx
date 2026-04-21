@@ -1,6 +1,14 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  createHomework, updateHomework, assignHomework, fetchHomeworkById,
+  selectCurrentHomework,
+} from "../../store/slices/homeworkSlice";
+import {
+  fetchMySections,
+} from "../../store/slices/teacherSlice";
 import {
   homeworkSubjects,
   homeworkChapters,
@@ -13,19 +21,69 @@ import {
 export default function CreateHomework() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get("edit");
+  const fromId = searchParams.get("from");
+  const templateId = editId || fromId;
+
+  const apiHw = useSelector(selectCurrentHomework);
+
   const [subject, setSubject] = useState("");
   const [chapter, setChapter] = useState("");
-  const [hwType, setHwType] = useState("online");
+  const [hwType, setHwType] = useState("online_quiz");
   const [activeTopic, setActiveTopic] = useState("stoich");
   const [questions, setQuestions] = useState(questionBank);
   const [qSearch, setQSearch] = useState("");
   const [assignTarget, setAssignTarget] = useState("Entire Class");
+  const [selectedClass, setSelectedClass] = useState("");
+  const [sections, setSections] = useState([]);
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
-  const [allowRetries, setAllowRetries] = useState(true);
+  const [allowRetries, setAllowRetries] = useState(false);
   const [aiAssistantEnabled, setAiAssistantEnabled] = useState(true);
   const [instructions, setInstructions] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dateError, setDateError] = useState("");
+
+  // Load teacher's sections for the class dropdown
+  useEffect(() => {
+    dispatch(fetchMySections()).then((res) => {
+      if (res.payload?.length) {
+        setSections(res.payload);
+        setSelectedClass(res.payload[0].class_name || "");
+      }
+    });
+  }, [dispatch]);
+
+  // Pre-fill form when editing or using as template
+  useEffect(() => {
+    if (templateId) dispatch(fetchHomeworkById(templateId));
+  }, [templateId, dispatch]);
+
+  useEffect(() => {
+    if (!apiHw || apiHw._id !== templateId) return;
+    setSubject(apiHw.subject || "");
+    setHwType(apiHw.submission_type || "online_quiz");
+    setAllowRetries(apiHw.allow_retries || false);
+    setAiAssistantEnabled(apiHw.ai_assistant_enabled !== false);
+    setInstructions(apiHw.instructions || "");
+    setDueDate(apiHw.due_date ? apiHw.due_date.split("T")[0] : "");
+    if (apiHw.assigned_to_class) setSelectedClass(apiHw.assigned_to_class);
+  }, [apiHw, templateId]);
+
+  // Map UI type keys to backend SubmissionType enum
+  const HW_TYPE_MAP = {
+    online_quiz: "online_quiz",
+    file_upload: "file_upload",
+    handwritten: "handwritten",
+    // legacy UI keys
+    online:  "online_quiz",
+    offline: "file_upload",
+    guided:  "online_quiz",
+    mixed:   "online_quiz",
+  };
 
   const toggleQuestion = (id) =>
     setQuestions((prev) => prev.map((q) => q.id === id ? { ...q, selected: !q.selected } : q));
@@ -33,6 +91,71 @@ export default function CreateHomework() {
   const selectedQs    = questions.filter((q) => q.selected);
   const totalMarks    = selectedQs.reduce((s, q) => s + q.marks, 0);
   const totalMinutes  = selectedQs.reduce((s, q) => s + q.timeMinutes, 0);
+
+  const validateDueDate = (val) => {
+    if (!val) { setDateError(""); return true; }
+    const selected = new Date(val);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (selected < today) {
+      setDateError("Due date cannot be in the past");
+      return false;
+    }
+    setDateError("");
+    return true;
+  };
+
+  const handleAssign = async () => {
+    if (!subject) return alert("Please select a subject");
+    if (!selectedClass) return alert("Please select a class");
+    if (!dueDate) return alert("Please set a due date");
+    if (!validateDueDate(dueDate)) return;
+
+    setSaving(true);
+    try {
+      const submissionType = HW_TYPE_MAP[hwType] || "online_quiz";
+      const payload = {
+        subject,
+        title: `${subject} — ${chapter || "Homework"}`,
+        description: instructions || "",
+        assigned_to_class: selectedClass,
+        assigned_students: [],
+        due_date: dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T23:59:00`,
+        submission_type: submissionType,
+        difficulty_level: "medium",
+        estimated_duration_minutes: totalMinutes || 30,
+        questions: selectedQs.map((q, i) => ({
+          id: q.id,
+          question_number: i + 1,
+          total_questions: selectedQs.length,
+          question_text: q.text,
+          answer_type: submissionType === "online_quiz" ? "mcq" : "upload",
+          options: [],
+          max_points: q.marks,
+        })),
+        tags: [chapter].filter(Boolean),
+        total_marks: totalMarks,
+        instructions,
+        ai_assistant_enabled: aiAssistantEnabled,
+        allow_retries: allowRetries,
+      };
+
+      let hwId;
+      if (editId) {
+        await dispatch(updateHomework({ id: editId, ...payload })).unwrap();
+        hwId = editId;
+      } else {
+        const res = await dispatch(createHomework(payload)).unwrap();
+        hwId = res.id;
+        // Assign to class
+        await dispatch(assignHomework({ homework_id: hwId, student_ids: [], due_date: payload.due_date })).unwrap();
+      }
+      navigate("/teacher/homework");
+    } catch (err) {
+      alert("Failed to save homework. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="bg-[#fdf4ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -71,8 +194,8 @@ export default function CreateHomework() {
       <main className="flex-1 w-full px-4 sm:px-6 lg:px-10 xl:px-16 py-6 sm:py-8 lg:py-10 pb-32 sm:pb-36 lg:pb-40">
         <div className="max-w-[1920px] mx-auto">
           <div className="mb-6 sm:mb-8 lg:mb-10">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-tight mb-2">Create New Homework</h1>
-            <p className="text-sm sm:text-base lg:text-lg text-[#775095] font-normal">Select topics, questions, and assign settings for your students.</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight tracking-tight mb-2">{editId ? "Edit Homework" : "Create New Homework"}</h1>
+            <p className="text-sm sm:text-base lg:text-lg text-[#775095] font-normal">{editId ? "Update the homework details and save changes." : "Select topics, questions, and assign settings for your students."}</p>
           </div>
 
           {/* Section 1: Basic Information */}
@@ -239,6 +362,21 @@ export default function CreateHomework() {
               </h2>
             </div>
             <div className="p-4 sm:p-6 lg:p-8">
+              {/* Class selector */}
+              <div className="mb-6">
+                <label className="text-xs sm:text-sm font-semibold block mb-2">Assign To Class</label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="form-select w-full sm:w-72 rounded-lg border-[#ddd1e6] bg-transparent h-10 sm:h-12 px-3 focus:ring-[#932ce2] focus:border-[#932ce2] text-sm"
+                >
+                  {sections.length === 0 && <option value="">Loading classes...</option>}
+                  {sections.map((s) => (
+                    <option key={s._id || s.class_name} value={s.class_name}>{s.class_name}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Tabbed Interface */}
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-full sm:w-fit mb-6 sm:mb-8 overflow-x-auto">
                 {assignmentTargets.map((t) => (
@@ -262,7 +400,8 @@ export default function CreateHomework() {
                       <input
                         type="date"
                         value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
+                        min={new Date().toISOString().split("T")[0]}
+                        onChange={(e) => { setDueDate(e.target.value); validateDueDate(e.target.value); }}
                         className="flex-1 rounded-lg border-[#ddd1e6] bg-transparent focus:ring-[#932ce2] h-10 sm:h-12 text-sm"
                       />
                       <input
@@ -272,6 +411,7 @@ export default function CreateHomework() {
                         className="w-24 sm:w-32 rounded-lg border-[#ddd1e6] bg-transparent focus:ring-[#932ce2] h-10 sm:h-12 text-sm"
                       />
                     </div>
+                    {dateError && <p className="text-xs text-red-500 font-medium">{dateError}</p>}
                   </div>
                   <div className="flex items-center justify-between p-3 sm:p-4 border border-[#eee8f3] rounded-xl">
                     <div className="flex flex-col">
@@ -361,14 +501,18 @@ export default function CreateHomework() {
             </div>
           </div>
           <div className="flex gap-2 sm:gap-3 lg:gap-4 w-full sm:w-auto">
-            <button className="flex-1 sm:flex-none px-6 sm:px-8 lg:px-10 py-2.5 sm:py-3 rounded-xl border-2 border-[#932ce2] text-[#932ce2] font-bold text-sm hover:bg-[#932ce2]/5 transition-colors">
+            <button
+              onClick={() => navigate(`/teacher/homework/preview/${editId || "new"}`)}
+              className="flex-1 sm:flex-none px-6 sm:px-8 lg:px-10 py-2.5 sm:py-3 rounded-xl border-2 border-[#932ce2] text-[#932ce2] font-bold text-sm hover:bg-[#932ce2]/5 transition-colors">
               Preview
             </button>
             <button
-              onClick={() => navigate("/teacher/homework")}
-              className="flex-1 sm:flex-none px-8 sm:px-10 lg:px-12 py-2.5 sm:py-3 rounded-xl bg-[#932ce2] text-white font-bold text-sm shadow-lg shadow-[#932ce2]/20 hover:scale-[1.02] active:scale-95 transition-all"
+              onClick={handleAssign}
+              disabled={saving}
+              className="flex-1 sm:flex-none px-8 sm:px-10 lg:px-12 py-2.5 sm:py-3 rounded-xl bg-[#932ce2] text-white font-bold text-sm shadow-lg shadow-[#932ce2]/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
             >
-              Assign Homework
+              {saving && <span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+              {editId ? "Save Changes" : "Assign Homework"}
             </button>
           </div>
         </div>

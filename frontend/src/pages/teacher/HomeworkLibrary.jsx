@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 import { 
   fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus,
-  assignHomework, fetchHomeworkById, selectCurrentHomework, patchHomeworkQuestions,
+  assignHomework, fetchHomeworkById, selectCurrentHomework, patchHomeworkQuestions, deleteHomework,
 } from "../../store/slices/homeworkSlice";
 import { fetchStudentsByClass, selectStudentsByClass } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
@@ -40,6 +40,8 @@ export default function HomeworkLibrary() {
   const [search, setSearch] = useState("");
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [selectedType, setSelectedType] = useState(""); // "Online Quiz" | "File Upload" | ""
   const [viewMode, setViewMode] = useState("grid");
   const [page, setPage] = useState(1);
   const [library, setLibrary] = useState(mockLibrary);
@@ -56,6 +58,10 @@ export default function HomeworkLibrary() {
   const [editQuestions, setEditQuestions] = useState([]);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  // History panel open per card
+  const [historyOpen, setHistoryOpen] = useState({});
+  // Delete confirmation per card: { [id]: true }
+  const [deleteConfirm, setDeleteConfirm] = useState({});
 
   useEffect(() => { dispatch(fetchHomeworkLibrary()); }, [dispatch]);
   useEffect(() => {
@@ -75,6 +81,12 @@ export default function HomeworkLibrary() {
         starred:          false,
         usedCount:        null,
         class:            hw.assigned_to_class || "",
+        // history fields
+        createdAt:        hw.created_at || null,
+        assignedAt:       hw.assigned_at || null,
+        dueDate:          hw.due_date || null,
+        assignedStudentNames: hw.assigned_student_names || [],
+        assignedStudentCount: (hw.assigned_students || []).length,
       }));
       setLibrary(normalised);
     }
@@ -219,10 +231,18 @@ export default function HomeworkLibrary() {
   };
 
   const filtered = library.filter((hw) => {
-    const matchSubject = selectedSubjects.length === 0 || selectedSubjects.includes(hw.subject);
-    const matchClass   = selectedClasses.length === 0  || selectedClasses.includes(hw.class);
-    const matchSearch  = hw.title.toLowerCase().includes(search.toLowerCase());
-    return matchSubject && matchClass && matchSearch;
+    const matchSubject = selectedSubjects.length === 0 || selectedSubjects.some(
+      (s) => hw.subject?.toLowerCase().includes(s.toLowerCase())
+    );
+    // Class filter: "Class 6" should match "Grade 6-A", "Grade 6-B", etc.
+    const matchClass = selectedClasses.length === 0 || selectedClasses.some((c) => {
+      const grade = c.replace("Class ", "").replace("Grade ", "").trim();
+      return hw.class?.includes(grade);
+    });
+    const matchStatus = selectedStatuses.length === 0 || selectedStatuses.includes(hw.status);
+    const matchType   = !selectedType || hw.type === selectedType;
+    const matchSearch = hw.title.toLowerCase().includes(search.toLowerCase());
+    return matchSubject && matchClass && matchStatus && matchType && matchSearch;
   });
 
   const PAGE_SIZE = 24;
@@ -278,7 +298,7 @@ export default function HomeworkLibrary() {
           <div className="flex items-center justify-between mb-5">
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Filters</p>
             <button
-              onClick={() => { setSelectedSubjects([]); setSelectedClasses([]); }}
+              onClick={() => { setSelectedSubjects([]); setSelectedClasses([]); setSelectedStatuses([]); setSelectedType(""); setPage(1); }}
               className="text-xs text-[#695be6] font-medium hover:underline"
             >
               Clear All
@@ -296,7 +316,7 @@ export default function HomeworkLibrary() {
                 <input
                   type="checkbox"
                   checked={selectedSubjects.includes(s)}
-                  onChange={() => toggleFilter(selectedSubjects, setSelectedSubjects, s)}
+                  onChange={() => { toggleFilter(selectedSubjects, setSelectedSubjects, s); setPage(1); }}
                   className="accent-[#695be6] size-4 rounded"
                 />
                 <span className="text-gray-600 group-hover:text-[#695be6] transition-colors">{s}</span>
@@ -314,7 +334,7 @@ export default function HomeworkLibrary() {
               {CLASSES.map((c) => (
                 <button
                   key={c}
-                  onClick={() => toggleFilter(selectedClasses, setSelectedClasses, c)}
+                  onClick={() => { toggleFilter(selectedClasses, setSelectedClasses, c); setPage(1); }}
                   className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-all ${
                     selectedClasses.includes(c)
                       ? "bg-[#695be6]/10 text-[#695be6] border-[#695be6]/30"
@@ -333,12 +353,23 @@ export default function HomeworkLibrary() {
               <p className="text-sm font-semibold text-gray-700">Type</p>
               <span className="material-symbols-outlined text-gray-400 text-base">expand_less</span>
             </div>
-            {["Online Quiz", "Offline Worksheet"].map((t) => (
-              <label key={t} className="flex items-center gap-2.5 text-sm py-1.5 cursor-pointer">
-                <input type="radio" name="type" className="accent-[#695be6] size-4" />
-                <span className="text-gray-600">{t}</span>
+            {["Online Quiz", "File Upload"].map((t) => (
+              <label key={t} className="flex items-center gap-2.5 text-sm py-1.5 cursor-pointer group">
+                <input
+                  type="radio"
+                  name="type"
+                  checked={selectedType === t}
+                  onChange={() => { setSelectedType(selectedType === t ? "" : t); setPage(1); }}
+                  className="accent-[#695be6] size-4"
+                />
+                <span className="text-gray-600 group-hover:text-[#695be6] transition-colors">{t}</span>
               </label>
             ))}
+            {selectedType && (
+              <button onClick={() => { setSelectedType(""); setPage(1); }} className="text-[10px] text-[#695be6] hover:underline mt-1">
+                Clear
+              </button>
+            )}
           </div>
 
           {/* Status */}
@@ -348,10 +379,21 @@ export default function HomeworkLibrary() {
               <span className="material-symbols-outlined text-gray-400 text-base">expand_less</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {["TEMPLATE", "DRAFT", "ASSIGNED"].map((s) => (
-                <span key={s} className={`text-[10px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-all hover:bg-[#695be6] hover:text-white ${STATUS_STYLES[s.toLowerCase()]}`}>
-                  {s}
-                </span>
+              {[
+                { key: "draft",    label: "DRAFT",    cls: "bg-amber-50 text-amber-700 border border-amber-200" },
+                { key: "assigned", label: "ASSIGNED", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+              ].map(({ key, label, cls }) => (
+                <button
+                  key={key}
+                  onClick={() => { toggleFilter(selectedStatuses, setSelectedStatuses, key); setPage(1); }}
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-all border ${
+                    selectedStatuses.includes(key)
+                      ? "bg-[#695be6] text-white border-[#695be6]"
+                      : cls
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           </div>
@@ -366,11 +408,11 @@ export default function HomeworkLibrary() {
             </div>
             <div className="flex items-center gap-3">
               {/* Active filters */}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {selectedSubjects.map((s) => (
                   <span key={s} className="flex items-center gap-1 bg-gray-100 text-sm px-3 py-1 rounded-full">
                     {s}
-                    <button onClick={() => toggleFilter(selectedSubjects, setSelectedSubjects, s)}>
+                    <button onClick={() => { toggleFilter(selectedSubjects, setSelectedSubjects, s); setPage(1); }}>
                       <span className="material-symbols-outlined text-gray-400 text-sm">close</span>
                     </button>
                   </span>
@@ -378,17 +420,33 @@ export default function HomeworkLibrary() {
                 {selectedClasses.map((c) => (
                   <span key={c} className="flex items-center gap-1 bg-gray-100 text-sm px-3 py-1 rounded-full">
                     {c}
-                    <button onClick={() => toggleFilter(selectedClasses, setSelectedClasses, c)}>
+                    <button onClick={() => { toggleFilter(selectedClasses, setSelectedClasses, c); setPage(1); }}>
                       <span className="material-symbols-outlined text-gray-400 text-sm">close</span>
                     </button>
                   </span>
                 ))}
-                {(selectedSubjects.length > 0 || selectedClasses.length > 0) && (
+                {selectedStatuses.map((s) => (
+                  <span key={s} className="flex items-center gap-1 bg-gray-100 text-sm px-3 py-1 rounded-full capitalize">
+                    {s}
+                    <button onClick={() => { toggleFilter(selectedStatuses, setSelectedStatuses, s); setPage(1); }}>
+                      <span className="material-symbols-outlined text-gray-400 text-sm">close</span>
+                    </button>
+                  </span>
+                ))}
+                {selectedType && (
+                  <span className="flex items-center gap-1 bg-gray-100 text-sm px-3 py-1 rounded-full">
+                    {selectedType}
+                    <button onClick={() => { setSelectedType(""); setPage(1); }}>
+                      <span className="material-symbols-outlined text-gray-400 text-sm">close</span>
+                    </button>
+                  </span>
+                )}
+                {(selectedSubjects.length > 0 || selectedClasses.length > 0 || selectedStatuses.length > 0 || selectedType) && (
                   <button
-                    onClick={() => { setSelectedSubjects([]); setSelectedClasses([]); }}
+                    onClick={() => { setSelectedSubjects([]); setSelectedClasses([]); setSelectedStatuses([]); setSelectedType(""); setPage(1); }}
                     className="text-sm text-[#695be6] font-semibold hover:underline"
                   >
-                    Clear all active filters
+                    Clear all
                   </button>
                 )}
               </div>
@@ -418,14 +476,20 @@ export default function HomeworkLibrary() {
           {/* Grid */}
           <div className={`grid gap-5 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}>
             {paginated.map((hw) => (
-              <div key={hw.id} className="group bg-white rounded-2xl border border-[#e8e3f5] p-5 flex flex-col gap-4 shadow-sm hover:shadow-lg hover:border-[#695be6]/30 transition-all duration-300">
+              <div key={hw.id} className={`group bg-white rounded-2xl border p-5 flex flex-col gap-4 shadow-sm hover:shadow-lg transition-all duration-300 ${hw.status === "draft" ? "border-amber-200 hover:border-amber-400" : "border-[#e8e3f5] hover:border-[#695be6]/30"}`}>
                 <div className="flex items-start justify-between">
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-1.5 flex-wrap items-center">
                     {hw.tags.map((tag) => (
                       <span key={tag} className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
                         SUBJECT_TAG_STYLES[tag?.toUpperCase()] || STATUS_STYLES[tag?.toLowerCase()] || "bg-gray-100 text-gray-500"
                       }`}>{tag}</span>
                     ))}
+                    {hw.status === "draft" && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">DRAFT</span>
+                    )}
+                    {hw.status === "assigned" && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">ASSIGNED</span>
+                    )}
                   </div>
                   <button className="text-gray-300 hover:text-amber-400 transition-colors">
                     <span className="material-symbols-outlined text-xl">{hw.starred ? "star" : "star"}</span>
@@ -452,39 +516,131 @@ export default function HomeworkLibrary() {
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 pt-3 border-t border-[#f0ecfa]">
-                  <button
-                    onClick={() => navigate(`/teacher/homework/preview/${hw.id}`)}
-                    className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-sm">visibility</span> Preview
-                  </button>
-                  <button
-                    onClick={() => openEditModal(hw)}
-                    className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-sm">edit</span> Edit Questions
-                  </button>
-                  <div className="flex-1" />
-                  {hw.status === "assigned" ? (
-                    <button
-                      onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
-                      className="bg-[#695be6] text-white text-xs font-semibold py-2 px-4 rounded-lg hover:bg-[#5a4dd4] transition-colors"
-                    >
-                      Evaluate
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => openAssignModal(hw)}
-                      className="bg-[#695be6] text-white text-xs font-semibold py-2 px-4 rounded-lg hover:bg-[#5a4dd4] transition-colors"
-                    >
-                      Assign
-                    </button>
-                  )}
-                  <button className="p-1.5 hover:bg-[#f0ecfa] rounded-lg transition-colors">
-                    <span className="material-symbols-outlined text-gray-400 text-base">more_vert</span>
-                  </button>
-                </div>
+               {/* Action row */}
+        <div className="flex flex-wrap items-center gap-y-3 pt-3 border-t border-[#f0ecfa] mt-auto">
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate(`/teacher/homework/preview/${hw.id}`)}
+              className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">visibility</span> Preview
+            </button>
+            <button
+              onClick={() => openEditModal(hw)}
+              className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm">edit</span> Edit
+            </button>
+            <button
+              onClick={() => setHistoryOpen((p) => ({ ...p, [hw.id]: !p[hw.id] }))}
+              className={`flex items-center gap-1 text-xs font-medium transition-colors ${historyOpen[hw.id] ? "text-[#695be6]" : "text-gray-400 hover:text-[#695be6]"}`}
+            >
+              <span className="material-symbols-outlined text-sm">history</span> History
+            </button>
+            {/* Delete — two-step confirm */}
+            {deleteConfirm[hw.id] ? (
+              <span className="flex items-center gap-1">
+                <span className="text-[10px] text-red-600 font-bold">
+                  {hw.status === "assigned" ? "Removes from students too." : "Delete?"}&nbsp;
+                </span>
+                <button
+                  onClick={async () => {
+                    await dispatch(deleteHomework(hw.id));
+                    setDeleteConfirm((p) => ({ ...p, [hw.id]: false }));
+                    setHistoryOpen((p) => ({ ...p, [hw.id]: false }));
+                  }}
+                  className="text-[10px] font-black text-red-600 hover:underline"
+                >Yes</button>
+                <span className="text-gray-300 text-[10px]">/</span>
+                <button
+                  onClick={() => setDeleteConfirm((p) => ({ ...p, [hw.id]: false }))}
+                  className="text-[10px] font-bold text-gray-400 hover:underline"
+                >No</button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setDeleteConfirm((p) => ({ ...p, [hw.id]: true }))}
+                className="flex items-center gap-1 text-xs font-medium text-gray-300 hover:text-red-500 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">delete</span>
+              </button>
+            )}
+          </div>
+
+          <div className="ml-auto flex gap-2">
+            {hw.status === "assigned" ? (
+              <>
+                <button
+                  onClick={() => openAssignModal(hw)}
+                  className="border border-[#695be6] text-[#695be6] text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#695be6]/5 transition-colors whitespace-nowrap"
+                >
+                  Reassign
+                </button>
+                <button
+                  onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
+                  className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#5a4dd4] transition-colors whitespace-nowrap"
+                >
+                  Evaluate
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => openAssignModal(hw)}
+                className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-4 rounded-lg hover:bg-[#5a4dd4] transition-colors"
+              >
+                Assign
+              </button>
+            )}
+          </div>
+        </div>
+
+                {/* History panel */}
+                {historyOpen[hw.id] && (
+                  <div className="bg-[#f8f7ff] rounded-xl border border-[#e8e3f5] p-3 -mt-1 space-y-2">
+                    <p className="text-[10px] font-black text-[#695be6] uppercase tracking-widest mb-2">Assignment History</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div>
+                        <span className="text-gray-400">Subject</span>
+                        <p className="font-semibold text-gray-700">{hw.subject || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Class</span>
+                        <p className="font-semibold text-gray-700">{hw.chapter || "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Created</span>
+                        <p className="font-semibold text-gray-700">
+                          {hw.createdAt ? new Date(hw.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Assigned on</span>
+                        <p className="font-semibold text-gray-700">
+                          {hw.assignedAt ? new Date(hw.assignedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Not yet"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Due date</span>
+                        <p className="font-semibold text-gray-700">
+                          {hw.dueDate ? new Date(hw.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Students</span>
+                        <p className="font-semibold text-gray-700">{hw.assignedStudentCount || 0} assigned</p>
+                      </div>
+                    </div>
+                    {hw.assignedStudentNames?.length > 0 && (
+                      <div className="pt-1">
+                        <span className="text-[10px] text-gray-400">Assigned to: </span>
+                        <span className="text-[10px] text-gray-600 font-medium">
+                          {hw.assignedStudentNames.slice(0, 5).join(", ")}
+                          {hw.assignedStudentNames.length > 5 && ` +${hw.assignedStudentNames.length - 5} more`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 

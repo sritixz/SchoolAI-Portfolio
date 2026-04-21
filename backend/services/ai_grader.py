@@ -9,6 +9,14 @@ import json
 
 GRADER_SYSTEM = """You are an expert academic grader assistant.
 Analyse a student's homework submission and provide detailed, constructive feedback.
+
+GRADING PRIORITY RULES:
+1. If a typed/MCQ answer is provided in student_answer, grade THAT answer directly.
+2. If student_answer is "[see full submission text below]", use the full_student_submission text to find the answer.
+3. Never mark an answer wrong just because it came from OCR — trust the extracted text.
+4. For MCQ: match the student's stated answer text against the option where is_correct=true.
+5. For typed/written: evaluate mathematical/factual correctness strictly.
+
 Return ONLY valid JSON — no markdown fences."""
 
 async def analyse_submission(homework: dict, submission: dict) -> dict:
@@ -30,13 +38,16 @@ async def analyse_submission(homework: dict, submission: dict) -> dict:
         q = questions.get(ans.get("question_id") or ans.get("question_id", ""))
         if not q:
             continue
+        # Priority chain: 1) typed/MCQ answer  2) extracted OCR text  3) file URL placeholder
+        typed_answer = ans.get("answer")
+        student_answer = typed_answer if typed_answer else (extracted_text or ans.get("file_url", "[file uploaded]"))
         qa_pairs.append({
             "question_id":   q["id"],
             "question_text": q.get("question_text", ""),
             "answer_type":   q.get("answer_type", "typed"),
             "max_points":    q.get("max_points", 1),
             "sample_answer": q.get("sample_answer", ""),
-            "student_answer": ans.get("answer") or extracted_text or ans.get("file_url", "[file uploaded]"),
+            "student_answer": student_answer,
             "options":       q.get("options", []),
         })
 
@@ -56,6 +67,14 @@ async def analyse_submission(homework: dict, submission: dict) -> dict:
                 "options":       q.get("options", []),
             })
         # Append the full extracted text once at the end so the LLM can reference it
+        qa_pairs_with_context = {
+            "questions": qa_pairs,
+            "full_student_submission": extracted_text,
+        }
+    elif extracted_text and qa_pairs:
+        # Mixed submission: has both per-question answers AND extracted OCR text
+        # Attach the full OCR text as additional context for the grader
+        is_file_upload = True  # reuse the context-injection path
         qa_pairs_with_context = {
             "questions": qa_pairs,
             "full_student_submission": extracted_text,
@@ -118,23 +137,31 @@ Return JSON:
         # This is more reliable than substring matching or LLM grading.
         if extracted_text and homework.get("questions"):
             import re
-            # Parse "Answer: <value>" lines from the OCR text
-            # Handles unicode minus signs (−) and regular hyphens (-)
-            answer_pattern = re.compile(
-                r'(?:Question\s+(\d+).*?)?Answer[:\s]+([^\n]+)',
-                re.IGNORECASE | re.DOTALL
-            )
-            # Build a map of question_number -> answer_text from the extracted text
-            # by splitting on "Question N" sections
-            sections = re.split(r'Question\s+(\d+)', extracted_text, flags=re.IGNORECASE)
+
+            # Normalize unicode minus signs throughout
+            norm_text = extracted_text.replace('\u2212', '-').replace('\u2013', '-')
+
+            # Try splitting on "Question N" first (Kevin's PDF format), then "QN:" (Lucy's format)
+            sections_q = re.split(r'Question\s+(\d+)', norm_text, flags=re.IGNORECASE)
+            sections_qn = re.split(r'\bQ(\d+)\s*[:\.]', norm_text, flags=re.IGNORECASE)
+
+            # Use whichever split produced more sections
+            sections = sections_q if len(sections_q) >= len(sections_qn) else sections_qn
+
             q_answers = {}  # question_number (1-based) -> answer text
             for i in range(1, len(sections), 2):
-                q_num = int(sections[i])
+                try:
+                    q_num = int(sections[i])
+                except ValueError:
+                    continue
                 section_text = sections[i + 1] if i + 1 < len(sections) else ""
-                ans_match = re.search(r'Answer[:\s]+([^\n]+)', section_text, re.IGNORECASE)
+                # Match "Answer:", "→ Answer:", "Result:", "→ Result:" patterns
+                ans_match = re.search(
+                    r'(?:→\s*)?(?:Answer|Result)[:\s]+([^\n]+)',
+                    section_text, re.IGNORECASE
+                )
                 if ans_match:
-                    # Normalize unicode minus to regular hyphen, strip whitespace
-                    ans_val = ans_match.group(1).strip().replace('\u2212', '-').replace('\u2013', '-')
+                    ans_val = ans_match.group(1).strip()
                     q_answers[q_num] = ans_val
 
             # Map question IDs to question numbers
@@ -166,12 +193,34 @@ Return JSON:
                                 matched_opt = o
                     if matched_opt:
                         is_correct = matched_opt.get("is_correct", False)
+                        prev_correct = qa.get("is_correct")
                         qa["is_correct"] = is_correct
                         qa["ai_score"] = max_pts if is_correct else 0
                         qa["student_answer"] = matched_opt.get("text", student_ans_text)
+                        # Fix feedback if it contradicts the deterministic score
+                        if prev_correct != is_correct:
+                            correct_opt = next((o for o in q.get("options", []) if o.get("is_correct")), None)
+                            correct_text = correct_opt.get("text", "") if correct_opt else ""
+                            if is_correct:
+                                qa["feedback"] = f"Correct. {qa.get('feedback', '')}".replace("Incorrect.", "").replace("incorrect.", "").strip()
+                                if not qa["feedback"].lower().startswith("correct"):
+                                    qa["feedback"] = f"Correct. {qa['feedback']}".strip()
+                            else:
+                                qa["feedback"] = f"Incorrect. The correct answer is: {correct_text}."
                     else:
                         # Couldn't match to an option — keep LLM result but update student_answer
                         qa["student_answer"] = student_ans_text or qa.get("student_answer", "")
+                elif atype == "typed" and student_ans_text:
+                    # For typed answers, check if feedback contradicts is_correct
+                    is_correct = qa.get("is_correct")
+                    feedback_lower = (qa.get("feedback") or "").lower()
+                    feedback_says_incorrect = feedback_lower.startswith("incorrect") or "incorrect" in feedback_lower[:20]
+                    feedback_says_correct   = feedback_lower.startswith("correct") or feedback_lower.startswith("yes")
+                    if is_correct is True and feedback_says_incorrect:
+                        qa["feedback"] = qa["feedback"].replace("Incorrect.", "Correct.").replace("incorrect.", "correct.")
+                    elif is_correct is False and feedback_says_correct and not feedback_says_incorrect:
+                        sample = q.get("sample_answer", "")
+                        qa["feedback"] = f"Incorrect. {('Expected: ' + sample + '. ') if sample else ''}{qa.get('feedback', '')}"
 
                 earned_pts += qa.get("ai_score", 0)
 

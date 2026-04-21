@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import VinSidePanel from "../../components/VinSidePanel";
@@ -297,6 +297,7 @@ export default function HomeworkAttempt() {
   const { user } = useAuth();
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { state: locationState } = useLocation();
 
   const currentHw    = useSelector(selectCurrentHomework);
   const apiQuestions = useSelector(selectHomeworkQuestions); // normalized camelCase from /questions endpoint
@@ -325,6 +326,59 @@ export default function HomeworkAttempt() {
     if (currentHw.submission_type) setSubmissionType(currentHw.submission_type);
     if (currentHw.ai_assistant_enabled !== undefined) {
       setAiAssistantEnabled(currentHw.ai_assistant_enabled);
+    }
+
+    // If this is a file/handwritten submission that's already been evaluated,
+    // redirect straight to the feedback view — no need to wait for questionSet.
+    const isFileType = currentHw.submission_type === "file_upload" || currentHw.submission_type === "handwritten";
+    const isDone     = currentHw.status === "completed" || currentHw.status === "evaluated";
+    if (isFileType && isDone) {
+      const hwData = locationState?.hwData || {};
+      // If we already have grade/feedback from list navigation state, use it directly.
+      // Otherwise fetch the submission result from the API.
+      const grade    = hwData.grade || hwData.final_grade;
+      const feedback = hwData.teacherFeedback || hwData.teacher_feedback || hwData.feedback;
+      const minimalQS = { questions: [], unitTitle: currentHw.title || "Homework", tags: [] };
+
+      if (grade || feedback) {
+        navigate(`/student/homework/${homeworkId}/result`, {
+          replace: true,
+          state: {
+            answers: {},
+            questionSet: minimalQS,
+            fileSubmission: true,
+            apiResult: { status: "completed", grade, feedback },
+          },
+        });
+      } else {
+        // Fetch submission data to get grade + feedback
+        import("../../api").then(({ default: api }) =>
+          api.get(`/homework/${homeworkId}/result`)
+            .then(({ data }) => {
+              navigate(`/student/homework/${homeworkId}/result`, {
+                replace: true,
+                state: {
+                  answers: {},
+                  questionSet: minimalQS,
+                  fileSubmission: true,
+                  apiResult: {
+                    status: "completed",
+                    grade: data.final_grade,
+                    feedback: data.teacher_feedback,
+                  },
+                },
+              });
+            })
+            .catch(() => {
+              // Fallback: show result page without grade data
+              navigate(`/student/homework/${homeworkId}/result`, {
+                replace: true,
+                state: { answers: {}, questionSet: minimalQS, fileSubmission: true, apiResult: { status: "completed" } },
+              });
+            })
+        );
+      }
+      return;
     }
 
     // Prefer apiQuestions (normalized camelCase from /questions endpoint)
@@ -473,9 +527,13 @@ export default function HomeworkAttempt() {
                 setSubmitting(true);
                 try {
                   await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: [], submission_file_url: uploadUrl || null }));
-                  navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
+                  navigate(`/student/homework/${homeworkId}/result`, {
+                    state: { answers: {}, questionSet, fileSubmission: true, allowRetries: currentHw?.allow_retries || false },
+                  });
                 } catch {
-                  navigate(`/student/homework/${homeworkId}/result`, { state: { answers: {}, questionSet, fileSubmission: true } });
+                  navigate(`/student/homework/${homeworkId}/result`, {
+                    state: { answers: {}, questionSet, fileSubmission: true, allowRetries: currentHw?.allow_retries || false },
+                  });
                 } finally {
                   setSubmitting(false);
                 }
@@ -525,12 +583,12 @@ export default function HomeworkAttempt() {
       try {
         const result = await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: answersPayload })).unwrap();
         navigate(`/student/homework/${homeworkId}/result`, {
-          state: { answers, questionSet, apiResult: result },
+          state: { answers, questionSet, apiResult: result, allowRetries: currentHw?.allow_retries || false },
         });
       } catch {
         // Fallback: navigate with local data
         navigate(`/student/homework/${homeworkId}/result`, {
-          state: { answers, questionSet },
+          state: { answers, questionSet, allowRetries: currentHw?.allow_retries || false },
         });
       } finally {
         setSubmitting(false);
@@ -558,7 +616,10 @@ export default function HomeworkAttempt() {
           <div className="flex items-center gap-3">
             {aiAssistantEnabled && (
               <button 
-                onClick={() => openVinPanel(q?.questionText ? `Help me with: ${q.questionText}` : null)}
+                onClick={() => {
+                  const vinCtx = q?.questionText ? `Help me with this question: ${q.questionText}` : null;
+                  openVinPanel(vinCtx);
+                }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">smart_toy</span>
@@ -704,6 +765,15 @@ export default function HomeworkAttempt() {
           isOpen={vinPanelOpen} 
           onClose={() => setVinPanelOpen(false)}
           context={vinContext}
+          homeworkContext={{
+            subject: questionSet?.unitTitle || currentHw?.subject || "",
+            title: questionSet?.unitTitle || currentHw?.title || "Homework",
+            question_text: q?.questionText || "",
+            answer_type: currentType || q?.answerType || "",
+            hint: q?.hint || "",
+            vin_nudge: q?.vinNudge || "",
+            sample_answer: q?.sampleAnswer || "",
+          }}
         />
       )}
 
