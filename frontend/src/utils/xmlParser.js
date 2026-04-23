@@ -12,6 +12,7 @@ export function parseVinXML(xmlBuffer) {
     question: null,
     followups: [],
     examReady: null,
+    mediaQuery: null,
     complete: false,
   };
 
@@ -82,6 +83,10 @@ export function parseVinXML(xmlBuffer) {
     const followupMatches = [...followupsMatch[1].matchAll(/<followup>(.*?)<\/followup>/gs)];
     result.followups = followupMatches.map(m => m[1].trim());
   }
+
+  // Extract media_query
+  const mediaQueryMatch = xmlBuffer.match(/<media_query>(.*?)<\/media_query>/s);
+  if (mediaQueryMatch) result.mediaQuery = mediaQueryMatch[1].trim();
 
   result.complete = xmlBuffer.includes("</response>");
 

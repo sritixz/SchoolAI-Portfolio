@@ -418,6 +418,8 @@ function _getVisualPrompt(slide) {
  * Derive a stable numeric seed from a string so the same prompt
  * always gets the same image within a session.
  */
+// Canvas approach is intentionally removed — Wikipedia/Wikimedia images
+// block canvas reads via CORS (tainted canvas), so we always use the proxy.
 function _promptSeed(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -437,85 +439,88 @@ function _pollinationsUrl(description, seed) {
 }
 
 /**
- * Fetch a Pollinations.ai image as base64 with aggressive retry logic.
- * Pollinations generates images on-demand — first request triggers generation (10-30s),
- * subsequent requests serve the cached image. We retry with exponential backoff.
+ * Fetch a slide image as base64 via the backend proxy.
+ * Uses the same image_url that the preview <img> tag shows — so the PDF
+ * always matches the preview exactly.
+ * Routes everything through /teacher/image-proxy to avoid CORS.
  */
 async function _fetchSlideImage(slide) {
-  const rawUrl = slide.content?.image_url
-    || (slide.content?.detailed_visual_description
-        ? _pollinationsUrl(slide.content.detailed_visual_description)
-        : null)
-    || (slide.content?.visual_prompt
-        ? _pollinationsUrl(slide.content.visual_prompt)
-        : null);
-  if (!rawUrl) return null;
+  // Normalize content to object so we can safely read from it
+  const content = (typeof slide.content === "object" && slide.content !== null)
+    ? slide.content
+    : {};
 
-  // Route through backend proxy to avoid CORS restrictions on Pollinations.ai.
-  // No auth needed — proxy endpoint is URL-restricted to Pollinations.ai only.
-  const apiBase = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8001";
-  const proxyUrl = `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(rawUrl)}`;
+  const imageUrl =
+    content.image_url ||
+    (content.detailed_visual_description
+      ? _pollinationsUrl(content.detailed_visual_description)
+      : null) ||
+    (content.visual_prompt
+      ? _pollinationsUrl(content.visual_prompt)
+      : null);
 
-  // Retry up to 5 times with exponential backoff.
-  // Pollinations generates on first request (can take 20-60s), then serves cached.
-  // First attempt gets 90s, rest get 45s.
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  if (!imageUrl) {
+    console.warn(`[PDF] Slide "${slide.title}" — no image URL found`);
+    return null;
+  }
+
+  const apiBase =
+    import.meta.env?.VITE_API_BASE_URL ||
+    import.meta.env?.VITE_API_URL ||
+    "http://localhost:8001";
+
+  const proxyUrl = `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+
+  // Helper: fetch a URL and return base64 or null
+  async function _fetchToBase64(fetchUrl, timeoutMs = 30_000) {
     try {
-      const timeoutMs = attempt === 1 ? 90000 : 45000;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-      console.log(`[Image fetch] Attempt ${attempt}/5 for: ${rawUrl.substring(0, 80)}...`);
-      const resp = await fetch(proxyUrl, { 
-        signal: controller.signal,
-        headers: { "Accept": "image/*" }
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), timeoutMs);
+      const resp = await fetch(fetchUrl, {
+        signal: ctrl.signal,
+        headers: { Accept: "image/*" },
       });
-      clearTimeout(timeoutId);
-
-      if (!resp.ok) {
-        console.warn(`[Image fetch] Attempt ${attempt}/5 failed: HTTP ${resp.status}`);
-        if (attempt < 5) {
-          const delay = Math.min(attempt * 5000, 20000); // exponential backoff, max 20s
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        return null;
-      }
-
+      clearTimeout(tid);
+      if (!resp.ok) return null;
       const blob = await resp.blob();
-      if (blob.size === 0) {
-        console.warn(`[Image fetch] Attempt ${attempt}/5: Empty blob received`);
-        if (attempt < 5) {
-          await new Promise(resolve => setTimeout(resolve, attempt * 5000));
-          continue;
-        }
-        return null;
-      }
-
-      return new Promise((resolve) => {
+      if (!blob.size) return null;
+      return await new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
-          console.log(`[Image fetch] ✓ Attempt ${attempt}/5 succeeded`);
-          resolve(reader.result);
-        };
-        reader.onerror  = () => {
-          console.error(`[Image fetch] FileReader error on attempt ${attempt}/5`);
-          resolve(null);
-        };
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror   = () => resolve(null);
         reader.readAsDataURL(blob);
       });
-    } catch (err) {
-      console.warn(`[Image fetch] Attempt ${attempt}/5 error: ${err.message}`);
-      if (attempt < 5) {
-        const delay = Math.min(attempt * 5000, 20000);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+    } catch {
+      return null;
     }
   }
-  console.error(`[Image fetch] All 5 attempts failed for slide image`);
+
+  // Strategy 1: proxy (handles CORS + Wikimedia User-Agent)
+  console.log(`[PDF] Fetching "${slide.title}" via proxy...`);
+  const proxyResult = await _fetchToBase64(proxyUrl, 60_000);
+  if (proxyResult) {
+    console.log(`[PDF] ✓ "${slide.title}" via proxy`);
+    return proxyResult;
+  }
+
+  // Strategy 2: retry proxy once after short delay (handles transient 502s)
+  await new Promise(r => setTimeout(r, 3000));
+  const proxyRetry = await _fetchToBase64(proxyUrl, 60_000);
+  if (proxyRetry) {
+    console.log(`[PDF] ✓ "${slide.title}" via proxy (retry)`);
+    return proxyRetry;
+  }
+
+  // Strategy 3: direct fetch (works if image has permissive CORS, e.g. Pollinations)
+  const directResult = await _fetchToBase64(imageUrl, 45_000);
+  if (directResult) {
+    console.log(`[PDF] ✓ "${slide.title}" via direct fetch`);
+    return directResult;
+  }
+
+  console.warn(`[PDF] ✗ "${slide.title}" — all strategies failed, using diagram fallback`);
   return null;
 }
-
 /**
  * Pre-fetch all slide images in parallel.
  * Returns a Map: slideIndex → base64DataUrl | null
@@ -761,15 +766,34 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
 
   const imgB64 = slide.content?.image_b64 || slide.content?._fetched_image;
   if (imgB64) {
-    // Embed real generated image
+    // Embed real generated image — preserve aspect ratio (contain, not cover)
     try {
       const fmt = imgB64.includes("jpeg") || imgB64.includes("jpg") ? "JPEG" : "PNG";
       const raw = imgB64.startsWith("data:") ? imgB64.split(",")[1] : imgB64;
-      doc.addImage(raw, fmt, rpX, rpY, rpW, rpH, undefined, "FAST");
-      // Vibrant accent border
+
+      // Assume 4:3 source (1024×768 from Pollinations) — scale to fit panel
+      const natAspect = 4 / 3;
+      const panelAspect = rpW / rpH;
+      let drawW, drawH;
+      if (natAspect > panelAspect) {
+        drawW = rpW;
+        drawH = rpW / natAspect;
+      } else {
+        drawH = rpH;
+        drawW = rpH * natAspect;
+      }
+      const drawX = rpX + (rpW - drawW) / 2;
+      const drawY = rpY + (rpH - drawH) / 2;
+
+      // Panel background
+      doc.setFillColor(...accent.map(c => Math.min(255, c + 110)));
+      doc.roundedRect(rpX, rpY, rpW, rpH, 4, 4, "F");
+
+      doc.addImage(raw, fmt, drawX, drawY, drawW, drawH, undefined, "FAST");
+      // Accent border
       doc.setDrawColor(...accent); doc.setLineWidth(1.5);
       doc.roundedRect(rpX, rpY, rpW, rpH, 3, 3, "S");
-      // Slide type badge overlay on image
+      // Slide type badge overlay
       doc.setFillColor(...accent);
       doc.roundedRect(rpX + 2, rpY + 2, 22, 6, 1, 1, "F");
       doc.setTextColor(255, 255, 255); doc.setFontSize(6); doc.setFont("helvetica", "bold");
@@ -942,47 +966,41 @@ export async function downloadPresentationPdf(result) {
   const slides = result.slides || [];
   const total  = slides.length;
 
-  console.log(`[PDF Export] Starting image pre-fetch for ${total} slides...`);
-  
-  // Pre-fetch ALL Pollinations images with retry logic (this may take 1-2 minutes)
-  const fetchPromises = slides.map(async (slide, idx) => {
-    if (!slide.content?._fetched_image) {
-      console.log(`[PDF Export] Fetching image ${idx + 1}/${total}...`);
-      const b64 = await _fetchSlideImage(slide);
-      if (b64 && slide.content) {
-        slide.content._fetched_image = b64;
-        console.log(`[PDF Export] ✓ Image ${idx + 1}/${total} ready`);
-      } else {
-        console.warn(`[PDF Export] ✗ Image ${idx + 1}/${total} failed — will use diagram fallback`);
-      }
-    }
-  });
-
-  await Promise.all(fetchPromises);
-  console.log(`[PDF Export] All images fetched. Generating PDF...`);
-
-  // Landscape A4 — one slide per page
+  // ── Pre-fetch all images via proxy in batches of 4 ───────────────────────
+  // Batching avoids hammering the proxy and keeps individual timeouts reliable.
+  const BATCH = 4;
+  for (let i = 0; i < total; i += BATCH) {
+    await Promise.all(
+      slides.slice(i, i + BATCH).map(async (slide) => {
+        // Guard: content must be a plain object to store _fetched_image
+        if (typeof slide.content !== "object" || slide.content === null) {
+          slide.content = {};
+        }
+        if (slide.content._fetched_image) return; // already cached
+        const b64 = await _fetchSlideImage(slide);
+        if (b64) slide.content._fetched_image = b64;
+      })
+    );
+  }
+ 
+  // ── Landscape A4 — one slide per page ────────────────────────────────────
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-
-  // ── Cover / summary page ─────────────────────────────────────────────────
+ 
+  // Cover / summary page
   doc.setFillColor(...PRIMARY);
   doc.rect(0, 0, W, H, "F");
-
   doc.setFillColor(120, 100, 255);
   doc.circle(W - 30, 20, 40, "F");
   doc.setFillColor(80, 60, 200);
   doc.circle(20, H - 20, 30, "F");
-
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(28); doc.setFont("helvetica", "bold");
   doc.text(result.title || "Presentation", W / 2, H / 2 - 20, { align: "center" });
-
   doc.setFontSize(11); doc.setFont("helvetica", "normal");
   const metaParts = [result.subject, result.grade, `${total} slides`, `${result.duration_minutes || ""} min`].filter(Boolean);
   doc.text(metaParts.join("  ·  "), W / 2, H / 2 - 6, { align: "center" });
-
   if (result.learning_objectives?.length) {
     doc.setFontSize(9);
     doc.text("Learning Objectives:", W / 2, H / 2 + 8, { align: "center" });
@@ -991,27 +1009,26 @@ export async function downloadPresentationPdf(result) {
       doc.text(oLines, W / 2, H / 2 + 16 + i * 8, { align: "center" });
     });
   }
-
   doc.setFontSize(8); doc.setTextColor(200, 190, 255);
   doc.text(`Generated ${new Date().toLocaleDateString()}`, W / 2, H - 10, { align: "center" });
-
-  // ── One slide per page ───────────────────────────────────────────────────
-  slides.forEach((slide, i) => {
+ 
+  // One slide per page
+  for (let i = 0; i < slides.length; i++) {
     doc.addPage("a4", "landscape");
-    _drawSlide(doc, slide, i + 1, total);
-  });
-
-  // ── Teacher notes page ───────────────────────────────────────────────────
+    _drawSlide(doc, slides[i], i + 1, total);
+  }
+ 
+  // Teacher notes page
   if (result.teacher_preparation_notes) {
     doc.addPage("a4", "portrait");
     let y = header(doc, "Teacher Preparation Notes", [result.title]);
     y = bodyText(doc, result.teacher_preparation_notes, y);
     footer(doc);
   }
-
+ 
   doc.save(`${result.title || "presentation"}.pdf`);
 }
-
+ 
 // ─── 5. GRADING ASSISTANT ────────────────────────────────────────────────────
 
 export function downloadGradingPdf(result, feedbackText) {
@@ -1271,26 +1288,24 @@ export async function downloadPresentationPptx(result) {
   const slides = result.slides || [];
   const total  = slides.length;
 
-  console.log(`[PPTX Export] Starting image pre-fetch for ${total} slides...`);
+  // Pre-fetch all images via proxy in batches of 4
+  const BATCH = 4;
+  for (let i = 0; i < total; i += BATCH) {
+    await Promise.all(
+      slides.slice(i, i + BATCH).map(async (slide) => {
+        // Guard: content must be a plain object to store _fetched_image
+        if (typeof slide.content !== "object" || slide.content === null) {
+          slide.content = {};
+        }
+        if (slide.content._fetched_image) return;
+        const b64 = await _fetchSlideImage(slide);
+        if (b64) slide.content._fetched_image = b64;
+      })
+    );
+  }
 
-  // Pre-fetch ALL Pollinations images with retry logic
-  const fetchPromises = slides.map(async (slide, idx) => {
-    if (!slide.content?._fetched_image) {
-      console.log(`[PPTX Export] Fetching image ${idx + 1}/${total}...`);
-      const b64 = await _fetchSlideImage(slide);
-      if (b64 && slide.content) {
-        slide.content._fetched_image = b64;
-        console.log(`[PPTX Export] ✓ Image ${idx + 1}/${total} ready`);
-      } else {
-        console.warn(`[PPTX Export] ✗ Image ${idx + 1}/${total} failed — will use diagram fallback`);
-      }
-    }
-  });
-
-  await Promise.all(fetchPromises);
-  console.log(`[PPTX Export] All images fetched. Generating PPTX...`);
-
-  // ── Cover slide ───────────────────────────────────────────────────────────  const cover = pptx.addSlide();
+  // ── Cover slide ───────────────────────────────────────────────────────────
+  const cover = pptx.addSlide();
   cover.background = { color: "695be6" };
   cover.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: "100%", h: "100%", fill: { color: "5a4dd4" } });
   cover.addText(result.title || "Presentation", {
@@ -1456,21 +1471,21 @@ export async function downloadPresentationPptx(result) {
     const diagramType  = slide.content?.diagram?.type || "none";
 
     if (imgB64) {
-      // Embed real AI-generated image (base64)
+      // Embed real AI-generated image (base64) — contain, not cover
       try {
-        const raw = imgB64.startsWith("data:") ? imgB64 : `data:image/png;base64,${imgB64}`;
+        const raw = imgB64.startsWith("data:") ? imgB64 : `data:image/jpeg;base64,${imgB64}`;
         s.addImage({ data: raw, x: 8.3, y: 1.2, w: 4.8, h: 4.5,
-          sizing: { type: "cover", w: 4.8, h: 4.5 } });
+          sizing: { type: "contain", w: 4.8, h: 4.5 } });
         s.addShape(pptx.ShapeType.roundRect, { x: 8.3, y: 1.2, w: 4.8, h: 4.5,
           fill: { type: "none" }, line: { color: accent, width: 2 }, rectRadius: 0.15 });
       } catch {
         _pptxDiagramFallback(s, pptx, accent, diagramNodes, diagramType, vp);
       }
     } else if (imgUrl) {
-      // Embed from URL (Pollinations)
+      // Embed from URL — contain, not cover
       try {
         s.addImage({ path: imgUrl, x: 8.3, y: 1.2, w: 4.8, h: 4.5,
-          sizing: { type: "cover", w: 4.8, h: 4.5 } });
+          sizing: { type: "contain", w: 4.8, h: 4.5 } });
         s.addShape(pptx.ShapeType.roundRect, { x: 8.3, y: 1.2, w: 4.8, h: 4.5,
           fill: { type: "none" }, line: { color: accent, width: 2 }, rectRadius: 0.15 });
       } catch {

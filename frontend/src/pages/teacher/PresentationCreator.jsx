@@ -749,19 +749,28 @@ export default function PresentationCreator() {
                       )}
                       {/* Image from DDGS or Pollinations fallback */}
                       {slide.content?.image_url ? (
-                        <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative">
+                        <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative flex items-center justify-center" style={{ minHeight: "180px" }}>
                           <img
                             src={slide.content.image_url}
                             alt={slide.content.image_alt || slide.content.detailed_visual_description || slide.title}
-                            className="w-full h-40 object-cover"
+                            className="w-full h-auto max-h-64 object-contain"
                             loading="lazy"
                             onError={(e) => {
-                              e.target.style.display = "none";
-                              const parent = e.target.parentNode;
-                              const placeholder = document.createElement("div");
-                              placeholder.className = "h-40 flex items-center justify-center bg-purple-50";
-                              placeholder.innerHTML = `<span class="text-purple-300 text-xs">No image available</span>`;
-                              parent.appendChild(placeholder);
+                              // Retry once after 5s — Pollinations may still be generating
+                              if (!e.target.dataset.retried) {
+                                e.target.dataset.retried = "1";
+                                const src = e.target.src;
+                                setTimeout(() => { e.target.src = src + "&t=" + Date.now(); }, 5000);
+                              } else {
+                                e.target.style.display = "none";
+                                const parent = e.target.parentNode;
+                                if (!parent.querySelector(".img-fallback")) {
+                                  const placeholder = document.createElement("div");
+                                  placeholder.className = "img-fallback h-40 flex items-center justify-center bg-purple-50 w-full";
+                                  placeholder.innerHTML = `<span class="text-purple-300 text-xs">Image unavailable</span>`;
+                                  parent.appendChild(placeholder);
+                                }
+                              }
                             }}
                           />
                           {slide.content.image_source_url && (
