@@ -497,25 +497,25 @@ async function _fetchSlideImage(slide) {
 
   // Strategy 1: proxy (handles CORS + Wikimedia User-Agent)
   console.log(`[PDF] Fetching "${slide.title}" via proxy...`);
-  const proxyResult = await _fetchToBase64(proxyUrl, 60_000);
+  const proxyResult = await _fetchToBase64(proxyUrl, 90_000);
   if (proxyResult) {
     console.log(`[PDF] ✓ "${slide.title}" via proxy`);
     return proxyResult;
   }
 
-  // Strategy 2: retry proxy once after short delay (handles transient 502s)
-  await new Promise(r => setTimeout(r, 3000));
-  const proxyRetry = await _fetchToBase64(proxyUrl, 60_000);
-  if (proxyRetry) {
-    console.log(`[PDF] ✓ "${slide.title}" via proxy (retry)`);
-    return proxyRetry;
-  }
-
-  // Strategy 3: direct fetch (works if image has permissive CORS, e.g. Pollinations)
-  const directResult = await _fetchToBase64(imageUrl, 45_000);
+  // Strategy 2: direct fetch (Pollinations has permissive CORS)
+  const directResult = await _fetchToBase64(imageUrl, 90_000);
   if (directResult) {
     console.log(`[PDF] ✓ "${slide.title}" via direct fetch`);
     return directResult;
+  }
+
+  // Strategy 3: retry proxy once after short delay (handles transient 502s / Pollinations still generating)
+  await new Promise(r => setTimeout(r, 5000));
+  const proxyRetry = await _fetchToBase64(proxyUrl, 90_000);
+  if (proxyRetry) {
+    console.log(`[PDF] ✓ "${slide.title}" via proxy (retry)`);
+    return proxyRetry;
   }
 
   console.warn(`[PDF] ✗ "${slide.title}" — all strategies failed, using diagram fallback`);
@@ -966,9 +966,10 @@ export async function downloadPresentationPdf(result) {
   const slides = result.slides || [];
   const total  = slides.length;
 
-  // ── Pre-fetch all images via proxy in batches of 4 ───────────────────────
-  // Batching avoids hammering the proxy and keeps individual timeouts reliable.
-  const BATCH = 4;
+  // ── Pre-fetch all images via proxy in batches of 6 ───────────────────────
+  // If the preview already cached _fetched_image via the onLoad handler, this
+  // is nearly instant. Otherwise falls back to proxy/direct fetch.
+  const BATCH = 6;
   for (let i = 0; i < total; i += BATCH) {
     await Promise.all(
       slides.slice(i, i + BATCH).map(async (slide) => {
@@ -1288,8 +1289,8 @@ export async function downloadPresentationPptx(result) {
   const slides = result.slides || [];
   const total  = slides.length;
 
-  // Pre-fetch all images via proxy in batches of 4
-  const BATCH = 4;
+  // Pre-fetch all images via proxy in batches of 6
+  const BATCH = 6;
   for (let i = 0; i < total; i += BATCH) {
     await Promise.all(
       slides.slice(i, i + BATCH).map(async (slide) => {

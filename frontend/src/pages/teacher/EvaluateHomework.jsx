@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -314,7 +314,8 @@ export default function EvaluateHomework() {
   const evaluateData   = useSelector(selectEvaluateData);
   const evaluateStatus = useSelector(selectEvaluateStatus);
 
-  const [selected,   setSelected]   = useState(null);
+  // Track selected submission by ID so we can re-sync after data refresh
+  const [selectedId, setSelectedId] = useState(null);
   const [overrides,  setOverrides]  = useState({});
   const [feedback,   setFeedback]   = useState("");
   const [grade,      setGrade]      = useState("");
@@ -325,23 +326,39 @@ export default function EvaluateHomework() {
   const loading = evaluateStatus === "loading";
   const data    = evaluateData;
 
+  // Derive selected from fresh evaluateData using selectedId
+  const selected = evaluateData?.submissions?.find((s) => s._id === selectedId) ?? null;
+
   const load = () => dispatch(fetchEvaluateList(homeworkId));
 
   useEffect(() => {
     load();
   }, [homeworkId]);
 
+  // Auto-select first submission only on initial load (when no selection yet)
   useEffect(() => {
-    if (evaluateData?.submissions?.length && !selected) {
+    if (evaluateData?.submissions?.length && !selectedId) {
       const first = evaluateData.submissions[0];
-      setSelected(first);
-      setFeedback(first.ai_analysis?.suggested_teacher_feedback || "");
+      setSelectedId(first._id);
+      setFeedback(first.ai_analysis?.suggested_teacher_feedback || first.teacher_feedback || "");
       setGrade(first.final_grade || "");
     }
-  }, [evaluateData]);
+  }, [evaluateData, selectedId]);
+
+  // Keep feedback/grade in sync when selected submission refreshes
+  const prevSelectedIdRef = useRef(null);
+  useEffect(() => {
+    if (!selected) return;
+    // Only reset feedback/grade when switching to a different submission
+    if (prevSelectedIdRef.current !== selected._id) {
+      setFeedback(selected.ai_analysis?.suggested_teacher_feedback || selected.teacher_feedback || "");
+      setGrade(selected.final_grade || "");
+      prevSelectedIdRef.current = selected._id;
+    }
+  }, [selected]);
 
   const selectSub = (sub) => {
-    setSelected(sub);
+    setSelectedId(sub._id);
     setOverrides({});
     setFeedback(sub.ai_analysis?.suggested_teacher_feedback || sub.teacher_feedback || "");
     setGrade(sub.final_grade || "");

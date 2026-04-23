@@ -11,11 +11,12 @@ GRADER_SYSTEM = """You are an expert academic grader assistant.
 Analyse a student's homework submission and provide detailed, constructive feedback.
 
 GRADING PRIORITY RULES:
-1. If a typed/MCQ answer is provided in student_answer, grade THAT answer directly.
+1. student_answer contains the student's actual answer text (for MCQ, the option text they selected).
 2. If student_answer is "[see full submission text below]", use the full_student_submission text to find the answer.
 3. Never mark an answer wrong just because it came from OCR — trust the extracted text.
-4. For MCQ: match the student's stated answer text against the option where is_correct=true.
+4. For MCQ: compare student_answer text against the option where is_correct=true. If they match, mark correct.
 5. For typed/written: evaluate mathematical/factual correctness strictly.
+6. Always populate student_answer in your response with the exact answer the student gave.
 
 Return ONLY valid JSON — no markdown fences."""
 
@@ -40,11 +41,19 @@ async def analyse_submission(homework: dict, submission: dict) -> dict:
             continue
         # Priority chain: 1) typed/MCQ answer  2) extracted OCR text  3) file URL placeholder
         typed_answer = ans.get("answer")
-        student_answer = typed_answer if typed_answer else (extracted_text or ans.get("file_url", "[file uploaded]"))
+        atype = q.get("answer_type", "typed")
+
+        # For MCQ: resolve option ID to option text so the LLM can compare text directly
+        if atype == "mcq" and typed_answer:
+            matched_opt = next((o for o in q.get("options", []) if o.get("id") == typed_answer), None)
+            student_answer = matched_opt.get("text", typed_answer) if matched_opt else typed_answer
+        else:
+            student_answer = typed_answer if typed_answer else (extracted_text or ans.get("file_url", "[file uploaded]"))
+
         qa_pairs.append({
             "question_id":   q["id"],
             "question_text": q.get("question_text", ""),
-            "answer_type":   q.get("answer_type", "typed"),
+            "answer_type":   atype,
             "max_points":    q.get("max_points", 1),
             "sample_answer": q.get("sample_answer", ""),
             "student_answer": student_answer,

@@ -7,7 +7,7 @@ from services.llm import chat_completion
 from services.analytics import get_class_performance
 from pydantic import BaseModel
 from typing import Optional, List
-import json, uuid, asyncio, httpx
+import json, uuid, asyncio, httpx, urllib.parse
 
 router = APIRouter(prefix="/teacher", tags=["teacher"])
 
@@ -1742,6 +1742,8 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
     # Keep full result (with image_url) in memory for the hot-path status endpoint.
     # Strip large/re-fetchable image fields only for the MongoDB write to stay
     # well under the 16 MB BSON document limit.
+    # NOTE: We keep image_url in the DB write too — it's just a short string,
+    # not a blob. Only the actual base64 image data is stripped.
     def _slim_slides(slides: list) -> list:
         slim = []
         for s in slides:
@@ -1750,8 +1752,7 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
             if isinstance(content, dict):
                 s2["content"] = {
                     k: v for k, v in content.items()
-                    if k not in ("image_url", "image_source_url", "image_alt",
-                                 "_fetched_image", "image_b64")
+                    if k not in ("_fetched_image", "image_b64")
                 }
             else:
                 s2["content"] = content
@@ -1906,8 +1907,9 @@ async def save_presentation_history(
                 **{k: v for k, v in s.items() if k != "content"},
                 "content": {
                     k: v for k, v in (s.get("content") or {}).items()
-                    if k not in ("image_url", "image_source_url", "image_alt",
-                                 "_fetched_image", "image_b64")
+                    # Strip only the large base64 blobs; keep image_url so loaded
+                    # presentations show the same images as the original preview.
+                    if k not in ("_fetched_image", "image_b64")
                 } if isinstance(s.get("content"), dict) else s.get("content"),
             }
             for s in body.get("slides", [])
@@ -1957,16 +1959,28 @@ async def get_presentation_detail(
         if not doc:
             raise HTTPException(404, "Presentation not found")
         doc["_id"] = str(doc["_id"])
-        # Re-attach Pollinations image URLs stripped before saving (to stay under 16 MB BSON limit)
+
+        # Build the API base for proxy URLs
+        api_base = "/api"  # relative — works regardless of deployment domain
+
         seed_base = abs(hash(presentation_id)) % 100000
         for idx, slide in enumerate(doc.get("slides", [])):
             content = slide.get("content")
             if not isinstance(content, dict):
                 continue
-            if not content.get("image_url"):
+
+            img_url = content.get("image_url", "")
+
+            if not img_url:
+                # Old save with no image_url — regenerate a Pollinations URL
                 desc = content.get("detailed_visual_description") or content.get("visual_prompt", "")
                 if desc:
                     content["image_url"] = _pollinations_url(desc, seed_base + idx + 1)
+            elif "wikimedia.org" in img_url or "wikipedia.org" in img_url:
+                # Route Wikimedia URLs through the proxy so the browser <img> tag
+                # doesn't hit Wikimedia directly (which can 403 without proper headers).
+                content["image_url"] = f"/teacher/image-proxy?url={urllib.parse.quote(img_url)}"
+
         return doc
     except Exception as e:
         raise HTTPException(400, f"Invalid presentation ID: {str(e)}")
@@ -2040,7 +2054,10 @@ async def image_proxy(url: str):
                 return Response(
                     content=resp.content,
                     media_type=content_type,
-                    headers={"Cache-Control": "public, max-age=86400"},
+                    headers={
+                        "Cache-Control": "public, max-age=86400",
+                        "Access-Control-Allow-Origin": "*",
+                    },
                 )
         except HTTPException:
             raise

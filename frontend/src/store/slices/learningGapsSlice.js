@@ -36,6 +36,11 @@ export const submitQuiz = createAsyncThunk("learningGaps/submitQuiz", async (pay
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const analyzeGaps = createAsyncThunk("learningGaps/analyze", async (_, { rejectWithValue }) => {
+  try { return (await api.post("/learning-gaps/analyze")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 const learningGapsSlice = createSlice({
   name: "learningGaps",
   initialState: {
@@ -46,9 +51,11 @@ const learningGapsSlice = createSlice({
     quizList:         [], quizListStatus:   "idle",
     currentQuiz:      null, quizStatus:      "idle",
     quizResult:       null, quizSubmitStatus:"idle",
+    analyzeStatus:    "idle", analyzeResult: null,
   },
   reducers: {
     clearQuizResult(s) { s.quizResult = null; s.quizSubmitStatus = "idle"; },
+    clearAnalyzeResult(s) { s.analyzeResult = null; s.analyzeStatus = "idle"; },
   },
   extraReducers: (b) => {
     b.addCase(fetchLearningGaps.pending,   (s) => { s.gapsStatus = "loading"; })
@@ -76,10 +83,14 @@ const learningGapsSlice = createSlice({
     b.addCase(submitQuiz.pending,   (s) => { s.quizSubmitStatus = "loading"; })
      .addCase(submitQuiz.fulfilled, (s, a) => { s.quizSubmitStatus = "succeeded"; s.quizResult = a.payload; })
      .addCase(submitQuiz.rejected,  (s) => { s.quizSubmitStatus = "failed"; });
+
+    b.addCase(analyzeGaps.pending,   (s) => { s.analyzeStatus = "loading"; })
+     .addCase(analyzeGaps.fulfilled, (s, a) => { s.analyzeStatus = "succeeded"; s.analyzeResult = a.payload; })
+     .addCase(analyzeGaps.rejected,  (s) => { s.analyzeStatus = "failed"; });
   },
 });
 
-export const { clearQuizResult } = learningGapsSlice.actions;
+export const { clearQuizResult, clearAnalyzeResult } = learningGapsSlice.actions;
 
 export const selectGaps              = (s) => s.learningGaps.gaps;
 export const selectGapsStatus        = (s) => s.learningGaps.gapsStatus;
@@ -91,5 +102,7 @@ export const selectQuizListStatus    = (s) => s.learningGaps.quizListStatus;
 export const selectCurrentQuiz       = (s) => s.learningGaps.currentQuiz;
 export const selectQuizResult        = (s) => s.learningGaps.quizResult;
 export const selectQuizSubmitStatus  = (s) => s.learningGaps.quizSubmitStatus;
+export const selectAnalyzeStatus     = (s) => s.learningGaps.analyzeStatus;
+export const selectAnalyzeResult     = (s) => s.learningGaps.analyzeResult;
 
 export default learningGapsSlice.reducer;

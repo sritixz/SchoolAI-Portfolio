@@ -11,7 +11,13 @@ from datetime import datetime
 from dependencies import require_role
 from database import get_db
 from services.llm import stream_vin_chat
+from services.ocr import extract_text_from_url
 import re
+
+# Matches S3/CDN image URLs sent by the frontend after upload
+_IMAGE_URL_RE = re.compile(
+    r"Image URL:\s*(https?://\S+)", re.IGNORECASE
+)
 
 router = APIRouter(prefix="/vin-ai", tags=["vin-ai"])
 
@@ -44,6 +50,12 @@ TURN 3+ (After 2-3 dialogue steps, OR if student asks for the full answer):
 
 TRIGGER PHRASES — if the student says any of these, immediately provide the <exam_ready> block:
 "show me the answer", "give me the answer", "just tell me", "exam ready answer", "full solution", "I give up"
+
+IMAGE UPLOAD RULE — if the message starts with [IMAGE_UPLOAD]:
+- The student has uploaded a problem and wants it SOLVED, not guided.
+- Skip the Socratic flow entirely for this turn.
+- Provide the complete step-by-step solution in <steps> AND the full <exam_ready> block immediately.
+- After the solution, use <followups> to suggest 2 related concept questions to explore next.
 
 === EXAM-READY ANSWER FORMAT ===
 When providing the final solution, use this exact structure inside <exam_ready>:
@@ -203,6 +215,25 @@ async def chat(
     db=Depends(get_db),
 ):
     """SSE streaming chat. Returns text/event-stream of XML tokens."""
+
+    # ── OCR: if the message contains an uploaded image URL, extract its text ──
+    user_message = body.message
+    extracted = None
+    img_match = _IMAGE_URL_RE.search(user_message)
+    if img_match:
+        image_url = img_match.group(1).strip()
+        extracted = await extract_text_from_url(image_url)
+        if extracted:
+            user_message = (
+                f"[IMAGE_UPLOAD] The student uploaded a problem image. "
+                f"The extracted question is:\n\n{extracted}\n\n"
+                f"IMPORTANT: This is an uploaded problem — skip the Socratic withholding. "
+                f"Solve it completely and correctly right now using the <steps> and <exam_ready> blocks. "
+                f"After the full solution, add 2 follow-up questions in <followups> to deepen understanding of the concept."
+            )
+        else:
+            user_message = "I uploaded a problem image but the text could not be read. Please ask me to describe the problem."
+
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
     # Inject homework context as a system-level context message if provided
@@ -234,7 +265,7 @@ async def chat(
         if role in ("user", "assistant") and content:
             messages.append({"role": role, "content": content})
 
-    messages.append({"role": "user", "content": body.message})
+    messages.append({"role": "user", "content": user_message})
 
     full_response = []
 
@@ -253,7 +284,9 @@ async def chat(
             # Save after stream completes
             assembled = "".join(full_response)
             background_tasks.add_task(
-                _save_conversation, db, user["id"], body.message, assembled
+                _save_conversation, db, user["id"],
+                body.message if not img_match else "[Image upload] " + (extracted or "unreadable"),
+                assembled
             )
 
     return StreamingResponse(event_gen(), media_type="text/event-stream",

@@ -13,6 +13,204 @@ def _ser(doc):
         doc["_id"] = str(doc["_id"])
     return doc
 
+# ── System prompt for gap analysis ──────────────────────────
+GAP_ANALYSIS_SYSTEM = """You are an expert academic learning analyst for a K-12 school platform.
+Your job is to analyze a student's actual homework and assessment performance data and identify
+specific learning gaps — topics where the student is consistently struggling.
+
+RULES:
+- Base your analysis ONLY on the actual submission data provided (scores, wrong answers, error patterns, weakness areas)
+- Identify 3-6 specific gaps with concrete evidence from the data
+- severity: "critical" if mastery < 45%, "moderate" if 45-65%, "minor" if 65-75%
+- Each gap must reference the specific homework/assessment it was identified from
+- correctivePath must be actionable steps tailored to the specific weakness
+- aiErrorSummary must describe the SPECIFIC mistakes the student made (from error_patterns/feedback)
+- aiLastFeedback must be a personalized coaching message referencing their actual errors
+- Return ONLY valid JSON — no markdown fences, no extra text"""
+
+async def _build_performance_context(student_id: str, db) -> dict:
+    """Pull all relevant performance data for a student."""
+    # Recent homework submissions with AI analysis
+    submissions = await db.homework_submissions.find(
+        {"student_id": student_id}
+    ).sort("submitted_at", -1).to_list(30)
+
+    # Homework details for each submission
+    hw_ids = list({s.get("homework_id") for s in submissions if s.get("homework_id")})
+    homeworks = {}
+    for hid in hw_ids:
+        try:
+            hw = await db.homeworks.find_one({"_id": ObjectId(hid)})
+            if hw:
+                homeworks[hid] = hw
+        except Exception:
+            pass
+
+    # Quiz attempts
+    quiz_attempts = await db.quiz_attempts.find(
+        {"student_id": student_id}
+    ).sort("submitted_at", -1).to_list(20)
+
+    # Grades
+    grades = await db.grades.find({"student_id": student_id}).to_list(None)
+
+    return {
+        "submissions": submissions,
+        "homeworks": homeworks,
+        "quiz_attempts": quiz_attempts,
+        "grades": grades,
+    }
+
+@router.post("/analyze")
+async def analyze_gaps(user=Depends(require_role("student")), db=Depends(get_db)):
+    """
+    Pull the student's real homework/assessment performance data, send it to the LLM
+    with a rich system prompt, and upsert identified learning gaps into the DB.
+    """
+    from services.llm import chat_completion
+
+    perf = await _build_performance_context(user["id"], db)
+    submissions = perf["submissions"]
+    homeworks   = perf["homeworks"]
+    grades      = perf["grades"]
+
+    if not submissions and not grades:
+        return {"gaps_created": 0, "message": "No performance data found yet. Complete some homework first."}
+
+    # Build a structured summary for the LLM
+    sub_summaries = []
+    for sub in submissions[:20]:
+        hid  = sub.get("homework_id", "")
+        hw   = homeworks.get(hid, {})
+        analysis = sub.get("analysis") or sub.get("ai_analysis") or {}
+        sub_summaries.append({
+            "homework_title":   hw.get("title", sub.get("title", "Homework")),
+            "subject":          hw.get("subject", sub.get("subject", "General")),
+            "score_pct":        sub.get("score_pct") or sub.get("ai_score") or analysis.get("estimated_score_pct", 0),
+            "submitted_at":     sub.get("submitted_at", ""),
+            "weakness_areas":   analysis.get("weakness_areas", []),
+            "strength_areas":   analysis.get("strength_areas", []),
+            "error_patterns":   analysis.get("error_patterns", []),
+            "overall_summary":  analysis.get("overall_summary", ""),
+            "question_analysis": [
+                {
+                    "question": qa.get("question_id"),
+                    "is_correct": qa.get("is_correct"),
+                    "feedback": qa.get("feedback", ""),
+                    "error_type": qa.get("error_type"),
+                }
+                for qa in analysis.get("question_analysis", []) if not qa.get("is_correct")
+            ][:5],  # only wrong answers
+        })
+
+    grade_summary = [
+        {"subject": g.get("subject", ""), "marks": g.get("marks", 0), "semester": g.get("semester", "")}
+        for g in grades
+    ]
+
+    prompt = f"""Analyze this student's performance data and identify their learning gaps.
+
+HOMEWORK & ASSESSMENT SUBMISSIONS (most recent first):
+{json.dumps(sub_summaries, indent=2)}
+
+GRADE RECORDS:
+{json.dumps(grade_summary, indent=2)}
+
+Based on the actual errors, weak areas, and low scores above, identify 3-6 specific learning gaps.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "gaps": [
+    {{
+      "subject": "Mathematics",
+      "topic": "Quadratic Equations",
+      "subtopic": "Discriminant & Nature of Roots",
+      "severity": "critical",
+      "masteryPercent": 35,
+      "identifiedFrom": {{
+        "title": "Unit 3 Quiz: Algebra Foundations",
+        "type": "homework"
+      }},
+      "impactAnalysis": "Affects performance in Calculus and advanced algebra topics.",
+      "impactSubject": "Calculus",
+      "prerequisiteDependency": "Requires mastery of Basic Algebra and factoring.",
+      "prerequisiteSubject": "Basic Algebra",
+      "aiErrorSummary": "Student consistently confused the sign of the discriminant when b is negative. Squared a negative number incorrectly in 3 out of 4 attempts.",
+      "aiLastFeedback": "In your last submission you wrote b² = -16 when b = -4. Remember: (-4)² = +16, not -16. Squaring always gives a positive result.",
+      "correctivePath": [
+        {{"type": "video",    "label": "Watch Explanation", "icon": "play_circle"}},
+        {{"type": "practice", "label": "Practice Problems",  "icon": "quiz"}}
+      ],
+      "retryQuestion": {{
+        "text": "For 3x² - 4x + 5 = 0, find the discriminant and state the nature of roots.",
+        "equation": "D = b² - 4ac"
+      }}
+    }}
+  ]
+}}
+
+IMPORTANT:
+- masteryPercent must reflect the actual score data (not a guess)
+- severity: critical if masteryPercent < 45, moderate if 45-65, minor if 65-75
+- aiErrorSummary must reference SPECIFIC mistakes from the submission data above
+- Only include gaps with real evidence from the data
+"""
+
+    try:
+        raw = await chat_completion(
+            [
+                {"role": "system", "content": GAP_ANALYSIS_SYSTEM},
+                {"role": "user",   "content": prompt},
+            ]
+        )
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        result = json.loads(raw)
+    except Exception as e:
+        raise HTTPException(500, f"Gap analysis failed: {str(e)}")
+
+    gaps_created = 0
+    now = datetime.utcnow().isoformat()
+    for gap in result.get("gaps", []):
+        doc = {
+            "student_id":             user["id"],
+            "subject":                gap.get("subject", "General"),
+            "topic":                  gap.get("topic", "Unknown"),
+            "subtopic":               gap.get("subtopic", ""),
+            "severity":               gap.get("severity", "minor"),
+            "masteryPercent":         gap.get("masteryPercent", 50),
+            "score":                  gap.get("masteryPercent", 50),
+            "resolved":               False,
+            "identifiedFrom":         gap.get("identifiedFrom", {"title": "Performance Analysis", "type": "homework"}),
+            "impactAnalysis":         gap.get("impactAnalysis", ""),
+            "impactSubject":          gap.get("impactSubject", gap.get("subject", "")),
+            "prerequisiteDependency": gap.get("prerequisiteDependency", ""),
+            "prerequisiteSubject":    gap.get("prerequisiteSubject", ""),
+            "aiErrorSummary":         gap.get("aiErrorSummary", ""),
+            "aiLastFeedback":         gap.get("aiLastFeedback", ""),
+            "correctivePath":         gap.get("correctivePath", [
+                {"type": "video",    "label": "Watch Explanation", "icon": "play_circle"},
+                {"type": "practice", "label": "Practice Problems",  "icon": "quiz"},
+            ]),
+            "retryQuestion":          gap.get("retryQuestion", {}),
+            "source":                 "ai_analysis",
+            "analyzed_at":            now,
+        }
+        # Upsert: update existing gap for same topic or insert new
+        await db.learning_gaps.update_one(
+            {"student_id": user["id"], "topic": doc["topic"], "resolved": False},
+            {"$set": doc},
+            upsert=True,
+        )
+        gaps_created += 1
+
+    return {"gaps_created": gaps_created, "message": f"Analysis complete. {gaps_created} learning gaps identified from your performance data."}
+
+
 @router.get("/")
 async def get_gaps(user=Depends(require_role("student")), db=Depends(get_db)):
     docs = await db.learning_gaps.find({"student_id": user["id"], "resolved": False}).to_list(None)
@@ -64,14 +262,37 @@ async def get_remediation(gap_id: str, user=Depends(require_role("student")), db
         return {"gap": _ser(gap), "remediation": cached["content"]}
 
     from services.llm import chat_completion
-    prompt = f"""Create a remediation lesson for a student struggling with "{gap['topic']}" in {gap['subject']}.
-Return ONLY valid JSON: {{"explanation": "...", "examples": ["..."], "key_points": ["..."]}}"""
+
+    error_summary  = gap.get("aiErrorSummary", "")
+    mastery        = gap.get("masteryPercent", gap.get("score", 50))
+    identified_from = gap.get("identifiedFrom", {})
+    source_title   = identified_from.get("title", "recent assessment") if isinstance(identified_from, dict) else str(identified_from)
+
+    prompt = f"""Create a targeted remediation lesson for a student struggling with "{gap['topic']}" in {gap['subject']}.
+
+STUDENT CONTEXT:
+- Current mastery: {mastery}%
+- Identified from: {source_title}
+- Specific errors made: {error_summary or 'General weakness in this topic'}
+- Subtopic: {gap.get('subtopic', gap['topic'])}
+
+Design the remediation to directly address the student's specific errors above.
+Return ONLY valid JSON (no markdown):
+{{
+  "explanation": "Clear, step-by-step explanation targeting the specific errors the student made",
+  "examples": ["Worked example 1 addressing the specific mistake", "Worked example 2"],
+  "key_points": ["Key rule or concept to remember", "Common mistake to avoid"],
+  "practice_tip": "One specific practice strategy for this student"
+}}"""
     try:
-        raw = await chat_completion([{"role": "user", "content": prompt}])
+        raw = await chat_completion([
+            {"role": "system", "content": f"You are an expert {gap['subject']} tutor. Create targeted remediation that directly addresses the student's specific errors. Return only valid JSON."},
+            {"role": "user", "content": prompt},
+        ])
         raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
         content = json.loads(raw)
     except Exception:
-        content = {"explanation": f"Review {gap['topic']} in {gap['subject']}.", "examples": [], "key_points": []}
+        content = {"explanation": f"Review {gap['topic']} in {gap['subject']}.", "examples": [], "key_points": [], "practice_tip": ""}
 
     await db.remediation_cache.insert_one({"gap_id": gap_id, "content": content})
     return {"gap": _ser(gap), "remediation": content}
