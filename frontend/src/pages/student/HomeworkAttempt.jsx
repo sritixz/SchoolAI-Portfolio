@@ -51,32 +51,22 @@ function TypedInput({ value, onChange }) {
   const textareaRef = useRef(null);
   const [history, setHistory] = useState([value]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [equationPanelOpen, setEquationPanelOpen] = useState(false);
+  const [equationDraft, setEquationDraft] = useState("");
+  const equationInputRef = useRef(null);
 
   const applyFormat = (format) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = value.substring(start, end);
-    
     if (!selectedText) return;
-
-    let formattedText = "";
-    if (format === "bold") {
-      formattedText = `**${selectedText}**`;
-    } else if (format === "italic") {
-      formattedText = `*${selectedText}*`;
-    }
-
+    const formattedText = format === "bold" ? `**${selectedText}**` : `*${selectedText}*`;
     const newValue = value.substring(0, start) + formattedText + value.substring(end);
     onChange(newValue);
-    
-    // Update history
     setHistory([...history.slice(0, historyIndex + 1), newValue]);
     setHistoryIndex(historyIndex + 1);
-
-    // Restore cursor position
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + formattedText.length, start + formattedText.length);
@@ -97,61 +87,115 @@ function TypedInput({ value, onChange }) {
     }
   };
 
+  const openEquationPanel = () => {
+    setEquationDraft("");
+    setEquationPanelOpen(true);
+    setTimeout(() => equationInputRef.current?.focus(), 50);
+  };
+
+  const insertEquation = () => {
+    if (!equationDraft.trim()) return;
+    const textarea = textareaRef.current;
+    const cursorPos = textarea ? textarea.selectionStart : value.length;
+    const newValue = value.substring(0, cursorPos) + ` ${equationDraft.trim()} ` + value.substring(cursorPos);
+    onChange(newValue);
+    setHistory([...history.slice(0, historyIndex + 1), newValue]);
+    setHistoryIndex(historyIndex + 1);
+    setEquationPanelOpen(false);
+    setEquationDraft("");
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  };
+
+  // Quick-insert symbols
+  const SYMBOLS = ["²", "³", "√", "π", "∞", "±", "×", "÷", "≠", "≤", "≥", "∑", "∫", "θ", "α", "β"];
+
   return (
     <div className="rounded-xl border-2 border-slate-100 overflow-hidden focus-within:border-[#5b69e6] transition-all bg-white">
+      {/* Toolbar */}
       <div className="flex items-center gap-1 p-2 bg-slate-50 border-b border-slate-100">
-        <button 
-          onClick={() => applyFormat("bold")}
-          className="p-2 hover:bg-white rounded-full transition-colors text-slate-600"
-          title="Bold (select text first)"
-          type="button"
-        >
+        <button onClick={() => applyFormat("bold")} className="p-2 hover:bg-white rounded-full transition-colors text-slate-600" title="Bold" type="button">
           <span className="material-symbols-outlined text-[20px]">format_bold</span>
         </button>
-        <button 
-          onClick={() => applyFormat("italic")}
-          className="p-2 hover:bg-white rounded-full transition-colors text-slate-600"
-          title="Italic (select text first)"
-          type="button"
-        >
+        <button onClick={() => applyFormat("italic")} className="p-2 hover:bg-white rounded-full transition-colors text-slate-600" title="Italic" type="button">
           <span className="material-symbols-outlined text-[20px]">format_italic</span>
         </button>
         <div className="h-6 w-px bg-slate-200 mx-1" />
-        <button 
-          onClick={() => {
-            const equation = prompt("Enter your equation (e.g., x^2 + 2x + 1):");
-            if (equation) {
-              onChange(value + ` ${equation} `);
-            }
-          }}
-          className="p-2 hover:bg-white rounded-full transition-colors flex items-center gap-1.5 px-3 text-slate-600"
-          title="Insert equation"
+        <button
+          onClick={openEquationPanel}
+          className={`p-2 hover:bg-white rounded-full transition-colors flex items-center gap-1.5 px-3 text-slate-600 ${equationPanelOpen ? "bg-[#5b69e6]/10 text-[#5b69e6]" : ""}`}
+          title="Equation Editor"
           type="button"
         >
           <span className="material-symbols-outlined text-[20px] text-[#5b69e6]">functions</span>
           <span className="text-xs font-bold uppercase tracking-tight">Equation Editor</span>
         </button>
         <div className="ml-auto flex gap-1">
-          <button 
-            onClick={undo}
-            disabled={historyIndex === 0}
-            className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30"
-            title="Undo"
-            type="button"
-          >
+          <button onClick={undo} disabled={historyIndex === 0} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30" title="Undo" type="button">
             <span className="material-symbols-outlined text-[20px]">undo</span>
           </button>
-          <button 
-            onClick={redo}
-            disabled={historyIndex === history.length - 1}
-            className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30"
-            title="Redo"
-            type="button"
-          >
+          <button onClick={redo} disabled={historyIndex === history.length - 1} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 disabled:opacity-30" title="Redo" type="button">
             <span className="material-symbols-outlined text-[20px]">redo</span>
           </button>
         </div>
       </div>
+
+      {/* Equation panel — inline, no modal */}
+      {equationPanelOpen && (
+        <div className="bg-[#5b69e6]/5 border-b border-[#5b69e6]/20 p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-bold text-[#5b69e6] uppercase tracking-wider">Equation Editor</p>
+            <button onClick={() => setEquationPanelOpen(false)} className="text-slate-400 hover:text-slate-600" type="button">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">Write in any format — plain text, LaTeX, words, symbols, whatever works for you.</p>
+
+          {/* Quick symbol palette */}
+          <div className="flex flex-wrap gap-1.5">
+            {SYMBOLS.map((sym) => (
+              <button
+                key={sym}
+                type="button"
+                onClick={() => setEquationDraft((d) => d + sym)}
+                className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-sm font-mono hover:border-[#5b69e6] hover:text-[#5b69e6] transition-colors"
+              >
+                {sym}
+              </button>
+            ))}
+          </div>
+
+          {/* Free-form input */}
+          <input
+            ref={equationInputRef}
+            type="text"
+            value={equationDraft}
+            onChange={(e) => setEquationDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") insertEquation(); if (e.key === "Escape") setEquationPanelOpen(false); }}
+            placeholder="e.g.  x² + 2x + 1 = 0  or  (a+b)^2  or  the square root of 16"
+            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-mono focus:outline-none focus:border-[#5b69e6] placeholder:text-slate-300"
+          />
+
+          {/* Preview */}
+          {equationDraft && (
+            <div className="px-4 py-2 bg-white rounded-lg border border-slate-100 text-sm font-mono text-slate-700">
+              Preview: <span className="text-[#5b69e6]">{equationDraft}</span>
+            </div>
+          )}
+
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setEquationPanelOpen(false)} className="px-4 py-2 rounded-lg text-sm text-slate-500 hover:bg-slate-100 transition-colors" type="button">Cancel</button>
+            <button
+              onClick={insertEquation}
+              disabled={!equationDraft.trim()}
+              className="px-5 py-2 rounded-lg bg-[#5b69e6] text-white text-sm font-bold hover:bg-[#5b69e6]/90 disabled:opacity-40 transition-colors"
+              type="button"
+            >
+              Insert
+            </button>
+          </div>
+        </div>
+      )}
+
       <textarea
         ref={textareaRef}
         value={value}
@@ -361,10 +405,12 @@ export default function HomeworkAttempt() {
                   answers: {},
                   questionSet: minimalQS,
                   fileSubmission: true,
+                  submissionDoc: data,
                   apiResult: {
-                    status: "completed",
+                    status: data.status || "completed",
                     grade: data.final_grade,
                     feedback: data.teacher_feedback,
+                    auto_score_pct: data.auto_score_pct,
                   },
                 },
               });
@@ -437,6 +483,7 @@ export default function HomeworkAttempt() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers]       = useState({});
   const [activeType, setActiveType] = useState({});
+  const [skipped, setSkipped]       = useState(new Set());
   const [vinPanelOpen, setVinPanelOpen] = useState(false);
   const [vinContext, setVinContext] = useState(null);
   const [aiAssistantEnabled, setAiAssistantEnabled] = useState(true); // Default to true
@@ -569,16 +616,34 @@ export default function HomeworkAttempt() {
     return false;
   };
 
+  const handleSkip = () => {
+    setSkipped((prev) => new Set([...prev, q.id]));
+    // Find next unanswered/unskipped question, or just go forward
+    const nextIdx = questions.findIndex((qq, i) => i > currentIdx && !skipped.has(qq.id) && !(answers[qq.id] !== undefined && answers[qq.id] !== null && answers[qq.id] !== ""));
+    if (nextIdx !== -1) {
+      setCurrentIdx(nextIdx);
+    } else if (currentIdx < totalQ - 1) {
+      setCurrentIdx((i) => i + 1);
+    }
+  };
+
+  // All non-skipped questions answered, or all questions attempted
+  const allAnsweredOrSkipped = questions.every(
+    (qq) => skipped.has(qq.id) || (answers[qq.id] !== undefined && answers[qq.id] !== null && answers[qq.id] !== "")
+  );
+  const isReadyToSubmit = isLast && allAnsweredOrSkipped;
+
   const handleNext = async () => {
     if (!isLast) {
       setCurrentIdx((i) => i + 1);
     } else {
       setSubmitting(true);
-      // Build answers array for API
+      // Build answers array for API — skipped questions get null answer
       const answersPayload = questions.map((qq) => ({
         question_id: qq.id,
         answer: answers[qq.id] instanceof File ? null : (answers[qq.id] ?? null),
         answer_type: activeType[qq.id] || qq.answerType,
+        skipped: skipped.has(qq.id),
       }));
       try {
         const result = await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: answersPayload })).unwrap();
@@ -586,7 +651,6 @@ export default function HomeworkAttempt() {
           state: { answers, questionSet, apiResult: result, allowRetries: currentHw?.allow_retries || false },
         });
       } catch {
-        // Fallback: navigate with local data
         navigate(`/student/homework/${homeworkId}/result`, {
           state: { answers, questionSet, allowRetries: currentHw?.allow_retries || false },
         });
@@ -675,10 +739,12 @@ export default function HomeworkAttempt() {
               <button
                 key={qq.id}
                 onClick={() => setCurrentIdx(i)}
-                title={`Q${i + 1}`}
+                title={`Q${i + 1}${skipped.has(qq.id) ? " (skipped)" : ""}`}
                 className={`h-2 rounded-full transition-all duration-300 ${
                   i === currentIdx
                     ? "bg-[#5b69e6] w-6"
+                    : skipped.has(qq.id)
+                    ? "bg-amber-400 w-2"
                     : answers[qq.id] !== undefined && answers[qq.id] !== null && answers[qq.id] !== ""
                     ? "bg-[#5b69e6]/40 w-2"
                     : "bg-slate-200 w-2"
@@ -686,6 +752,13 @@ export default function HomeworkAttempt() {
               />
             ))}
           </div>
+          {/* Skipped questions legend */}
+          {skipped.size > 0 && (
+            <div className="flex items-center gap-1.5 pt-1">
+              <span className="size-2 rounded-full bg-amber-400 inline-block" />
+              <span className="text-xs text-amber-600 font-medium">{skipped.size} question{skipped.size > 1 ? "s" : ""} skipped</span>
+            </div>
+          )}
         </div>
 
         {/* Question card */}
@@ -801,6 +874,28 @@ export default function HomeworkAttempt() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Skip button — hidden if already answered */}
+              {!canProceed() && !skipped.has(q.id) && (
+                <button
+                  onClick={handleSkip}
+                  className="flex items-center gap-1.5 px-5 py-3 rounded-full font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all text-sm"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">redo</span>
+                  Skip
+                </button>
+              )}
+              {/* Un-skip if currently on a skipped question */}
+              {skipped.has(q.id) && (
+                <button
+                  onClick={() => setSkipped((prev) => { const s = new Set(prev); s.delete(q.id); return s; })}
+                  className="flex items-center gap-1.5 px-5 py-3 rounded-full font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-all text-sm"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">undo</span>
+                  Unskip
+                </button>
+              )}
               {isTyped && (
                 <button className="bg-slate-100 text-slate-700 px-5 py-3 rounded-full font-bold hover:bg-slate-200 transition-all">
                   Retry Similar
@@ -808,11 +903,11 @@ export default function HomeworkAttempt() {
               )}
               <button
                 onClick={handleNext}
-                disabled={!canProceed()}
+                disabled={!canProceed() && !skipped.has(q.id)}
                 className="bg-[#5b69e6] hover:bg-[#5b69e6]/90 text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-[#5b69e6]/20 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40"
               >
                 {isLast
-                  ? (submitting ? "Submitting..." : "Submit All")
+                  ? (submitting ? "Submitting..." : skipped.size > 0 ? `Submit (${skipped.size} skipped)` : "Submit All")
                   : isTyped
                   ? "Check My Work"
                   : "Submit Answer"}

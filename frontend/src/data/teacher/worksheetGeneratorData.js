@@ -5,8 +5,8 @@
 export const worksheetDefaults = {
   subject: "Math",
   classLevel: "Grade 8",
-  topic: "Linear Equations",
-  title: "Linear Equations Practice Sheet",
+  topic: "",
+  title: "",
   difficulty: "Medium",
   totalQuestions: 10,
   questionTypes: { mcq: true, shortAnswer: true, longAnswer: true, matching: false },

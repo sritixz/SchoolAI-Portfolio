@@ -193,7 +193,7 @@ export default function WorksheetGenerator() {
             </div>
             <div>
               <label className="text-xs font-bold text-gray-500 mb-1 block">Topic</label>
-              <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })}
+              <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value, title: e.target.value ? `${e.target.value} Practice Sheet` : "" })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
             </div>
           </div>

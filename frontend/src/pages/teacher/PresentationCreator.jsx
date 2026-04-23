@@ -751,10 +751,46 @@ export default function PresentationCreator() {
                       {slide.content?.image_url ? (
                         <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative flex items-center justify-center" style={{ minHeight: "180px" }}>
                           <img
-                            src={slide.content.image_url}
+                            src={(() => {
+                              const url = slide.content.image_url;
+                              if (url.startsWith("/teacher/image-proxy")) {
+                                const apiBase =
+                                  import.meta.env?.VITE_API_BASE_URL ||
+                                  import.meta.env?.VITE_API_URL ||
+                                  "http://localhost:8001";
+                                return `${apiBase}${url}`;
+                              }
+                              return url;
+                            })()}
                             alt={slide.content.image_alt || slide.content.detailed_visual_description || slide.title}
                             className="w-full h-auto max-h-64 object-contain"
                             loading="lazy"
+                            onLoad={() => {
+                              // Fire-and-forget: fetch via proxy and cache as base64 so the
+                              // PDF download can embed it without re-fetching from scratch.
+                              if (slide.content && !slide.content._fetched_image) {
+                                const apiBase =
+                                  import.meta.env?.VITE_API_BASE_URL ||
+                                  import.meta.env?.VITE_API_URL ||
+                                  "http://localhost:8001";
+                                const imgUrl = slide.content.image_url || "";
+                                // If already a proxy URL (relative), use it directly; otherwise wrap it.
+                                const proxyUrl = imgUrl.startsWith("/teacher/image-proxy")
+                                  ? `${apiBase}${imgUrl}`
+                                  : `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(imgUrl)}`;
+                                fetch(proxyUrl, { headers: { Accept: "image/*" } })
+                                  .then(r => r.ok ? r.blob() : null)
+                                  .then(blob => {
+                                    if (!blob) return;
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => {
+                                      if (slide.content) slide.content._fetched_image = reader.result;
+                                    };
+                                    reader.readAsDataURL(blob);
+                                  })
+                                  .catch(() => {});
+                              }
+                            }}
                             onError={(e) => {
                               // Retry once after 5s — Pollinations may still be generating
                               if (!e.target.dataset.retried) {

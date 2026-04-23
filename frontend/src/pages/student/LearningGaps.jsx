@@ -7,8 +7,9 @@ import {
   LEARNING_GAPS, getGapsBySubject,
 } from "../../data/learningGapData";
 import {
-  fetchLearningGaps, fetchGapHealth,
+  fetchLearningGaps, fetchGapHealth, analyzeGaps,
   selectGaps, selectGapsStatus, selectGapHealth,
+  selectAnalyzeStatus, selectAnalyzeResult,
 } from "../../store/slices/learningGapsSlice";
 
 // ── Health score ring ────────────────────────────────────────
@@ -27,8 +28,19 @@ function HealthRing({ score }) {
 
 // ── Gap card ─────────────────────────────────────────────────
 function GapCard({ gap }) {
-  const sev  = SEVERITY_UI[gap.severity];
+  const sev  = SEVERITY_UI[gap.severity] || SEVERITY_UI.minor;
   const subj = SUBJECT_BADGE_UI[gap.subject] || "bg-gray-100 text-gray-600";
+  const gapId = gap._id || gap.id;
+
+  // Safe split helper — handles missing impactSubject/prerequisiteSubject
+  const splitText = (text, keyword) => {
+    if (!text || !keyword) return [text || "", ""];
+    const parts = text.split(keyword);
+    return parts.length > 1 ? [parts[0], parts.slice(1).join(keyword)] : [text, ""];
+  };
+
+  const [impactBefore, impactAfter] = splitText(gap.impactAnalysis, gap.impactSubject);
+  const [prereqBefore, prereqAfter] = splitText(gap.prerequisiteDependency, gap.prerequisiteSubject);
 
   return (
     <div className={`bg-white rounded-xl border-l-4 ${sev.borderColor} border-y border-r border-slate-200 p-6 shadow-sm hover:shadow-md transition-all`}>
@@ -47,6 +59,28 @@ function GapCard({ gap }) {
         </button>
       </div>
 
+      {/* AI error summary — shown when available */}
+      {gap.aiErrorSummary && (
+        <div className="mb-6 p-4 rounded-lg bg-rose-50 border border-rose-100">
+          <div className="flex items-center gap-2 text-rose-600 mb-1">
+            <span className="material-symbols-outlined text-sm">error</span>
+            <p className="text-xs font-semibold uppercase tracking-wide">What went wrong</p>
+          </div>
+          <p className="text-sm text-rose-700">{gap.aiErrorSummary}</p>
+        </div>
+      )}
+
+      {/* AI last feedback — shown when available */}
+      {gap.aiLastFeedback && (
+        <div className="mb-6 p-4 rounded-lg bg-[#685ae7]/5 border border-[#685ae7]/10">
+          <div className="flex items-center gap-2 text-[#685ae7] mb-1">
+            <span className="material-symbols-outlined text-sm">smart_toy</span>
+            <p className="text-xs font-semibold uppercase tracking-wide">Vin's Coaching Note</p>
+          </div>
+          <p className="text-sm text-slate-700">{gap.aiLastFeedback}</p>
+        </div>
+      )}
+
       {/* Meta grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="space-y-1.5">
@@ -55,44 +89,48 @@ function GapCard({ gap }) {
             <p className="text-xs font-semibold uppercase tracking-wide">Identified from</p>
           </div>
           <p className="text-sm font-medium text-[#ec5b13] flex items-center gap-1 cursor-pointer hover:underline">
-            {gap.identifiedFrom.title}
+            {typeof gap.identifiedFrom === "object" ? gap.identifiedFrom?.title : gap.identifiedFrom}
             <span className="material-symbols-outlined text-xs">open_in_new</span>
           </p>
         </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-slate-400">
-            <span className="material-symbols-outlined text-sm">trending_up</span>
-            <p className="text-xs font-semibold uppercase tracking-wide">Impact Analysis</p>
+        {gap.impactAnalysis && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="material-symbols-outlined text-sm">trending_up</span>
+              <p className="text-xs font-semibold uppercase tracking-wide">Impact Analysis</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              {impactBefore}
+              {gap.impactSubject && <span className="font-bold text-slate-800">{gap.impactSubject}</span>}
+              {impactAfter}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            {gap.impactAnalysis.split(gap.impactSubject)[0]}
-            <span className="font-bold text-slate-800">{gap.impactSubject}</span>
-            {gap.impactAnalysis.split(gap.impactSubject)[1]}
-          </p>
-        </div>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-slate-400">
-            <span className="material-symbols-outlined text-sm">link</span>
-            <p className="text-xs font-semibold uppercase tracking-wide">Prerequisite</p>
+        )}
+        {gap.prerequisiteDependency && (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-slate-400">
+              <span className="material-symbols-outlined text-sm">link</span>
+              <p className="text-xs font-semibold uppercase tracking-wide">Prerequisite</p>
+            </div>
+            <p className="text-sm text-slate-600">
+              {prereqBefore}
+              {gap.prerequisiteSubject && <span className="font-bold text-slate-800">{gap.prerequisiteSubject}</span>}
+              {prereqAfter}
+            </p>
           </div>
-          <p className="text-sm text-slate-600">
-            {gap.prerequisiteDependency.split(gap.prerequisiteSubject)[0]}
-            <span className="font-bold text-slate-800">{gap.prerequisiteSubject}</span>
-            {gap.prerequisiteDependency.split(gap.prerequisiteSubject)[1]}
-          </p>
-        </div>
+        )}
       </div>
 
       {/* Mastery bar */}
       <div className="mb-6">
         <div className="flex justify-between text-xs mb-1.5">
           <span className="text-slate-400 font-semibold uppercase tracking-wide">Mastery</span>
-          <span className="font-bold text-slate-700">{gap.masteryPercent}%</span>
+          <span className="font-bold text-slate-700">{gap.masteryPercent ?? gap.score ?? 0}%</span>
         </div>
         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full ${gap.severity === "critical" ? "bg-[#ec5b13]" : gap.severity === "moderate" ? "bg-orange-400" : "bg-slate-400"}`}
-            style={{ width: `${gap.masteryPercent}%` }}
+            style={{ width: `${gap.masteryPercent ?? gap.score ?? 0}%` }}
           />
         </div>
       </div>
@@ -100,7 +138,7 @@ function GapCard({ gap }) {
       {/* Actions */}
       <div className="pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {gap.correctivePath.map((cp) => (
+          {(gap.correctivePath || []).map((cp) => (
             <button key={cp.type} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-bold">
               <span className="material-symbols-outlined text-base">{cp.icon}</span>{cp.label}
             </button>
@@ -113,7 +151,7 @@ function GapCard({ gap }) {
           </Link>
         </div>
         <Link
-          to={`/student/learning-gaps/gaps/${gap.id}`}
+          to={`/student/learning-gaps/gaps/${gapId}`}
           className="w-full sm:w-auto px-8 py-3 rounded-xl bg-[#ec5b13] text-white font-bold hover:bg-[#ec5b13]/90 transition-all shadow-lg shadow-[#ec5b13]/20 hover:scale-[1.02] active:scale-[0.98] text-center"
         >
           {sev.actionLabel}
@@ -129,10 +167,13 @@ export default function LearningGaps() {
   const { } = useAuth();
   const dispatch = useDispatch();
   const [activeSubject, setActiveSubject] = useState("All");
-  const reduxGaps   = useSelector(selectGaps);
-  const reduxHealth = useSelector(selectGapHealth);
+  const reduxGaps     = useSelector(selectGaps);
+  const reduxHealth   = useSelector(selectGapHealth);
+  const analyzeStatus = useSelector(selectAnalyzeStatus);
+  const analyzeResult = useSelector(selectAnalyzeResult);
   const [gaps,   setGaps]   = useState(LEARNING_GAPS);
   const [health, setHealth] = useState(GAP_HEALTH);
+  const [analyzeMsg, setAnalyzeMsg] = useState(null);
 
   useEffect(() => {
     dispatch(fetchLearningGaps());
@@ -141,6 +182,23 @@ export default function LearningGaps() {
 
   useEffect(() => { if (reduxGaps.length)  setGaps(reduxGaps); },   [reduxGaps]);
   useEffect(() => { if (reduxHealth?.score !== undefined) setHealth((p) => ({ ...p, ...reduxHealth })); }, [reduxHealth]);
+
+  // After analysis completes, refresh gaps and show message
+  useEffect(() => {
+    if (analyzeStatus === "succeeded" && analyzeResult) {
+      setAnalyzeMsg(analyzeResult.message);
+      dispatch(fetchLearningGaps());
+      dispatch(fetchGapHealth());
+      setTimeout(() => setAnalyzeMsg(null), 6000);
+    }
+  }, [analyzeStatus, analyzeResult, dispatch]);
+
+  const handleAnalyze = () => {
+    setAnalyzeMsg(null);
+    dispatch(analyzeGaps());
+  };
+
+  const isAnalyzing = analyzeStatus === "loading";
 
   const filtered = activeSubject === "All" ? gaps : gaps.filter((g) => g.subject === activeSubject);
   const h = health;
@@ -165,11 +223,31 @@ export default function LearningGaps() {
             <div className="h-6 w-px bg-slate-200 mx-2" />
             <h1 className="text-lg md:text-xl font-bold tracking-tight">Learning Gap Management</h1>
           </div>
-          <button className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
-            <span className="material-symbols-outlined">info</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#685ae7] text-white text-sm font-bold hover:bg-[#685ae7]/90 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
+            >
+              {isAnalyzing
+                ? <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span><span className="hidden sm:inline">Analyzing...</span></>
+                : <><span className="material-symbols-outlined text-base">psychology</span><span className="hidden sm:inline">Re-analyze</span></>
+              }
+            </button>
+            <button className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
+              <span className="material-symbols-outlined">info</span>
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* Analyze result toast */}
+      {analyzeMsg && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl bg-[#685ae7] text-white text-sm font-semibold shadow-xl flex items-center gap-2 animate-bounce-once">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {analyzeMsg}
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 md:px-10 py-8 space-y-8">
 
@@ -254,9 +332,17 @@ export default function LearningGaps() {
 
         {/* Gap cards */}
         <section className="grid grid-cols-1 gap-6">
-          {filtered.length === 0
-            ? <p className="text-center text-slate-400 py-12">No gaps found for this subject.</p>
-            : filtered.map((gap) => <GapCard key={gap.id} gap={gap} />)
+          {isAnalyzing
+            ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-400">
+                <span className="material-symbols-outlined text-5xl animate-spin text-[#685ae7]">progress_activity</span>
+                <p className="text-sm font-semibold">Analyzing your homework and assessment performance...</p>
+                <p className="text-xs">This may take a few seconds</p>
+              </div>
+            )
+            : filtered.length === 0
+              ? <p className="text-center text-slate-400 py-12">No gaps found for this subject.</p>
+              : filtered.map((gap) => <GapCard key={gap.id || gap._id} gap={gap} />)
           }
         </section>
 

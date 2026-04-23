@@ -561,7 +561,7 @@ export default function QuizGenerator() {
                           </div>
                         )}
                         {/* Short/Long answer rubric */}
-                        {q.marking_rubric?.length > 0 && (
+                        {Array.isArray(q.marking_rubric) && q.marking_rubric.length > 0 && (
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
                             <p className="text-xs font-bold text-blue-800 mb-2">Marking Rubric</p>
                             {q.marking_rubric.map((r, ri) => (

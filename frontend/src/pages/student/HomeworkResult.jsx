@@ -53,7 +53,7 @@ function ScoreRing({ pct, grade }) {
 }
 
 // ── Question review row ──────────────────────────────────────
-function QuestionReview({ q, studentAnswer, index }) {
+function QuestionReview({ q, studentAnswer, index, gradedData }) {
   const answered = studentAnswer !== null && studentAnswer !== undefined && studentAnswer !== "";
   const isUpload = q.answerType === "upload";
   const isMcq = q.answerType === "mcq";
@@ -63,8 +63,14 @@ function QuestionReview({ q, studentAnswer, index }) {
   const selectedOption = isMcq ? q.options.find((o) => o.id === studentAnswer) : null;
   const mcqCorrect = isMcq && selectedOption?.isCorrect;
 
-  const statusIcon = !answered ? "remove_circle" : isUpload ? "cloud_done" : isMcq ? (mcqCorrect ? "check_circle" : "cancel") : "pending";
-  const statusColor = !answered ? "text-slate-300" : isUpload ? "text-blue-500" : isMcq ? (mcqCorrect ? "text-green-500" : "text-red-500") : "text-amber-500";
+  // Use graded data if available
+  const isCorrect = gradedData?.is_correct ?? (isMcq ? mcqCorrect : null);
+  const pointsAwarded = gradedData?.points_awarded;
+  const aiFeedback = gradedData?.feedback;
+  const teacherComment = gradedData?.teacher_comment;
+
+  const statusIcon = !answered ? "remove_circle" : isUpload ? "cloud_done" : isCorrect === true ? "check_circle" : isCorrect === false ? "cancel" : "pending";
+  const statusColor = !answered ? "text-slate-300" : isUpload ? "text-blue-500" : isCorrect === true ? "text-green-500" : isCorrect === false ? "text-red-500" : "text-amber-500";
 
   return (
     <div className="flex items-start gap-4 p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
@@ -73,28 +79,47 @@ function QuestionReview({ q, studentAnswer, index }) {
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-bold text-[#5b69e6] uppercase tracking-wider">Q{index + 1}</span>
           <span className="text-xs text-slate-400 capitalize">{q.answerType}</span>
-          <span className="ml-auto text-xs font-bold text-slate-500">{q.maxPoints} pt{q.maxPoints > 1 ? "s" : ""}</span>
+          <span className="ml-auto text-xs font-bold text-slate-500">
+            {pointsAwarded != null ? `${pointsAwarded}/` : ""}{q.maxPoints} pt{q.maxPoints > 1 ? "s" : ""}
+          </span>
         </div>
         <p className="text-sm font-medium text-slate-700 leading-snug line-clamp-2"
           dangerouslySetInnerHTML={{ __html: q.questionText }} />
         {answered && (
-          <div className="mt-2">
+          <div className="mt-2 space-y-1">
             {isMcq && (
-              <p className={`text-xs font-medium ${mcqCorrect ? "text-green-600" : "text-red-500"}`}>
+              <p className={`text-xs font-medium ${isCorrect ? "text-green-600" : "text-red-500"}`}>
                 Your answer: {selectedOption?.text || "—"}
-                {!mcqCorrect && correctOption && (
+                {!isCorrect && correctOption && (
                   <span className="text-green-600 ml-2">· Correct: {correctOption.text}</span>
                 )}
               </p>
             )}
             {q.answerType === "typed" && (
-              <p className="text-xs text-slate-500 italic line-clamp-2 mt-0.5">"{studentAnswer}"</p>
+              <>
+                <p className="text-xs text-slate-500 italic line-clamp-2">"{studentAnswer}"</p>
+                {isCorrect === false && (q.sampleAnswer) && (
+                  <p className="text-xs text-green-700 font-medium">Expected: {q.sampleAnswer}</p>
+                )}
+              </>
             )}
             {isUpload && (
               <p className="text-xs text-blue-500 font-medium mt-0.5">
                 <span className="material-symbols-outlined text-xs align-middle mr-1">attach_file</span>
                 {studentAnswer?.name || "File uploaded"}
               </p>
+            )}
+            {aiFeedback && (
+              <div className="flex items-start gap-1 bg-[#5b69e6]/5 rounded-lg px-2 py-1 mt-1">
+                <span className="material-symbols-outlined text-[#5b69e6] text-xs shrink-0 mt-0.5">psychology</span>
+                <p className="text-xs text-[#5b69e6] leading-relaxed">{aiFeedback}</p>
+              </div>
+            )}
+            {teacherComment && (
+              <div className="flex items-start gap-1 bg-green-50 rounded-lg px-2 py-1 mt-1">
+                <span className="material-symbols-outlined text-green-600 text-xs shrink-0 mt-0.5">rate_review</span>
+                <p className="text-xs text-green-700 leading-relaxed">{teacherComment}</p>
+              </div>
             )}
           </div>
         )}
@@ -113,7 +138,34 @@ export default function HomeworkResult() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { answers = {}, questionSet, apiResult, fileSubmission, submissionDoc, allowRetries } = state || {};
+  const { answers: rawAnswers = {}, questionSet, apiResult, fileSubmission, submissionDoc, allowRetries } = state || {};
+
+  // Merge submissionDoc.answers into the answers map so the review shows
+  // student responses even when navigating back after evaluation.
+  const answers = (() => {
+    const merged = { ...rawAnswers };
+    const docAnswers = submissionDoc?.answers || [];
+    if (docAnswers.length > 0 && Object.keys(merged).length === 0) {
+      for (const a of docAnswers) {
+        if (a.question_id) merged[a.question_id] = a.answer;
+      }
+    }
+    return merged;
+  })();
+
+  // Build a lookup for graded per-question data from submissionDoc
+  const gradedAnswerMap = (() => {
+    const map = {};
+    for (const a of (submissionDoc?.answers || [])) {
+      if (a.question_id) map[a.question_id] = a;
+    }
+    const qaList = submissionDoc?.ai_analysis?.question_analysis || [];
+    for (const qa of qaList) {
+      if (qa.question_id && !map[qa.question_id]) map[qa.question_id] = qa;
+      else if (qa.question_id) map[qa.question_id] = { ...map[qa.question_id], ...qa };
+    }
+    return map;
+  })();
 
   // ── File / handwritten submission result ──────────────────
   if (fileSubmission) {
@@ -529,7 +581,17 @@ export default function HomeworkResult() {
                 : `Don't worry — this topic takes practice. You answered ${finalMcqCorrect}/${finalMcqTotal} MCQs correctly. I recommend revisiting the key concepts before your next attempt.`
               }
             </p>
-            <button className="mt-3 text-sm font-bold text-[#5b69e6] hover:underline flex items-center gap-1">
+            <button
+              onClick={() => navigate("/student/learning-gaps", {
+                state: {
+                  fromHomework: true,
+                  subject: questionSet?.unitTitle || "",
+                  scorePct,
+                  homeworkId,
+                },
+              })}
+              className="mt-3 text-sm font-bold text-[#5b69e6] hover:underline flex items-center gap-1"
+            >
               <span className="material-symbols-outlined text-base">auto_awesome</span>
               Get personalised study plan
             </button>
@@ -557,7 +619,7 @@ export default function HomeworkResult() {
           <h3 className="text-lg font-bold text-slate-800 mb-4">Question Review</h3>
           <div className="flex flex-col gap-3">
             {questions.map((q, i) => (
-              <QuestionReview key={q.id} q={q} studentAnswer={answers[q.id]} index={i} />
+              <QuestionReview key={q.id} q={q} studentAnswer={answers[q.id]} index={i} gradedData={gradedAnswerMap[q.id]} />
             ))}
           </div>
         </div>
