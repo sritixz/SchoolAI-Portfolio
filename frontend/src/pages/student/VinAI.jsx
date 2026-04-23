@@ -16,11 +16,137 @@ import {
 } from "../../store/slices/vinAiSlice";
 import { parseVinXML } from "../../utils/xmlParser";
 import MediaPanel from "../../components/MediaPanel";
+import { fetchImages, fetchVideos } from "../../api/mediaApi";
+
+// ─────────────────────────────────────────────────────────────
+// INLINE MEDIA RECOMMENDATIONS
+// ─────────────────────────────────────────────────────────────
+function InlineMediaRecommendations({ mediaQuery, grade, board, onExpand }) {
+  const [images, setImages] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("images");
+
+  useEffect(() => {
+    if (!mediaQuery) return;
+    setLoading(true);
+    Promise.all([
+      fetchImages(mediaQuery, grade, board),
+      fetchVideos(mediaQuery, grade, board),
+    ])
+      .then(([imgs, vids]) => {
+        setImages(imgs || []);
+        setVideos(vids || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [mediaQuery, grade, board]);
+
+  if (loading) {
+    return (
+      <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-3 py-2 bg-slate-50 flex items-center gap-2">
+          <span className="material-symbols-outlined text-slate-400 text-sm animate-spin">progress_activity</span>
+          <span className="text-xs text-slate-400">Loading media for "{mediaQuery}"...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (images.length === 0 && videos.length === 0) return null;
+
+  const displayImages = images.slice(0, 3);
+  const displayVideos = videos.slice(0, 2);
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 overflow-hidden">
+      {/* Header */}
+      <div className="px-3 py-2 bg-gradient-to-r from-[#695be6]/5 to-emerald-50 flex items-center justify-between border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[#695be6] text-sm">auto_awesome</span>
+          <span className="text-xs font-bold text-slate-700">Related Media</span>
+          <span className="text-[10px] text-slate-400">"{mediaQuery}"</span>
+        </div>
+        <button
+          onClick={() => onExpand(mediaQuery, tab)}
+          className="text-[10px] font-bold text-[#695be6] hover:underline flex items-center gap-0.5"
+        >
+          See all
+          <span className="material-symbols-outlined text-xs">open_in_full</span>
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-100 bg-white">
+        {[
+          { id: "images", label: `Images (${images.length})`, icon: "image" },
+          { id: "videos", label: `Videos (${videos.length})`, icon: "play_circle" },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold border-b-2 transition-colors ${
+              tab === t.id ? "border-[#695be6] text-[#695be6]" : "border-transparent text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            <span className="material-symbols-outlined text-xs">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="p-2 bg-white">
+        {tab === "images" ? (
+          <div className="grid grid-cols-3 gap-2">
+            {displayImages.map((img, i) => (
+              <a key={i} href={img.source || img.url} target="_blank" rel="noreferrer"
+                className="group rounded-lg overflow-hidden border border-slate-100 hover:border-[#695be6]/30 hover:shadow-sm transition-all block">
+                <div className="h-20 overflow-hidden bg-slate-100">
+                  <img src={img.thumbnail || img.url} alt={img.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    onError={(e) => { e.target.parentElement.innerHTML = '<div class="h-full flex items-center justify-center"><span class="material-symbols-outlined text-slate-300">broken_image</span></div>'; }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 p-1 line-clamp-1">{img.title}</p>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {displayVideos.map((vid, i) => (
+              <a key={i} href={vid.url} target="_blank" rel="noreferrer"
+                className="group rounded-lg overflow-hidden border border-slate-100 hover:border-[#695be6]/30 hover:shadow-sm transition-all block">
+                <div className="relative h-20 overflow-hidden bg-slate-100">
+                  <img src={vid.thumbnail} alt={vid.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    onError={(e) => { e.target.src = `https://img.youtube.com/vi/${vid.video_id}/hqdefault.jpg`; }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="size-7 rounded-full bg-red-600 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-1">
+                  <p className="text-[10px] text-slate-700 font-medium line-clamp-1">{vid.title}</p>
+                  {vid.channel && <p className="text-[9px] text-slate-400 truncate">{vid.channel}</p>}
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // STREAMING MESSAGE RENDERER
 // ─────────────────────────────────────────────────────────────
-function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onRequestExamReady, interactionCount }) {
+function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onRequestExamReady, interactionCount, grade, board, onExpandMedia }) {
   const parsed = parseVinXML(xmlBuffer);
 
   return (
@@ -89,6 +215,15 @@ function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onReq
             </button>
           ))}
         </div>
+      )}
+
+      {done && parsed.mediaQuery && (
+        <InlineMediaRecommendations
+          mediaQuery={parsed.mediaQuery}
+          grade={grade}
+          board={board}
+          onExpand={onExpandMedia}
+        />
       )}
 
       {!parsed.content && !done && (
@@ -430,37 +565,48 @@ export default function VinAI() {
     }
   };
 
-  const openMediaPanel = (mode = "images") => {
-    // Filler words to strip from user messages
-    const FILLER = /^(how to|what is|what are|what's the|whats the|explain|show me|can you|tell me about|help me with|i need help with|resolve|solve|define|describe|difference between|compare|what do you mean by|give me an example of|example of)\s+/i;
+  const openMediaPanel = (mode = "images", overrideQuery = null) => {
+    let topic = overrideQuery || "";
 
-    // 1. Get the most recent user message — this is the active topic
-    const userMsgs = messages.filter((m) => m.role === "user");
-    const lastUserMsg = userMsgs[userMsgs.length - 1]?.text?.trim() || "";
+    if (!topic) {
+      // Filler words to strip from user messages
+      const FILLER = /^(how to|what is|what are|what's the|whats the|explain|show me|can you|tell me about|help me with|i need help with|resolve|solve|define|describe|difference between|compare|what do you mean by|give me an example of|example of)\s+/i;
 
-    // 2. Clean it: strip filler, remove question marks and trailing clauses
-    let topic = lastUserMsg
-      .replace(FILLER, "")
-      .replace(/\?.*$/s, "")           // drop everything after "?"
-      .replace(/\s+(and|or|but|with|using|for|in|of)\s+.*$/i, "") // drop trailing clauses
-      .trim();
+      const userMsgs = messages.filter((m) => m.role === "user");
 
-    // 3. If the cleaned topic is too short or generic (e.g. just "it", "this"),
-    //    walk back through user messages to find a more meaningful one
-    if (topic.split(" ").length < 2) {
-      for (let i = userMsgs.length - 2; i >= 0; i--) {
-        const candidate = userMsgs[i].text
-          .replace(FILLER, "")
-          .replace(/\?.*$/s, "")
-          .trim();
-        if (candidate.split(" ").length >= 2) {
-          topic = candidate;
-          break;
+      // Collect cleaned topics from last 2 user messages
+      const recentTopics = userMsgs
+        .slice(-2)
+        .map((m) =>
+          m.text
+            .replace(FILLER, "")
+            .replace(/\?.*$/s, "")
+            .replace(/\s+(and|or|but|with|using|for|in|of)\s+.*$/i, "")
+            .trim()
+        )
+        .filter((t) => t.split(" ").length >= 2);
+
+      if (recentTopics.length >= 2) {
+        // Use the most recent as primary, but if they share a common noun, use that
+        topic = recentTopics[recentTopics.length - 1];
+      } else if (recentTopics.length === 1) {
+        topic = recentTopics[0];
+      } else {
+        // Fallback: walk back for any meaningful message
+        for (let i = userMsgs.length - 1; i >= 0; i--) {
+          const candidate = userMsgs[i].text
+            .replace(FILLER, "")
+            .replace(/\?.*$/s, "")
+            .trim();
+          if (candidate.split(" ").length >= 2) {
+            topic = candidate;
+            break;
+          }
         }
       }
     }
 
-    // 4. Append grade for curriculum-relevant results
+    // Append grade for curriculum-relevant results
     const grade = user?.grade || user?.class_name || "";
     const q = (grade ? `${topic} ${grade}` : topic).trim();
 
@@ -564,6 +710,9 @@ export default function VinAI() {
                           onAnswerQuestion={handleAnswerQuestion}
                           onRequestExamReady={handleRequestExamReady}
                           interactionCount={interactionCount}
+                          grade={user?.grade || user?.class_name || ""}
+                          board={user?.board || "CBSE"}
+                          onExpandMedia={(q, mode) => openMediaPanel(mode, q)}
                         />
                       </div>
                     </div>
@@ -612,8 +761,8 @@ export default function VinAI() {
                   </button>
                 );
               })}
-              {/* Media buttons — appear after 2 completed interactions */}
-              {interactionCount >= 2 && (
+              {/* Media buttons — appear after 1 completed interaction */}
+              {interactionCount >= 1 && (
                 <>
                   <button
                     onClick={() => openMediaPanel("images")}

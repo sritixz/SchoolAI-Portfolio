@@ -1739,7 +1739,35 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
         ),
     }
 
-    await _db_update({"status": "completed", "result_data": result})
+    # Keep full result (with image_url) in memory for the hot-path status endpoint.
+    # Strip large/re-fetchable image fields only for the MongoDB write to stay
+    # well under the 16 MB BSON document limit.
+    def _slim_slides(slides: list) -> list:
+        slim = []
+        for s in slides:
+            s2 = {k: v for k, v in s.items() if k != "content"}
+            content = s.get("content")
+            if isinstance(content, dict):
+                s2["content"] = {
+                    k: v for k, v in content.items()
+                    if k not in ("image_url", "image_source_url", "image_alt",
+                                 "_fetched_image", "image_b64")
+                }
+            else:
+                s2["content"] = content
+            slim.append(s2)
+        return slim
+
+    # Update in-memory store with the FULL result (image_url intact for preview)
+    presentation_jobs[job_id].update({"status": "completed", "result_data": result})
+    # Write only the slimmed version to MongoDB
+    result_for_db = {**result, "slides": _slim_slides(result["slides"])}
+    try:
+        await db.presentation_jobs.update_one(
+            {"_id": job_id}, {"$set": {"status": "completed", "result_data": result_for_db}}
+        )
+    except Exception as exc:
+        log.warning("[PPTX] MongoDB update failed for job %s: %s", job_id, exc)
 
 
 @router.post("/ai-tool/presentation/generate")
@@ -1856,7 +1884,7 @@ async def save_presentation_history(
     from bson import ObjectId
     
     history_doc = {
-        "teacher_id": user["_id"],
+        "teacher_id": user["id"],
         "subject": body.get("subject", ""),
         "topic": body.get("topic", ""),
         "grade": body.get("grade", ""),
@@ -1873,7 +1901,17 @@ async def save_presentation_history(
         "learning_objective": body.get("learning_objective", ""),
         "include_mini_quiz": body.get("include_mini_quiz", False),
         "special_instructions": body.get("special_instructions", ""),
-        "slides": body.get("slides", []),
+        "slides": [
+            {
+                **{k: v for k, v in s.items() if k != "content"},
+                "content": {
+                    k: v for k, v in (s.get("content") or {}).items()
+                    if k not in ("image_url", "image_source_url", "image_alt",
+                                 "_fetched_image", "image_b64")
+                } if isinstance(s.get("content"), dict) else s.get("content"),
+            }
+            for s in body.get("slides", [])
+        ],
         "learning_objectives": body.get("learning_objectives", []),
         "teacher_preparation_notes": body.get("teacher_preparation_notes", ""),
         "created_at": datetime.utcnow(),
@@ -1893,7 +1931,7 @@ async def get_presentation_history(
     from bson import ObjectId
     
     docs = await db["presentation_history"].find(
-        {"teacher_id": user["_id"]}
+        {"teacher_id": user["id"]}
     ).sort("created_at", -1).to_list(100)
     
     for doc in docs:
@@ -1914,11 +1952,21 @@ async def get_presentation_detail(
     try:
         doc = await db["presentation_history"].find_one({
             "_id": ObjectId(presentation_id),
-            "teacher_id": user["_id"]
+            "teacher_id": user["id"]
         })
         if not doc:
             raise HTTPException(404, "Presentation not found")
         doc["_id"] = str(doc["_id"])
+        # Re-attach Pollinations image URLs stripped before saving (to stay under 16 MB BSON limit)
+        seed_base = abs(hash(presentation_id)) % 100000
+        for idx, slide in enumerate(doc.get("slides", [])):
+            content = slide.get("content")
+            if not isinstance(content, dict):
+                continue
+            if not content.get("image_url"):
+                desc = content.get("detailed_visual_description") or content.get("visual_prompt", "")
+                if desc:
+                    content["image_url"] = _pollinations_url(desc, seed_base + idx + 1)
         return doc
     except Exception as e:
         raise HTTPException(400, f"Invalid presentation ID: {str(e)}")
@@ -1936,7 +1984,7 @@ async def delete_presentation(
     try:
         result = await db["presentation_history"].delete_one({
             "_id": ObjectId(presentation_id),
-            "teacher_id": user["_id"]
+            "teacher_id": user["id"]
         })
         if result.deleted_count == 0:
             raise HTTPException(404, "Presentation not found")
@@ -1948,33 +1996,64 @@ async def delete_presentation(
 @router.get("/image-proxy")
 async def image_proxy(url: str):
     """
-    Proxy an external image URL (e.g. Pollinations.ai) to avoid browser CORS restrictions.
-    No auth required — URL is restricted to Pollinations.ai only.
-    Returns the raw image bytes with the correct Content-Type header.
+    Proxy an external image URL to avoid browser CORS restrictions.
+    Handles Wikipedia/Wikimedia (requires descriptive User-Agent),
+    Pollinations.ai, and any other direct image URL.
     """
     from fastapi.responses import Response
     import urllib.parse
 
-    # Allow Pollinations.ai and any direct image URL (DDGS results are direct image links)
     decoded = urllib.parse.unquote(url)
-    allowed_prefixes = ("https://image.pollinations.ai/", "https://", "http://")
-    if not any(decoded.startswith(p) for p in allowed_prefixes):
+    if not decoded.startswith(("https://", "http://")):
         raise HTTPException(400, "Invalid image URL")
 
-    try:
-        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
-            resp = await client.get(decoded, headers={"User-Agent": "EduAI/1.0"})
-            resp.raise_for_status()
-            content_type = resp.headers.get("content-type", "image/jpeg")
-            return Response(
-                content=resp.content,
-                media_type=content_type,
-                headers={"Cache-Control": "public, max-age=86400"},
-            )
-    except httpx.TimeoutException:
-        raise HTTPException(504, "Image fetch timed out")
-    except Exception as exc:
-        raise HTTPException(502, f"Image fetch failed: {exc}")
+    # Wikimedia requires a descriptive User-Agent or returns 403.
+    # Use a browser-like UA so all sources accept the request.
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; EduAI/1.0; "
+            "+https://github.com/eduai; educational platform)"
+        ),
+        "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://en.wikipedia.org/",
+    }
+
+    last_exc = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(
+                timeout=60,
+                follow_redirects=True,
+                headers=headers,
+            ) as client:
+                resp = await client.get(decoded)
+                if resp.status_code in (429, 503) and attempt < 2:
+                    # Rate-limited — back off and retry
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "image/jpeg")
+                # Strip any non-image content type (e.g. HTML error pages)
+                if "image" not in content_type and "octet-stream" not in content_type:
+                    raise HTTPException(502, f"Unexpected content-type: {content_type}")
+                return Response(
+                    content=resp.content,
+                    media_type=content_type,
+                    headers={"Cache-Control": "public, max-age=86400"},
+                )
+        except HTTPException:
+            raise
+        except httpx.TimeoutException as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(1)
+        except Exception as exc:
+            last_exc = exc
+            if attempt < 2:
+                await asyncio.sleep(1)
+
+    raise HTTPException(502, f"Image fetch failed after 3 attempts: {last_exc}")
 
 
 @router.post("/ai-generate-questions")
