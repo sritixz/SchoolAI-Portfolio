@@ -360,7 +360,23 @@ export default function QuizGenerator() {
                     </button>
 
                     <button
-                      onClick={() => {/* navigation logic */}}
+                      onClick={() => {
+                        const mapped = displayQuestions.map((q, i) => ({
+                          id: q.id || `q${i+1}`,
+                          question_number: i + 1,
+                          total_questions: displayQuestions.length,
+                          question_text: q.question_text || q.text || "",
+                          answer_type: (q.answer_type || q.type || "mcq").toLowerCase(),
+                          options: (q.options || []).map((o, j) => ({ id: o.id || `o${j+1}`, text: o.text || "", is_correct: !!o.is_correct })),
+                          max_points: q.max_points || q.marks || 1,
+                          hint: q.hint || "",
+                          sample_answer: q.sample_answer || "",
+                          vin_nudge: q.vin_nudge || "",
+                        }));
+                        navigate("/teacher/homework/create", {
+                          state: { preloadedQuestions: mapped, subject: form.subject, title: `${form.topic} Quiz` },
+                        });
+                      }}
                       className="flex items-center gap-1 bg-green-600 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-lg hover:bg-green-700"
                     >
                       <span className="material-symbols-outlined text-sm">assignment_add</span> Create HW

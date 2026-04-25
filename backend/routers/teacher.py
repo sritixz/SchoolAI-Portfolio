@@ -1359,7 +1359,7 @@ def _pollinations_url(detailed_description: str, seed: int) -> str:
     )
 
 
-async def _generate_image_pollinations(visual_prompt: str, job_seed: int = 42) -> str | None:
+async def _generate_image_pollinations(visual_prompt: str, job_seed: int = 42) -> Optional[str]:
     """
     Return a Pollinations.ai URL for the given visual description.
     Uses job_seed for visual cohesion across all slides in a presentation.
