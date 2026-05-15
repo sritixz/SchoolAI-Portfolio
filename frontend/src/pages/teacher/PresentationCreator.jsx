@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { clearAiToolResult } from "../../store/slices/teacherSlice";
 import {
   presentationVisualStyles,
@@ -207,7 +208,7 @@ export default function PresentationCreator() {
             <button className="flex items-center gap-1.5 border border-[#695be6] text-[#695be6] text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-[#695be6]/5">
               <span className="material-symbols-outlined text-sm">bolt</span> Pro Plan
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>
@@ -693,163 +694,214 @@ export default function PresentationCreator() {
 
               <div className="p-5 space-y-3">
                 {(aiResult.slides || []).map((slide, i) => (
-                  <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 border-b border-gray-200">
-                      <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{slide.number || i+1}</span>
+                  <div key={i} className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    {/* Slide header */}
+                    <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100"
+                      style={{ background: `${slide.vibrant_accent_color || "#695be6"}12` }}>
+                      <span className="size-7 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                        style={{ background: slide.vibrant_accent_color || "#695be6" }}>
+                        {slide.number || i + 1}
+                      </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        slide.type==="title"?"bg-purple-100 text-purple-700":
-                        slide.type==="hook"?"bg-orange-100 text-orange-700":
-                        slide.type==="activity"?"bg-green-100 text-green-700":
-                        slide.type==="assessment"?"bg-red-100 text-red-700":
+                        slide.type === "title" ? "bg-purple-100 text-purple-700" :
+                        slide.type === "hook" ? "bg-orange-100 text-orange-700" :
+                        slide.type === "activity" ? "bg-green-100 text-green-700" :
+                        slide.type === "assessment" ? "bg-red-100 text-red-700" :
                         "bg-blue-100 text-blue-700"
-                      }`}>{(slide.type||"content").toUpperCase()}</span>
-                      <p className="font-bold text-sm flex-1">{slide.title}</p>
-                      {slide.duration_minutes && <span className="text-[10px] text-gray-400">{slide.duration_minutes}m</span>}
+                      }`}>{(slide.type || "content").toUpperCase()}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-sm text-gray-800 leading-tight">{slide.title}</p>
+                        {slide.subtitle && <p className="text-xs text-gray-500 italic mt-0.5">{slide.subtitle}</p>}
+                      </div>
+                      {slide.duration_minutes && (
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">{slide.duration_minutes}m</span>
+                      )}
                       {slide.vibrant_accent_color && (
                         <span className="size-3 rounded-full flex-shrink-0" style={{ backgroundColor: slide.vibrant_accent_color }} />
                       )}
                     </div>
-                    <div className="p-3 space-y-2">
-                      {slide.subtitle && <p className="text-xs text-gray-500 italic">{slide.subtitle}</p>}
-                      {/* Support both old flat fields and new nested content object */}
-                      {(slide.content?.bullets || slide.bullets || []).length > 0 && (
-                        <ul className="space-y-1">
-                          {(slide.content?.bullets || slide.bullets).map((b, j) => (
-                            <li key={j} className="text-xs text-gray-700 flex items-start gap-1.5">
-                              <span className="size-1.5 rounded-full bg-[#695be6]/50 mt-1.5 shrink-0" />{b}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {typeof slide.content === "string" && <p className="text-xs text-gray-700">{slide.content}</p>}
-                      {(slide.content?.steps || slide.steps || []).length > 0 && (
-                        <ol className="space-y-1">
-                          {(slide.content?.steps || slide.steps).map((s,j)=>(
-                            <li key={j} className="text-xs text-gray-700 flex items-start gap-2">
-                              <span className="font-bold text-[#695be6] flex-shrink-0">{j+1}.</span>{s}
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-                      {(slide.content?.questions || slide.questions || []).length > 0 && (
-                        <div className="space-y-3">
-                          {(slide.content?.questions || slide.questions).map((q, j) => (
-                            <div key={j} className="bg-gray-50 rounded-lg p-2">
-                              <p className="text-xs font-semibold text-gray-800 mb-1">{j+1}. {q.question || q}</p>
-                              {q.options && (
-                                <ul className="space-y-0.5">
-                                  {q.options.map((opt, k) => (
-                                    <li key={k} className={`text-xs px-2 py-0.5 rounded ${opt.startsWith(q.correct) ? "bg-green-100 text-green-800 font-semibold" : "text-gray-600"}`}>{opt}</li>
-                                  ))}
-                                </ul>
+
+                    {/* Two-column body: content left, image right */}
+                    <div className="flex gap-0">
+                      {/* Left: content */}
+                      <div className="flex-1 p-4 space-y-3 min-w-0">
+                        {/* Bullets */}
+                        {(slide.content?.bullets || slide.bullets || []).length > 0 && (
+                          <ul className="space-y-2">
+                            {(slide.content?.bullets || slide.bullets).map((b, j) => (
+                              <li key={j} className="text-sm text-gray-700 flex items-start gap-2 leading-snug">
+                                <span className="size-2 rounded-full mt-1.5 shrink-0"
+                                  style={{ background: slide.vibrant_accent_color || "#695be6" }} />
+                                {b}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+
+                        {/* Steps */}
+                        {(slide.content?.steps || slide.steps || []).length > 0 && (
+                          <ol className="space-y-1.5">
+                            {(slide.content?.steps || slide.steps).map((s, j) => (
+                              <li key={j} className="text-sm text-gray-700 flex items-start gap-2">
+                                <span className="font-black text-xs flex-shrink-0 size-5 rounded-full flex items-center justify-center text-white mt-0.5"
+                                  style={{ background: slide.vibrant_accent_color || "#695be6" }}>{j + 1}</span>
+                                {s}
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+
+                        {/* Formula */}
+                        {slide.content?.formula && (
+                          <div className="rounded-lg px-4 py-2.5 border font-mono text-sm font-bold text-center"
+                            style={{
+                              background: `${slide.vibrant_accent_color || "#695be6"}10`,
+                              borderColor: `${slide.vibrant_accent_color || "#695be6"}40`,
+                              color: slide.vibrant_accent_color || "#695be6"
+                            }}>
+                            {slide.content.formula}
+                          </div>
+                        )}
+
+                        {/* Explanation paragraph */}
+                        {slide.content?.explanation && (
+                          <div className="rounded-lg px-3 py-2.5 bg-blue-50 border border-blue-100">
+                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-wide mb-1">Explanation</p>
+                            <p className="text-xs text-gray-700 leading-relaxed">{slide.content.explanation}</p>
+                          </div>
+                        )}
+
+                        {/* Key terms */}
+                        {(slide.content?.key_terms || []).length > 0 && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-wide">Key Terms</p>
+                            {slide.content.key_terms.map((kt, j) => (
+                              <div key={j} className="flex gap-1.5 text-xs">
+                                <span className="font-bold text-gray-800 shrink-0">{kt.term}:</span>
+                                <span className="text-gray-600">{kt.definition}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* MCQ questions */}
+                        {(slide.content?.questions || slide.questions || []).length > 0 && (
+                          <div className="space-y-3">
+                            {(slide.content?.questions || slide.questions).map((q, j) => (
+                              <div key={j} className="bg-gray-50 rounded-lg p-3">
+                                <p className="text-xs font-semibold text-gray-800 mb-1.5">{j + 1}. {q.question || q}</p>
+                                {q.options && (
+                                  <ul className="space-y-1">
+                                    {q.options.map((opt, k) => (
+                                      <li key={k} className={`text-xs px-2 py-1 rounded ${opt.startsWith(q.correct) ? "bg-green-100 text-green-800 font-semibold" : "text-gray-600"}`}>{opt}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Mermaid diagram */}
+                        {slide.content?.diagram?.mermaid && slide.content.diagram.type !== "none" && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                            <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{slide.content.diagram.type} Diagram</p>
+                            <MermaidDiagram definition={slide.content.diagram.mermaid} />
+                          </div>
+                        )}
+
+                        {/* Speaker notes */}
+                        {slide.speaker_notes && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <p className="text-[10px] font-black text-amber-700 mb-1">Speaker Notes</p>
+                            <p className="text-xs text-gray-700 leading-relaxed">{slide.speaker_notes}</p>
+                          </div>
+                        )}
+
+                        {/* Engagement prompt */}
+                        {slide.engagement_prompt && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                            <p className="text-[10px] font-black text-green-700 mb-1">Engagement Prompt</p>
+                            <p className="text-xs text-gray-700">{slide.engagement_prompt}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: image */}
+                      {(slide.content?.image_url || slide.content?.detailed_visual_description || slide.content?.visual_prompt) && (
+                        <div className="w-56 flex-shrink-0 border-l border-gray-100 p-3 flex flex-col gap-2">
+                          {slide.content?.image_url ? (
+                            <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative flex items-center justify-center" style={{ minHeight: "160px" }}>
+                              <img
+                                src={(() => {
+                                  const url = slide.content.image_url;
+                                  if (url.startsWith("/teacher/image-proxy")) {
+                                    const apiBase =
+                                      import.meta.env?.VITE_API_BASE_URL ||
+                                      import.meta.env?.VITE_API_URL ||
+                                      "http://localhost:8001";
+                                    return `${apiBase}${url}`;
+                                  }
+                                  return url;
+                                })()}
+                                alt={slide.content.image_alt || slide.title}
+                                className="w-full h-auto max-h-48 object-contain"
+                                loading="lazy"
+                                onLoad={(e) => {
+                                  if (slide.content && !slide.content._fetched_image) {
+                                    const apiBase =
+                                      import.meta.env?.VITE_API_BASE_URL ||
+                                      import.meta.env?.VITE_API_URL ||
+                                      "http://localhost:8001";
+                                    const imgUrl = slide.content.image_url || "";
+                                    const proxyUrl = imgUrl.startsWith("/teacher/image-proxy")
+                                      ? `${apiBase}${imgUrl}`
+                                      : `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(imgUrl)}`;
+                                    fetch(proxyUrl, { headers: { Accept: "image/*" } })
+                                      .then(r => r.ok ? r.blob() : null)
+                                      .then(blob => {
+                                        if (!blob) return;
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                          if (slide.content) slide.content._fetched_image = reader.result;
+                                        };
+                                        reader.readAsDataURL(blob);
+                                      })
+                                      .catch(() => {});
+                                  }
+                                }}
+                                onError={(e) => {
+                                  if (!e.target.dataset.retried) {
+                                    e.target.dataset.retried = "1";
+                                    const src = e.target.src;
+                                    setTimeout(() => { e.target.src = src + "&t=" + Date.now(); }, 5000);
+                                  } else {
+                                    e.target.style.display = "none";
+                                    const parent = e.target.parentNode;
+                                    if (!parent.querySelector(".img-fallback")) {
+                                      const placeholder = document.createElement("div");
+                                      placeholder.className = "img-fallback h-32 flex items-center justify-center bg-purple-50 w-full";
+                                      placeholder.innerHTML = `<span class="text-purple-300 text-xs">Image unavailable</span>`;
+                                      parent.appendChild(placeholder);
+                                    }
+                                  }
+                                }}
+                              />
+                              {slide.content.image_source_url && (
+                                <a href={slide.content.image_source_url} target="_blank" rel="noreferrer"
+                                  className="absolute bottom-0 right-0 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded-tl hover:bg-black/70 transition-colors">
+                                  🔍 Source
+                                </a>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      {/* Image from DDGS or Pollinations fallback */}
-                      {slide.content?.image_url ? (
-                        <div className="rounded-lg overflow-hidden border border-purple-200 bg-purple-50 relative flex items-center justify-center" style={{ minHeight: "180px" }}>
-                          <img
-                            src={(() => {
-                              const url = slide.content.image_url;
-                              if (url.startsWith("/teacher/image-proxy")) {
-                                const apiBase =
-                                  import.meta.env?.VITE_API_BASE_URL ||
-                                  import.meta.env?.VITE_API_URL ||
-                                  "http://localhost:8001";
-                                return `${apiBase}${url}`;
-                              }
-                              return url;
-                            })()}
-                            alt={slide.content.image_alt || slide.content.detailed_visual_description || slide.title}
-                            className="w-full h-auto max-h-64 object-contain"
-                            loading="lazy"
-                            onLoad={() => {
-                              // Fire-and-forget: fetch via proxy and cache as base64 so the
-                              // PDF download can embed it without re-fetching from scratch.
-                              if (slide.content && !slide.content._fetched_image) {
-                                const apiBase =
-                                  import.meta.env?.VITE_API_BASE_URL ||
-                                  import.meta.env?.VITE_API_URL ||
-                                  "http://localhost:8001";
-                                const imgUrl = slide.content.image_url || "";
-                                // If already a proxy URL (relative), use it directly; otherwise wrap it.
-                                const proxyUrl = imgUrl.startsWith("/teacher/image-proxy")
-                                  ? `${apiBase}${imgUrl}`
-                                  : `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(imgUrl)}`;
-                                fetch(proxyUrl, { headers: { Accept: "image/*" } })
-                                  .then(r => r.ok ? r.blob() : null)
-                                  .then(blob => {
-                                    if (!blob) return;
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      if (slide.content) slide.content._fetched_image = reader.result;
-                                    };
-                                    reader.readAsDataURL(blob);
-                                  })
-                                  .catch(() => {});
-                              }
-                            }}
-                            onError={(e) => {
-                              // Retry once after 5s — Pollinations may still be generating
-                              if (!e.target.dataset.retried) {
-                                e.target.dataset.retried = "1";
-                                const src = e.target.src;
-                                setTimeout(() => { e.target.src = src + "&t=" + Date.now(); }, 5000);
-                              } else {
-                                e.target.style.display = "none";
-                                const parent = e.target.parentNode;
-                                if (!parent.querySelector(".img-fallback")) {
-                                  const placeholder = document.createElement("div");
-                                  placeholder.className = "img-fallback h-40 flex items-center justify-center bg-purple-50 w-full";
-                                  placeholder.innerHTML = `<span class="text-purple-300 text-xs">Image unavailable</span>`;
-                                  parent.appendChild(placeholder);
-                                }
-                              }
-                            }}
-                          />
-                          {slide.content.image_source_url && (
-                            <a
-                              href={slide.content.image_source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="absolute bottom-0 right-0 bg-black/50 text-white text-[9px] px-1.5 py-0.5 rounded-tl hover:bg-black/70 transition-colors"
-                            >
-                              🔍 Source
-                            </a>
+                          ) : (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 flex-1">
+                              <p className="text-[10px] font-bold text-purple-700 mb-1">Visual Prompt</p>
+                              <p className="text-xs text-gray-600 italic leading-relaxed">
+                                {slide.content.detailed_visual_description || slide.content.visual_prompt}
+                              </p>
+                            </div>
                           )}
-                        </div>
-                      ) : (slide.content?.detailed_visual_description || slide.content?.visual_prompt) ? (
-                        <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-purple-700 mb-1">Visual Prompt</p>
-                          <p className="text-xs text-gray-600 italic">{slide.content.detailed_visual_description || slide.content.visual_prompt}</p>
-                        </div>
-                      ) : null}
-                      {/* Mermaid diagram */}
-                      {slide.content?.diagram?.mermaid && slide.content.diagram.type !== "none" && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
-                          <p className="text-[10px] font-bold text-gray-500 mb-1 uppercase">{slide.content.diagram.type} Diagram</p>
-                          <MermaidDiagram definition={slide.content.diagram.mermaid} />
-                        </div>
-                      )}
-                      {/* Explanation */}
-                      {slide.content?.explanation && (
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-blue-700 mb-1">Explanation</p>
-                          <p className="text-xs text-gray-700 leading-relaxed">{slide.content.explanation}</p>
-                        </div>
-                      )}
-                      {slide.speaker_notes && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-amber-700 mb-1">Speaker Notes</p>
-                          <p className="text-xs text-gray-700">{slide.speaker_notes}</p>
-                        </div>
-                      )}
-                      {slide.engagement_prompt && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                          <p className="text-[10px] font-bold text-green-700 mb-1">Engagement Prompt</p>
-                          <p className="text-xs text-gray-700">{slide.engagement_prompt}</p>
                         </div>
                       )}
                     </div>

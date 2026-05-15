@@ -106,6 +106,7 @@ const homeworkSlice = createSlice({
     clearSubmitResult(s) { s.submitResult = null; s.submitStatus = "idle"; s.submitError = null; },
     clearUpload(s)       { s.uploadUrl = null; s.uploadStatus = "idle"; },
     clearCurrent(s)      { s.current = null; s.questions = []; },
+    invalidateStudentList(s) { s.studentStatus = "idle"; },
   },
   extraReducers: (b) => {
     b.addCase(fetchStudentHomework.pending,   (s) => { s.studentStatus = "loading"; })
@@ -160,7 +161,7 @@ const homeworkSlice = createSlice({
   },
 });
 
-export const { clearSubmitResult, clearUpload, clearCurrent } = homeworkSlice.actions;
+export const { clearSubmitResult, clearUpload, clearCurrent, invalidateStudentList } = homeworkSlice.actions;
 
 export const selectStudentHomework  = (s) => s.homework.studentList;
 export const selectStudentHwStatus  = (s) => s.homework.studentStatus;

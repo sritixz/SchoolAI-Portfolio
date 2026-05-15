@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 import { 
   fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus,
@@ -87,6 +88,8 @@ export default function HomeworkLibrary() {
         dueDate:          hw.due_date || null,
         assignedStudentNames: hw.assigned_student_names || [],
         assignedStudentCount: (hw.assigned_students || []).length,
+        submissionsCount:     hw.submissions_count ?? 0,
+        pendingReviewCount:   hw.pending_review_count ?? 0,
       }));
       setLibrary(normalised);
     }
@@ -280,7 +283,7 @@ export default function HomeworkLibrary() {
             <div className="relative p-2 hover:bg-[#f0ecfa] rounded-lg cursor-pointer transition-colors">
               <span className="material-symbols-outlined text-gray-500">notifications</span>
             </div>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-semibold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-semibold text-sm">{getInitial(user?.name) || "T"}</div>
             <button
               onClick={() => navigate("/teacher/homework/create")}
               className="flex items-center gap-2 bg-[#695be6] text-white font-semibold px-4 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors shadow-sm"
@@ -373,7 +376,7 @@ export default function HomeworkLibrary() {
           </div>
 
           {/* Status */}
-          <div>
+          <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold text-gray-700">Status</p>
               <span className="material-symbols-outlined text-gray-400 text-base">expand_less</span>
@@ -397,6 +400,41 @@ export default function HomeworkLibrary() {
               ))}
             </div>
           </div>
+
+          {/* Pending Submissions quick-links */}
+          {(() => {
+            const pending = library.filter((hw) => hw.pendingReviewCount > 0);
+            if (pending.length === 0) return null;
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-700">Needs Review</p>
+                  <span className="size-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center">
+                    {pending.length}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {pending.slice(0, 6).map((hw) => (
+                    <button
+                      key={hw.id}
+                      onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-[#695be6]/5 border border-transparent hover:border-[#695be6]/15 transition-all text-left group"
+                    >
+                      <span className="material-symbols-outlined text-amber-500 text-sm shrink-0">pending_actions</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-700 truncate leading-tight">{hw.title}</p>
+                        <p className="text-[10px] text-gray-400">{hw.pendingReviewCount} pending</p>
+                      </div>
+                      <span className="material-symbols-outlined text-[#695be6] text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0">arrow_forward</span>
+                    </button>
+                  ))}
+                  {pending.length > 6 && (
+                    <p className="text-[10px] text-gray-400 text-center pt-1">+{pending.length - 6} more</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </aside>
 
         {/* Main Content */}
@@ -516,7 +554,35 @@ export default function HomeworkLibrary() {
                     </span>
                   )}
                 </div>
-               {/* Action row */}
+
+                {/* Submissions bar */}
+                {hw.submissionsCount > 0 ? (
+                  <button
+                    onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
+                    className="flex items-center justify-between w-full bg-[#695be6]/5 border border-[#695be6]/15 rounded-xl px-3 py-2 hover:bg-[#695be6]/10 transition-colors group/sub"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[#695be6] text-base">assignment_turned_in</span>
+                      <span className="text-xs font-semibold text-[#695be6]">{hw.submissionsCount} submission{hw.submissionsCount !== 1 ? "s" : ""}</span>
+                      {hw.pendingReviewCount > 0 ? (
+                        <span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                          {hw.pendingReviewCount} need review
+                        </span>
+                      ) : (
+                        <span className="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                          all reviewed
+                        </span>
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-[#695be6] text-sm opacity-40 group-hover/sub:opacity-100 transition-opacity">arrow_forward</span>
+                  </button>
+                ) : hw.status === "assigned" ? (
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                    <span className="material-symbols-outlined text-gray-300 text-base">hourglass_empty</span>
+                    <span className="text-xs text-gray-400">No submissions yet</span>
+                  </div>
+                ) : null}
+
         <div className="flex flex-wrap items-center gap-y-3 pt-3 border-t border-[#f0ecfa] mt-auto">
           <div className="flex gap-3">
             <button
@@ -578,9 +644,14 @@ export default function HomeworkLibrary() {
                 </button>
                 <button
                   onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
-                  className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#5a4dd4] transition-colors whitespace-nowrap"
+                  className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#5a4dd4] transition-colors whitespace-nowrap flex items-center gap-1"
                 >
                   Evaluate
+                  {hw.pendingReviewCount > 0 && (
+                    <span className="bg-white/30 text-white font-black px-1.5 py-0.5 rounded-full text-[9px] leading-none">
+                      {hw.pendingReviewCount}
+                    </span>
+                  )}
                 </button>
               </>
             ) : (

@@ -1,7 +1,7 @@
 """
 Hybrid media search service — reliable, zero-cost-at-scale.
 
-Images  → Wikipedia Lead Image (primary) + Wikimedia Commons strict-filter fallback
+Images  → Serper Google Images (primary) → Wikipedia Lead Image → Wikimedia Commons
 Videos  → yt-dlp scrape (0 quota) + YouTube videos.list metadata (1 unit/call)
 Cache   → MongoDB media_cache collection, 30-day TTL
 """
@@ -17,9 +17,10 @@ from config import settings
 
 log = logging.getLogger(__name__)
 
-_WIKI_HEADERS = {"User-Agent": "EduApp/1.0 (educational platform; contact@admin.com)"}
+_WIKI_HEADERS   = {"User-Agent": "EduApp/1.0 (educational platform; contact@admin.com)"}
 _YT_SEARCH_URL  = "https://www.googleapis.com/youtube/v3/search"
 _YT_VIDEOS_URL  = "https://www.googleapis.com/youtube/v3/videos"
+_SERPER_URL     = "https://google.serper.dev/images"
 
 # File extensions that are actual images (exclude .ogg, .pdf, .webm, etc.)
 _IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp")
@@ -51,8 +52,19 @@ _GRADE_STRIP = re.compile(
 
 
 def _clean_query(query: str) -> str:
-    """Strip grade/board metadata so Wikipedia/Commons searches stay topic-focused."""
+    """Strip grade/board metadata and filler phrases so searches stay topic-focused."""
     cleaned = _GRADE_STRIP.sub("", query).strip()
+    # Strip common filler prefixes
+    cleaned = re.sub(
+        r"^\s*(what is|what are|what's|whats|how to|how does|explain|define|"
+        r"describe|show me|tell me about|help me with|give me|can you|"
+        r"i need help with|difference between|compare)\s+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Remove trailing question marks and extra spaces
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip("?").strip()
     return cleaned if cleaned else query
 
 
@@ -72,6 +84,65 @@ async def _ensure_ttl_index(db):
 
 # ── Image search ──────────────────────────────────────────────────────────────
 
+async def _serper_image_search(query: str, max_results: int) -> list[dict]:
+    """
+    Search Google Images via Serper.dev API.
+    Passes the query exactly as-is — no suffixes, no cleaning.
+    Returns whatever Google Images returns for that query.
+    """
+    if not settings.SERPER_API_KEY:
+        return []
+
+    results = []
+    seen_urls: set[str] = set()
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                _SERPER_URL,
+                headers={
+                    "X-API-KEY":    settings.SERPER_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "q":    query,
+                    "num":  max_results,
+                    "safe": "active",
+                },
+            )
+            resp.raise_for_status()
+            items = resp.json().get("images", [])
+
+        for item in items:
+            if len(results) >= max_results:
+                break
+
+            url    = item.get("imageUrl", "")
+            thumb  = item.get("thumbnailUrl", url)
+            title  = item.get("title", "")
+            source = item.get("link", "")
+
+            if not url or url in seen_urls:
+                continue
+            # Only skip non-image file types (pdfs, videos, etc.)
+            url_path = url.lower().split("?")[0]
+            if not any(url_path.endswith(ext) for ext in _IMAGE_EXTS):
+                continue
+
+            seen_urls.add(url)
+            results.append({
+                "url":       url,
+                "thumbnail": thumb,
+                "title":     title,
+                "source":    source,
+            })
+
+    except Exception as exc:
+        log.warning("Serper image search failed for '%s': %s", query, exc)
+
+    return results
+
+
 async def search_images(
     query: str,
     grade: str = "",
@@ -79,25 +150,35 @@ async def search_images(
     max_results: int = 6,
 ) -> list[dict]:
     """
-    Search for educational diagrams/illustrations.
+    Search for educational images.
     Strategy (in order):
-      1. Wikipedia Lead Image — the single best representative image per article
-      2. Wikimedia Commons — strict diagram filter (whitelist + blacklist)
+      1. Serper Google Images — exact Google Images results for the query
+      2. Wikipedia Lead Image — fallback if Serper returns too few
+      3. Wikimedia Commons — last resort
     """
-    clean = _clean_query(query)
+    # Use query as-is — the AI already generates a clean 2-5 word media_query
+    results: list[dict] = []
+    seen: set[str] = set()
 
-    results = await _wikipedia_lead_images(clean, max_results)
-
-    if len(results) < max_results:
-        extra = await _commons_diagram_search(clean, max_results - len(results))
-        # Deduplicate by URL
-        seen = {r["url"] for r in results}
-        for item in extra:
-            if item["url"] not in seen:
+    def _merge(new_items: list[dict]) -> None:
+        for item in new_items:
+            if item["url"] not in seen and len(results) < max_results:
                 results.append(item)
                 seen.add(item["url"])
 
-    return results[:max_results]
+    # 1. Serper (Google Images) — primary
+    if settings.SERPER_API_KEY:
+        _merge(await _serper_image_search(query, max_results))
+
+    # 2. Wikipedia lead images (fill remaining slots)
+    if len(results) < max_results:
+        _merge(await _wikipedia_lead_images(query, max_results - len(results)))
+
+    # 3. Wikimedia Commons (last resort)
+    if len(results) < max_results:
+        _merge(await _commons_diagram_search(query, max_results - len(results)))
+
+    return results
 
 
 async def _wikipedia_lead_images(query: str, max_results: int) -> list[dict]:
@@ -253,26 +334,36 @@ async def _commons_diagram_search(query: str, max_results: int) -> list[dict]:
 async def _ytdlp_search_ids(query: str, max_results: int) -> list[str]:
     """
     Use yt-dlp to scrape YouTube search results for video IDs.
-    Costs 0 API quota units. Falls back to empty list if yt-dlp is unavailable.
+    Costs 0 API quota units. Runs in a thread to avoid blocking the event loop.
     """
+    import asyncio
+    loop = asyncio.get_event_loop()
+
+    def _run():
+        try:
+            result = subprocess.run(
+                [
+                    "yt-dlp",
+                    f"ytsearch{max_results}:{query}",
+                    "--get-id",
+                    "--no-playlist",
+                    "--quiet",
+                    "--no-warnings",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=12,
+            )
+            ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            return ids[:max_results]
+        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+            log.warning("yt-dlp unavailable or timed out: %s", exc)
+            return []
+
     try:
-        result = subprocess.run(
-            [
-                "yt-dlp",
-                f"ytsearch{max_results}:{query}",
-                "--get-id",
-                "--no-playlist",
-                "--quiet",
-                "--no-warnings",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-        ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        return ids[:max_results]
-    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-        log.warning("yt-dlp unavailable or timed out: %s", exc)
+        return await asyncio.wait_for(loop.run_in_executor(None, _run), timeout=14)
+    except asyncio.TimeoutError:
+        log.warning("yt-dlp executor timed out for '%s'", query)
         return []
 
 
@@ -304,11 +395,19 @@ async def _youtube_metadata(video_ids: list[str]) -> list[dict]:
             stats   = item.get("statistics", {})
             if not vid_id:
                 continue
+            # Use mqdefault (320×180) — always exists, loads fast
+            # hqdefault (480×360) also reliable; maxresdefault often 404s
+            thumbnails = snippet.get("thumbnails", {})
+            thumb = (
+                thumbnails.get("high", {}).get("url")
+                or thumbnails.get("medium", {}).get("url")
+                or f"https://img.youtube.com/vi/{vid_id}/hqdefault.jpg"
+            )
             results.append({
                 "video_id":  vid_id,
                 "title":     snippet.get("title", ""),
                 "channel":   snippet.get("channelTitle", ""),
-                "thumbnail": f"https://img.youtube.com/vi/{vid_id}/maxresdefault.jpg",
+                "thumbnail": thumb,
                 "url":       f"https://www.youtube.com/watch?v={vid_id}",
                 "views":     int(stats.get("viewCount", 0)),
                 "published": snippet.get("publishedAt", ""),
@@ -332,30 +431,26 @@ async def search_videos(
       2. YouTube videos.list fetches metadata for those IDs (1 quota unit)
 
     Falls back to search.list (100 units) if yt-dlp is unavailable.
-    Strips grade/board noise from the query for better relevance.
+    Uses the query as-is — the AI already generates a clean media_query.
     """
     if not settings.YOUTUBE_API_KEY:
         log.warning("YOUTUBE_API_KEY not set — skipping video search")
         return []
 
-    # Strip grade/board metadata; keep subject + topic only
-    clean = _clean_query(query)
-    search_query = f"{clean} educational explained"
-
     # --- Primary path: yt-dlp (0 units) + videos.list (1 unit) ---
-    video_ids = await _ytdlp_search_ids(search_query, max_results)
+    video_ids = await _ytdlp_search_ids(query, max_results)
     if video_ids:
         return await _youtube_metadata(video_ids)
 
     # --- Fallback: search.list (100 units) ---
-    log.info("Falling back to YouTube search.list for '%s'", search_query)
+    log.info("Falling back to YouTube search.list for '%s'", query)
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(
                 _YT_SEARCH_URL,
                 params={
                     "part":              "snippet",
-                    "q":                 search_query,
+                    "q":                 query,
                     "type":              "video",
                     "maxResults":        max_results,
                     "key":               settings.YOUTUBE_API_KEY,
@@ -373,11 +468,17 @@ async def search_videos(
             snippet = item.get("snippet", {})
             if not vid_id:
                 continue
+            thumbnails = snippet.get("thumbnails", {})
+            thumb = (
+                thumbnails.get("high", {}).get("url")
+                or thumbnails.get("medium", {}).get("url")
+                or f"https://img.youtube.com/vi/{vid_id}/hqdefault.jpg"
+            )
             results.append({
                 "video_id":  vid_id,
                 "title":     snippet.get("title", ""),
                 "channel":   snippet.get("channelTitle", ""),
-                "thumbnail": f"https://img.youtube.com/vi/{vid_id}/maxresdefault.jpg",
+                "thumbnail": thumb,
                 "url":       f"https://www.youtube.com/watch?v={vid_id}",
                 "views":     0,
                 "published": snippet.get("publishedAt", ""),
@@ -385,7 +486,7 @@ async def search_videos(
         return results
 
     except Exception as exc:
-        log.warning("YouTube search.list fallback failed for '%s': %s", search_query, exc)
+        log.warning("YouTube search.list fallback failed for '%s': %s", query, exc)
         return []
 
 
@@ -409,6 +510,10 @@ async def get_cached_or_search(db, cache_key: str, search_fn, *args, **kwargs) -
 
     log.debug("Media cache MISS: %s", cache_key)
     results = await search_fn(*args, **kwargs)
+
+    # Don't cache empty results — let the next request retry live
+    if not results:
+        return results
 
     expires_at = now + timedelta(days=settings.MEDIA_CACHE_TTL_DAYS)
     try:

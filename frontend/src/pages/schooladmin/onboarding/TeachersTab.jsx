@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchTeachers, createTeacher, updateTeacher, deleteTeacher, resetCredentials,
+  fetchTeacherCredentials,
   selectTeachers, selectTeachersStatus, selectMutationStatus, clearMutationStatus,
 } from "../../../store/slices/schoolAdminSlice";
 import api from "../../../api";
@@ -21,6 +22,7 @@ export default function TeachersTab() {
   const [form,      setForm]      = useState({ name: "", email: "", phone: "", employee_id: "", qualified_subjects: [] });
   const [editId,    setEditId]    = useState(null);
   const [editForm,  setEditForm]  = useState({});
+  const [editCreds, setEditCreds] = useState(null); // { email, plain_password }
   const [error,     setError]     = useState("");
   const [success,   setSuccess]   = useState("");
   const [csvResult, setCsvResult] = useState(null);
@@ -176,6 +178,23 @@ export default function TeachersTab() {
           <div key={t._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             {editId === t._id ? (
               <div className="space-y-3">
+                {/* Credentials panel */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex flex-wrap gap-4 items-center">
+                  <span className="material-symbols-outlined text-amber-500 text-base">key</span>
+                  <div className="text-xs">
+                    <p className="font-bold text-amber-700 mb-0.5">Login Credentials</p>
+                    <p className="text-gray-600">Email: <span className="font-mono font-bold">{t.email}</span></p>
+                    <p className="text-gray-600">
+                      Password:{" "}
+                      {editCreds === null
+                        ? <span className="text-gray-400 italic">Loading…</span>
+                        : editCreds?.plain_password
+                          ? <span className="font-mono font-bold text-amber-800">{editCreds.plain_password}</span>
+                          : <span className="text-gray-400 italic">Password changed by teacher — use Reset to generate a new one</span>
+                      }
+                    </p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <Input label="Name" value={editForm.name || ""} onChange={(v) => setEditForm((p) => ({ ...p, name: v }))} />
                   <Input label="Phone" value={editForm.phone || ""} onChange={(v) => setEditForm((p) => ({ ...p, phone: v }))} />
@@ -190,7 +209,7 @@ export default function TeachersTab() {
                 </div>
                 <div className="flex gap-2">
                   <PrimaryBtn onClick={handleUpdate} loading={saving}>Save</PrimaryBtn>
-                  <button onClick={() => setEditId(null)} className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-500">Cancel</button>
+                  <button onClick={() => { setEditId(null); setEditCreds(null); }} className="px-4 py-2 border border-gray-200 rounded-xl text-sm font-bold text-gray-500">Cancel</button>
                 </div>
               </div>
             ) : (
@@ -221,7 +240,18 @@ export default function TeachersTab() {
                     <span className="material-symbols-outlined text-sm">lock_reset</span>Reset
                   </button>
                   <button
-                    onClick={() => { setEditId(t._id); setEditForm({ name: t.name, phone: t.phone, employee_id: t.employee_id, qualified_subjects: t.qualified_subjects || [] }); }}
+                    onClick={async () => {
+                      setEditId(t._id);
+                      setEditForm({ name: t.name, phone: t.phone, employee_id: t.employee_id, qualified_subjects: t.qualified_subjects || [] });
+                      setEditCreds(null);
+                      try {
+                        const creds = await dispatch(fetchTeacherCredentials(t._id)).unwrap();
+                        setEditCreds(creds);
+                      } catch {
+                        // 404 or no plain_password — show "not available" state
+                        setEditCreds({ plain_password: null, email: t.email, must_change_password: t.must_change_password });
+                      }
+                    }}
                     className="text-xs text-[#695be6] font-bold flex items-center gap-1"
                   >
                     <span className="material-symbols-outlined text-sm">edit</span>Edit

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { selectAiHistory, removeHistoryItem, fetchHistory } from "../../store/slices/aiHistorySlice";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../../data/teacher/lessonPlanData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadLessonPlanPdf } from "../../utils/aiPdfExport";
+import MathText from "../../components/MathText";
 
 export default function LessonPlanCreator() {
   const navigate = useNavigate();
@@ -210,7 +212,7 @@ export default function LessonPlanCreator() {
             <button className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600">settings</span>
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>
@@ -986,7 +988,7 @@ export default function LessonPlanCreator() {
                                     <textarea value={teacherActions} rows={2} onChange={(e) => updateProcedureField(i, teacherKey, e.target.value)}
                                       className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#695be6] resize-none" />
                                   ) : (
-                                    <p className="text-sm text-gray-700 leading-relaxed">{teacherActions}</p>
+                                    <MathText text={teacherActions} className="text-sm text-gray-700 leading-relaxed" tag="p" />
                                   )}
                                 </div>
                               )}
@@ -997,7 +999,7 @@ export default function LessonPlanCreator() {
                                     <textarea value={studentActions} rows={2} onChange={(e) => updateProcedureField(i, studentKey, e.target.value)}
                                       className="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#695be6] resize-none" />
                                   ) : (
-                                    <p className="text-sm text-gray-700 leading-relaxed">{studentActions}</p>
+                                    <MathText text={studentActions} className="text-sm text-gray-700 leading-relaxed" tag="p" />
                                   )}
                                 </div>
                               )}

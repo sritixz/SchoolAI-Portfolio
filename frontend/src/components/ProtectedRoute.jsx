@@ -1,9 +1,18 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProtectedRoute({ children, allowedRole }) {
   const { user, mustChangePassword } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Redirect to login whenever user is logged out (e.g. token expiry timer fires)
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
 
   if (!user) return <Navigate to="/login" replace />;
 

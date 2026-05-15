@@ -1,7 +1,59 @@
 /**
  * Incremental XML parser for Vin AI streaming responses.
  * Parses XML tags as they arrive and extracts structured blocks.
+ *
+ * Design notes:
+ * - sanitizeHtmlTags only runs on COMPLETED content (when the closing tag is present)
+ *   to avoid stripping valid tags that haven't arrived yet during streaming.
+ * - All regex extractions use /s (dotAll) flag to handle multi-line content.
  */
+
+/**
+ * Strips orphan closing HTML tags from a COMPLETED string.
+ * Only call this after the full content has been received.
+ */
+function sanitizeHtmlTags(content) {
+  if (!content) return content;
+
+  // Count opens vs closes for each tag name and remove excess closing tags
+  const tagCounts = {};
+  // First pass: count all opening tags
+  for (const [, tagName] of content.matchAll(/<([a-z][a-z0-9]*)[^>/]*>/gi)) {
+    tagCounts[tagName] = (tagCounts[tagName] || 0) + 1;
+  }
+
+  // Second pass: remove closing tags that exceed their opening count
+  const closeCounts = {};
+  return content.replace(/<\/([a-z][a-z0-9]*)[^>]*>/gi, (match, tagName) => {
+    closeCounts[tagName] = (closeCounts[tagName] || 0) + 1;
+    const opens = tagCounts[tagName] || 0;
+    if (closeCounts[tagName] > opens) {
+      return ""; // orphan — remove it
+    }
+    return match;
+  });
+}
+
+/**
+ * Extract content between two XML tags, handling streaming (incomplete) state.
+ * Returns { text, complete } where complete=true means the closing tag was found.
+ */
+function extractTag(buffer, tag) {
+  const openTag = `<${tag}>`;
+  const closeTag = `</${tag}>`;
+  const openIdx = buffer.indexOf(openTag);
+  if (openIdx === -1) return { text: null, complete: false };
+
+  const start = openIdx + openTag.length;
+  const closeIdx = buffer.indexOf(closeTag, start);
+
+  if (closeIdx !== -1) {
+    return { text: buffer.slice(start, closeIdx).trim(), complete: true };
+  }
+  // Still streaming — return what we have, strip any trailing incomplete tag
+  const partial = buffer.slice(start).replace(/<[^>]*$/, "").trim();
+  return { text: partial, complete: false };
+}
 
 export function parseVinXML(xmlBuffer) {
   const result = {
@@ -16,79 +68,94 @@ export function parseVinXML(xmlBuffer) {
     complete: false,
   };
 
-  // Extract subject
-  const subjectMatch = xmlBuffer.match(/<subject>(.*?)<\/subject>/s);
+  // Only parse content inside <response>...</response> to ignore any LLM preamble
+  const responseStart = xmlBuffer.indexOf("<response>");
+  const workingBuffer = responseStart !== -1 ? xmlBuffer.slice(responseStart) : xmlBuffer;
+
+  // Subject (always complete before content starts)
+  const subjectMatch = workingBuffer.match(/<subject>(.*?)<\/subject>/s);
   if (subjectMatch) result.subject = subjectMatch[1].trim();
 
-  // Extract content (may be incomplete during streaming)
-  const contentOpen = xmlBuffer.indexOf("<content>");
-  if (contentOpen !== -1) {
-    const contentStart = contentOpen + 9;
-    const contentClose = xmlBuffer.indexOf("</content>");
-    result.content = contentClose !== -1
-      ? xmlBuffer.slice(contentStart, contentClose).trim()
-      : xmlBuffer.slice(contentStart).replace(/<[^>]*$/, "").trim();
+  // Content — use LAST occurrence to handle rare duplicate tags from the LLM
+  const lastContentOpen = workingBuffer.lastIndexOf("<content>");
+  if (lastContentOpen !== -1) {
+    const start = lastContentOpen + 9;
+    const closeIdx = workingBuffer.indexOf("</content>", start);
+    if (closeIdx !== -1) {
+      // Complete — safe to sanitize
+      result.content = sanitizeHtmlTags(workingBuffer.slice(start, closeIdx).trim());
+    } else {
+      // Still streaming — don't sanitize, just strip trailing incomplete tag
+      result.content = workingBuffer.slice(start).replace(/<[^>]*$/, "").trim();
+    }
   }
 
-  // Extract hint
-  const hintMatch = xmlBuffer.match(/<hint>(.*?)<\/hint>/s);
-  if (hintMatch) result.hint = hintMatch[1].trim();
+  // Hint — only show when complete to avoid partial renders
+  const hintMatch = workingBuffer.match(/<hint>(.*?)<\/hint>/s);
+  if (hintMatch) result.hint = sanitizeHtmlTags(hintMatch[1].trim());
 
-  // Extract steps
-  const stepsMatch = xmlBuffer.match(/<steps>(.*?)<\/steps>/s);
+  // Steps — only parse complete <steps> block
+  const stepsMatch = workingBuffer.match(/<steps>(.*?)<\/steps>/s);
   if (stepsMatch) {
     const stepMatches = [...stepsMatch[1].matchAll(/<step number="(\d+)">(.*?)<\/step>/gs)];
-    result.steps = stepMatches.map(m => ({
+    result.steps = stepMatches.map((m) => ({
       number: parseInt(m[1]),
-      text: m[2].trim(),
+      text: sanitizeHtmlTags(m[2].trim()),
     }));
   }
 
-  // Extract question with options
-  const questionMatch = xmlBuffer.match(/<question>(.*?)<\/question>/s);
+  // Question — only parse complete <question> block
+  const questionMatch = workingBuffer.match(/<question>(.*?)<\/question>/s);
   if (questionMatch) {
     const qText = questionMatch[1];
     const optionMatches = [...qText.matchAll(/<option correct="(true|false)">(.*?)<\/option>/gs)];
-    const questionText = qText.replace(/<option.*?<\/option>/gs, "").trim();
-    result.question = {
-      text: questionText,
-      options: optionMatches.map((m, i) => ({
-        id: String.fromCharCode(65 + i),
-        text: m[2].trim(),
-        correct: m[1] === "true",
-      })),
-    };
+    if (optionMatches.length > 0) {
+      const questionText = qText.replace(/<option[\s\S]*?<\/option>/gs, "").trim();
+      result.question = {
+        text: sanitizeHtmlTags(questionText),
+        options: optionMatches.map((m, i) => ({
+          id: String.fromCharCode(65 + i),
+          text: m[2].trim(),
+          correct: m[1] === "true",
+        })),
+      };
+    }
   }
 
-  // Extract exam_ready block
-  const examReadyMatch = xmlBuffer.match(/<exam_ready>(.*?)<\/exam_ready>/s);
+  // Exam ready — only parse complete block
+  const examReadyMatch = workingBuffer.match(/<exam_ready>(.*?)<\/exam_ready>/s);
   if (examReadyMatch) {
     const er = examReadyMatch[1];
     const directAnswer = er.match(/<direct_answer>(.*?)<\/direct_answer>/s)?.[1]?.trim() || null;
     const examFormat = er.match(/<exam_format>(.*?)<\/exam_format>/s)?.[1]?.trim() || null;
     const realLifeExample = er.match(/<real_life_example>(.*?)<\/real_life_example>/s)?.[1]?.trim() || null;
+    const keyPoints = [...er.matchAll(/<point>(.*?)<\/point>/gs)].map((m) =>
+      sanitizeHtmlTags(m[1].trim())
+    );
+    const keywords = [...er.matchAll(/<keyword>(.*?)<\/keyword>/gs)].map((m) => m[1].trim());
 
-    const keyPointMatches = [...er.matchAll(/<point>(.*?)<\/point>/gs)];
-    const keyPoints = keyPointMatches.map(m => m[1].trim());
-
-    const keywordMatches = [...er.matchAll(/<keyword>(.*?)<\/keyword>/gs)];
-    const keywords = keywordMatches.map(m => m[1].trim());
-
-    result.examReady = { directAnswer, keyPoints, examFormat, keywords, realLifeExample };
+    result.examReady = {
+      directAnswer: sanitizeHtmlTags(directAnswer),
+      keyPoints,
+      examFormat: sanitizeHtmlTags(examFormat),
+      keywords,
+      realLifeExample: sanitizeHtmlTags(realLifeExample),
+    };
   }
 
-  // Extract followups
-  const followupsMatch = xmlBuffer.match(/<followups>(.*?)<\/followups>/s);
+  // Followups — only parse complete block
+  const followupsMatch = workingBuffer.match(/<followups>(.*?)<\/followups>/s);
   if (followupsMatch) {
-    const followupMatches = [...followupsMatch[1].matchAll(/<followup>(.*?)<\/followup>/gs)];
-    result.followups = followupMatches.map(m => m[1].trim());
+    result.followups = [...followupsMatch[1].matchAll(/<followup>(.*?)<\/followup>/gs)].map((m) =>
+      m[1].trim()
+    );
   }
 
-  // Extract media_query
-  const mediaQueryMatch = xmlBuffer.match(/<media_query>(.*?)<\/media_query>/s);
+  // Media query
+  const mediaQueryMatch = workingBuffer.match(/<media_query>(.*?)<\/media_query>/s);
   if (mediaQueryMatch) result.mediaQuery = mediaQueryMatch[1].trim();
 
-  result.complete = xmlBuffer.includes("</response>");
+  result.complete = workingBuffer.includes("</response>");
 
   return result;
 }

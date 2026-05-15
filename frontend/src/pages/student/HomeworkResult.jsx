@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -137,8 +138,23 @@ export default function HomeworkResult() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [apiSubmission, setApiSubmission] = useState(null);
+  const [fetchingResult, setFetchingResult] = useState(false);
 
   const { answers: rawAnswers = {}, questionSet, apiResult, fileSubmission, submissionDoc, allowRetries } = state || {};
+
+  // If no state (direct navigation), fetch from API
+  useEffect(() => {
+    if (!state && homeworkId) {
+      setFetchingResult(true);
+      import("../../api").then(({ default: api }) => {
+        api.get(`/homework/${homeworkId}/result`)
+          .then((r) => setApiSubmission(r.data))
+          .catch(() => setApiSubmission(null))
+          .finally(() => setFetchingResult(false));
+      });
+    }
+  }, [homeworkId, state]);
 
   // Merge submissionDoc.answers into the answers map so the review shows
   // student responses even when navigating back after evaluation.
@@ -457,6 +473,49 @@ export default function HomeworkResult() {
   }
 
   if (!questionSet) {
+    if (fetchingResult) {
+      return (
+        <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
+          <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+        </div>
+      );
+    }
+    if (apiSubmission) {
+      const isGraded = ["graded", "completed", "evaluated"].includes(apiSubmission.status);
+      return (
+        <div className="min-h-screen bg-[#f6f6f8] flex flex-col items-center justify-center px-6" style={{ fontFamily: "'Lexend', sans-serif" }}>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
+            <div className={`size-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isGraded ? "bg-green-100" : "bg-amber-100"}`}>
+              <span className={`material-symbols-outlined text-4xl ${isGraded ? "text-green-600" : "text-amber-600"}`}>
+                {isGraded ? "task_alt" : "pending"}
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-[#100e1a] mb-2">
+              {isGraded ? `Grade: ${apiSubmission.final_grade || "Graded"}` : "Pending Review"}
+            </h2>
+            {isGraded ? (
+              <>
+                {apiSubmission.teacher_feedback && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4 text-left">
+                    <p className="text-xs font-black text-[#695be6] uppercase tracking-widest mb-1">Teacher Feedback</p>
+                    <p className="text-sm text-slate-700">{apiSubmission.teacher_feedback}</p>
+                  </div>
+                )}
+                {apiSubmission.auto_score_pct != null && (
+                  <p className="text-slate-500 mb-4">Score: <span className="font-bold">{apiSubmission.auto_score_pct}%</span></p>
+                )}
+              </>
+            ) : (
+              <p className="text-slate-500 mb-4">Your submission is being reviewed by your teacher. You'll be notified when your grade is ready.</p>
+            )}
+            <button onClick={() => navigate("/student/homework")}
+              className="w-full py-3 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 transition-all">
+              Back to Homework
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
         <div className="text-center">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { useDispatch } from "react-redux";
 import { assignHomework } from "../../store/slices/homeworkSlice";
 import api from "../../api";
@@ -128,7 +129,7 @@ export default function StudentDetail() {
     <div className="bg-[#faf9ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
           <button onClick={() => navigate("/teacher/students")} className="p-2 hover:bg-gray-100 rounded-lg">
             <span className="material-symbols-outlined text-gray-500">arrow_back</span>
           </button>
@@ -149,13 +150,13 @@ export default function StudentDetail() {
               Assign Homework
             </button>
             <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">
-              {user?.name?.[0] || "T"}
+              {getInitial(user?.name) || "T"}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto pt-24 px-6 pb-12">
+      <div className="max-w-[1400px] mx-auto pt-20 sm:pt-24 px-4 sm:px-6 pb-12">
         {/* Tabs */}
         <div className="flex gap-2 mb-6 border-b border-gray-200">
           <button

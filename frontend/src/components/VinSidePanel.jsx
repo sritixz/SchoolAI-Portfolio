@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../context/AuthContext";
+import { getFirstName, getInitial } from "../utils/nameUtils";
 import { VIN_AVATAR } from "../data/vinAiData";
 import { parseVinXML } from "../utils/xmlParser";
 
@@ -97,6 +98,84 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
   const [status, setStatus] = useState("idle"); // idle | thinking | streaming
 
   const chatHistoryRef = useRef([]);
+  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const silenceTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
+
+  const stopRecording = useCallback(async () => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === "inactive") return;
+    mediaRecorderRef.current.stop();
+    setIsListening(false);
+  }, []);
+
+  const startSilenceDetection = (stream) => {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    analyser.fftSize = 256;
+    audioContextRef.current = audioContext;
+    const checkSilence = () => {
+      if (!isListening || !audioContextRef.current) return;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      if (avg < 5) {
+        if (!silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(() => stopRecording(), 3000);
+        }
+      } else {
+        if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+      }
+      if (isListening) requestAnimationFrame(checkSilence);
+    };
+    checkSilence();
+  };
+
+  const toggleVoice = useCallback(async () => {
+    if (isListening) { stopRecording(); return; }
+    setVoiceError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size < 1000) return;
+        const formData = new FormData();
+        formData.append("file", blob, "voice.webm");
+        try {
+          const authToken = JSON.parse(localStorage.getItem("vin_auth") || "{}")?.token;
+          const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/vin-ai/transcribe`, {
+            method: "POST", headers: { Authorization: `Bearer ${authToken}` }, body: formData,
+          });
+          if (!res.ok) throw new Error("Transcription failed");
+          const { text } = await res.json();
+          if (text?.trim()) setInput((prev) => prev ? prev + " " + text.trim() : text.trim());
+        } catch { setVoiceError("Transcription failed. Please try again."); }
+      };
+      mediaRecorder.start(100);
+      mediaRecorderRef.current = mediaRecorder;
+      setIsListening(true);
+      startSilenceDetection(stream);
+    } catch { setVoiceError("Microphone access denied. Please allow mic in browser settings."); }
+  }, [isListening, stopRecording]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -177,7 +256,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
   return (
     <div className="fixed inset-0 z-[100] flex justify-end bg-black/20 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-slide-in-right"
+        className="w-full sm:max-w-md h-full bg-white shadow-2xl flex flex-col animate-slide-in-right"
         onClick={(e) => e.stopPropagation()}
         style={{ fontFamily: "'Lexend', sans-serif" }}
       >
@@ -210,7 +289,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                   <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-black text-slate-800">Hi {user?.name?.split(" ")[0] || "there"}!</h2>
+                  <h2 className="text-xl font-black text-slate-800">Hi {getFirstName(user?.name) || "there"}!</h2>
                   <p className="text-slate-500 mt-1 text-sm">Ask me anything about this homework.</p>
                 </div>
               </div>
@@ -229,7 +308,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                     <div className="size-7 rounded-full bg-slate-200 overflow-hidden mb-1 shrink-0">
                       {user?.avatar
                         ? <img src={user.avatar} alt="you" className="w-full h-full object-cover" />
-                        : <div className="w-full h-full bg-[#695be6] flex items-center justify-center text-white text-xs font-bold">{user?.name?.[0] ?? "S"}</div>
+                        : <div className="w-full h-full bg-[#695be6] flex items-center justify-center text-white text-xs font-bold">{getInitial(user?.name) ?? "S"}</div>
                       }
                     </div>
                   </div>
@@ -272,12 +351,28 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                 className="w-full bg-transparent border-none focus:ring-0 text-slate-800 text-sm py-2 resize-none max-h-32"
                 style={{ scrollbarWidth: "thin" }}
               />
+              <button
+                onClick={toggleVoice}
+                title={isListening ? "Click to stop" : "Click to speak"}
+                className={`size-9 flex items-center justify-center rounded-lg transition-all shrink-0 ${
+                  isListening
+                    ? "bg-red-500 text-white animate-pulse shadow-lg shadow-red-200"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {isListening ? "mic" : "mic_none"}
+                </span>
+              </button>
               <button onClick={() => sendMessage(input)} disabled={!input.trim() || status !== "idle"}
                 className="bg-[#695be6] text-white size-9 flex items-center justify-center rounded-lg hover:bg-[#695be6]/90 transition-transform active:scale-95 shrink-0 shadow-sm disabled:opacity-40">
                 <span className="material-symbols-outlined text-[20px]">send</span>
               </button>
             </div>
             <p className="text-[10px] text-center text-slate-400">LumiTutor can make mistakes. Verify important information.</p>
+            {voiceError && (
+              <p className="text-[11px] text-center text-red-500 font-medium">{voiceError}</p>
+            )}
           </div>
         </footer>
       </div>

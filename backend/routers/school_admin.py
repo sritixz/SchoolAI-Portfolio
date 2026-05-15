@@ -239,6 +239,20 @@ async def list_teachers(user=Depends(require_role("schooladmin")), db=Depends(ge
                                {"hashed_password": 0}).sort("name", 1).to_list(None)
     return [_ser(d) for d in docs]
 
+@router.get("/teachers/{teacher_id}/credentials")
+async def get_teacher_credentials(teacher_id: str, user=Depends(require_role("schooladmin")), db=Depends(get_db)):
+    try:
+        doc = await db.users.find_one({"_id": ObjectId(teacher_id), "role": "teacher"}, {"plain_password": 1, "email": 1, "must_change_password": 1, "name": 1})
+    except Exception:
+        raise HTTPException(400, "Invalid teacher ID")
+    if not doc:
+        raise HTTPException(404, "Teacher not found")
+    return {
+        "email": doc.get("email"),
+        "plain_password": doc.get("plain_password"),  # None if teacher already changed password
+        "must_change_password": doc.get("must_change_password", False),
+    }
+
 @router.post("/teachers")
 async def create_teacher(body: TeacherCreate, background: BackgroundTasks,
                          user=Depends(require_role("schooladmin")), db=Depends(get_db)):
@@ -254,6 +268,7 @@ async def create_teacher(body: TeacherCreate, background: BackgroundTasks,
         "qualified_subjects": body.qualified_subjects,
         "assigned_sections": [],
         "hashed_password": pwd_ctx.hash(raw_pw),
+        "plain_password": raw_pw,
         "must_change_password": True, "status": "active",
         "created_at": datetime.utcnow().isoformat(), "created_by": user["id"],
     }
@@ -516,6 +531,7 @@ async def _create_or_link_parent(parent_name, parent_email, parent_phone,
         "role": "parent", "school_id": sid, "school_name": sname,
         "children": [stu_id],
         "hashed_password": pwd_ctx.hash(raw_pw),
+        "plain_password": raw_pw,
         "must_change_password": True, "status": "active",
         "created_at": datetime.utcnow().isoformat(),
     }
@@ -535,20 +551,26 @@ async def reset_credentials(body: ResetCredentials,
     if not target:
         raise HTTPException(404, "User not found")
 
-    # Students use phone+OTP — they have no password to reset
+    # Students use phone+OTP — generate a fresh OTP and return it to admin
     if target.get("role") == "student":
-        # Clear any stale OTP so next login request generates a fresh one
+        from passlib.context import CryptContext as _CC
+        import random as _r, string as _s
+        from datetime import timedelta as _td
+        _otp_ctx = _CC(schemes=["bcrypt"], deprecated="auto")
+        otp = "".join(_r.choices(_s.digits, k=6))
+        expires = (datetime.utcnow() + _td(minutes=30)).isoformat()
         await db.users.update_one(
             {"_id": ObjectId(body.user_id)},
-            {"$unset": {"otp_hash": "", "otp_expires": ""}},
+            {"$set": {"otp_hash": _otp_ctx.hash(otp), "otp_expires": expires}},
         )
         return {"new_password": None, "must_change_password": False,
-                "message": "Student uses phone OTP to login. No password needed."}
+                "otp": otp, "otp_expires_in": "30 minutes",
+                "message": f"OTP generated: {otp}. Student can use this to login within 30 minutes."}
 
     new_pw = body.new_password or _gen_password()
     await db.users.update_one(
         {"_id": ObjectId(body.user_id)},
-        {"$set": {"hashed_password": pwd_ctx.hash(new_pw), "must_change_password": True}},
+        {"$set": {"hashed_password": pwd_ctx.hash(new_pw), "plain_password": new_pw, "must_change_password": True}},
     )
     return {"new_password": new_pw, "must_change_password": True}
 
@@ -565,7 +587,6 @@ async def list_parents(user=Depends(require_role("schooladmin")), db=Depends(get
     result = []
     for doc in docs:
         doc = _ser(doc)
-        # Enrich with children names
         children = []
         for child_id in doc.get("children", []):
             child = await db.users.find_one({"_id": ObjectId(child_id)}, {"name": 1, "class_name": 1})
@@ -574,6 +595,20 @@ async def list_parents(user=Depends(require_role("schooladmin")), db=Depends(get
         doc["children_details"] = children
         result.append(doc)
     return result
+
+@router.get("/parents/{parent_id}/credentials")
+async def get_parent_credentials(parent_id: str, user=Depends(require_role("schooladmin")), db=Depends(get_db)):
+    try:
+        doc = await db.users.find_one({"_id": ObjectId(parent_id), "role": "parent"}, {"plain_password": 1, "email": 1, "must_change_password": 1})
+    except Exception:
+        raise HTTPException(400, "Invalid parent ID")
+    if not doc:
+        raise HTTPException(404, "Parent not found")
+    return {
+        "email": doc.get("email"),
+        "plain_password": doc.get("plain_password"),  # None if parent already changed password
+        "must_change_password": doc.get("must_change_password", False),
+    }
 
 @router.post("/parents")
 async def create_parent(body: ParentCreate, background: BackgroundTasks,
@@ -589,6 +624,7 @@ async def create_parent(body: ParentCreate, background: BackgroundTasks,
         "role": "parent", "school_id": sid, "school_name": sname,
         "children": body.children_ids,
         "hashed_password": pwd_ctx.hash(raw_pw),
+        "plain_password": raw_pw,
         "must_change_password": True, "status": "active",
         "created_at": datetime.utcnow().isoformat(), "created_by": user["id"],
     }

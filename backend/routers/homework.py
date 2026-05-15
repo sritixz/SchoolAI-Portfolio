@@ -10,7 +10,7 @@ from models.homework import (
     TeacherGradeRequest, AIAnalysisRequest,
 )
 from services.ai_grader import analyse_submission
-from services.ocr import extract_text_from_url
+from services.ocr import extract_text_from_url, extract_text_from_urls
 from services.s3 import upload_file
 
 router = APIRouter(prefix="/homework", tags=["homework"])
@@ -133,6 +133,27 @@ async def assign_homework(body: HomeworkAssign, user=Depends(require_role("teach
         update["assigned_students"] = merged
 
     await db.homework.update_one({"_id": ObjectId(body.homework_id)}, {"$set": update})
+
+    # Notify each assigned student
+    student_ids_to_notify = update.get("assigned_students", body.student_ids or [])
+    if student_ids_to_notify:
+        due_label = f" • Due {body.due_date}" if body.due_date else ""
+        notifs = [
+            {
+                "user_id":    sid,
+                "student_id": sid,
+                "type":       "homework_new",
+                "title":      f"New Homework: {hw.get('title', 'Untitled')}",
+                "desc":       f"{hw.get('subject', 'Subject')}{due_label}",
+                "tag":        hw.get("subject", ""),
+                "homework_id": body.homework_id,
+                "read":       False,
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            for sid in student_ids_to_notify
+        ]
+        await db.notifications.insert_many(notifs)
+
     return {"assigned": len(body.student_ids)}
 
 @router.delete("/{homework_id}")
@@ -165,6 +186,7 @@ async def homework_library(user=Depends(require_role("teacher")), db=Depends(get
     result = []
     for d in docs:
         d = _ser(d)
+        hw_id = d.get("id") or d.get("_id")
         # Resolve assigned student names for history display
         student_ids = d.get("assigned_students", [])
         assigned_names = []
@@ -178,6 +200,16 @@ async def homework_library(user=Depends(require_role("teacher")), db=Depends(get
             except Exception:
                 pass
         d["assigned_student_names"] = assigned_names
+        # Submission counts for quick-access evaluate badge
+        if hw_id:
+            try:
+                d["submissions_count"] = await db.homework_submissions.count_documents({"homework_id": hw_id})
+                d["pending_review_count"] = await db.homework_submissions.count_documents(
+                    {"homework_id": hw_id, "status": {"$in": ["submitted", "ai_analysed"]}, "final_grade": None}
+                )
+            except Exception:
+                d["submissions_count"] = 0
+                d["pending_review_count"] = 0
         result.append(d)
     return result
 
@@ -210,19 +242,20 @@ async def trigger_ai_analysis(body: AIAnalysisRequest, background: BackgroundTas
     return {"status": "analysis_queued"}
 
 async def _run_analysis(db, sub, hw):
-    # 1. Run OCR if submission has a file URL
-    file_url = sub.get("submission_file_url")
-    if file_url:
-        extracted_text = await extract_text_from_url(file_url)
+    # 1. Run OCR if submission has a file URL (supports single or comma-separated multi-file)
+    file_url_field = sub.get("submission_file_url", "")
+    if file_url_field:
+        # Support comma-separated multi-file URLs
+        urls = [u.strip() for u in file_url_field.split(",") if u.strip()]
+        extracted_text = await extract_text_from_urls(urls) if len(urls) > 1 else await extract_text_from_url(urls[0])
         if extracted_text:
             await db.homework_submissions.update_one(
                 {"_id": sub["_id"]},
                 {"$set": {"extracted_text": extracted_text}}
             )
-            # Inject into sub so ai_grader sees it immediately
             sub["extracted_text"] = extracted_text
 
-    # 2. Run AI grading (unchanged)
+    # 2. Run AI grading
     analysis = await analyse_submission(hw or {}, sub)
 
     # 3. For file_upload submissions with empty answers, backfill per-question
@@ -246,6 +279,131 @@ async def _run_analysis(db, sub, hw):
         {"_id": sub["_id"]},
         {"$set": updates},
     )
+
+    # 4. Auto-trigger learning gap analysis after grading completes
+    try:
+        from routers.learning_gaps import _build_performance_context, GAP_ANALYSIS_SYSTEM
+        from services.llm import chat_completion
+        import json as _json
+
+        student_id = sub.get("student_id")
+        if not student_id:
+            return
+
+        perf = await _build_performance_context(student_id, db)
+        if not perf["submissions"] and not perf["grades"]:
+            return
+
+        sub_summaries = []
+        for s in perf["submissions"][:20]:
+            hid = s.get("homework_id", "")
+            hw_doc = perf["homeworks"].get(hid, {})
+            a = s.get("analysis") or s.get("ai_analysis") or {}
+            sub_summaries.append({
+                "homework_title":    hw_doc.get("title", s.get("title", "Homework")),
+                "subject":           hw_doc.get("subject", s.get("subject", "General")),
+                "score_pct":         s.get("score_pct") or s.get("ai_score") or a.get("estimated_score_pct", 0),
+                "submitted_at":      s.get("submitted_at", ""),
+                "weakness_areas":    a.get("weakness_areas", []),
+                "strength_areas":    a.get("strength_areas", []),
+                "error_patterns":    a.get("error_patterns", []),
+                "overall_summary":   a.get("overall_summary", ""),
+                "question_analysis": [
+                    {
+                        "question": qa.get("question_id"),
+                        "is_correct": qa.get("is_correct"),
+                        "feedback": qa.get("feedback", ""),
+                        "error_type": qa.get("error_type"),
+                    }
+                    for qa in a.get("question_analysis", []) if not qa.get("is_correct")
+                ][:5],
+            })
+
+        grade_summary = [
+            {"subject": g.get("subject", ""), "marks": g.get("marks", 0), "semester": g.get("semester", "")}
+            for g in perf["grades"]
+        ]
+
+        prompt = f"""Analyze this student's performance data and identify their learning gaps.
+
+HOMEWORK & ASSESSMENT SUBMISSIONS (most recent first):
+{_json.dumps(sub_summaries, indent=2)}
+
+GRADE RECORDS:
+{_json.dumps(grade_summary, indent=2)}
+
+Based on the actual errors, weak areas, and low scores above, identify 3-6 specific learning gaps.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "gaps": [
+    {{
+      "subject": "Mathematics",
+      "topic": "Quadratic Equations",
+      "subtopic": "Discriminant & Nature of Roots",
+      "severity": "critical",
+      "masteryPercent": 35,
+      "identifiedFrom": {{"title": "Unit 3 Quiz", "type": "homework"}},
+      "impactAnalysis": "Affects performance in Calculus.",
+      "impactSubject": "Calculus",
+      "prerequisiteDependency": "Requires mastery of Basic Algebra.",
+      "prerequisiteSubject": "Basic Algebra",
+      "aiErrorSummary": "Specific mistakes from the data.",
+      "aiLastFeedback": "Personalized coaching note.",
+      "correctivePath": [
+        {{"type": "video", "label": "Watch Explanation", "icon": "play_circle"}},
+        {{"type": "practice", "label": "Practice Problems", "icon": "quiz"}}
+      ],
+      "retryQuestion": {{"text": "Practice question.", "equation": null}}
+    }}
+  ]
+}}"""
+
+        raw = await chat_completion([
+            {"role": "system", "content": GAP_ANALYSIS_SYSTEM},
+            {"role": "user",   "content": prompt},
+        ])
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        result = _json.loads(raw)
+
+        now = datetime.utcnow().isoformat()
+        for gap in result.get("gaps", []):
+            doc = {
+                "student_id":             student_id,
+                "subject":                gap.get("subject", "General"),
+                "topic":                  gap.get("topic", "Unknown"),
+                "subtopic":               gap.get("subtopic", ""),
+                "severity":               gap.get("severity", "minor"),
+                "masteryPercent":         gap.get("masteryPercent", 50),
+                "score":                  gap.get("masteryPercent", 50),
+                "resolved":               False,
+                "identifiedFrom":         gap.get("identifiedFrom", {"title": "Performance Analysis", "type": "homework"}),
+                "impactAnalysis":         gap.get("impactAnalysis", ""),
+                "impactSubject":          gap.get("impactSubject", gap.get("subject", "")),
+                "prerequisiteDependency": gap.get("prerequisiteDependency", ""),
+                "prerequisiteSubject":    gap.get("prerequisiteSubject", ""),
+                "aiErrorSummary":         gap.get("aiErrorSummary", ""),
+                "aiLastFeedback":         gap.get("aiLastFeedback", ""),
+                "correctivePath":         gap.get("correctivePath", [
+                    {"type": "video",    "label": "Watch Explanation", "icon": "play_circle"},
+                    {"type": "practice", "label": "Practice Problems",  "icon": "quiz"},
+                ]),
+                "retryQuestion":          gap.get("retryQuestion", {}),
+                "source":                 "ai_analysis",
+                "analyzed_at":            now,
+            }
+            await db.learning_gaps.update_one(
+                {"student_id": student_id, "topic": doc["topic"], "resolved": False},
+                {"$set": doc},
+                upsert=True,
+            )
+    except Exception:
+        pass  # Gap analysis failure must never break homework submission
 
 @router.post("/grade")
 async def grade_homework(body: TeacherGradeRequest, user=Depends(require_role("teacher")), db=Depends(get_db)):
@@ -317,6 +475,24 @@ async def grade_homework(body: TeacherGradeRequest, user=Depends(require_role("t
     )
     if result.matched_count == 0:
         raise HTTPException(404, "Submission not found")
+
+    # Notify student when grade is published
+    if body.publish:
+        hw = await db.homework.find_one({"_id": ObjectId(body.homework_id)})
+        hw_title = hw.get("title", "Homework") if hw else "Homework"
+        grade_label = f" • Grade: {body.final_grade}" if body.final_grade else ""
+        await db.notifications.insert_one({
+            "user_id":      body.student_id,
+            "student_id":   body.student_id,
+            "type":         "homework_graded",
+            "title":        f"Homework Graded: {hw_title}",
+            "desc":         f"Your teacher has reviewed your submission{grade_label}",
+            "tag":          hw.get("subject", "") if hw else "",
+            "homework_id":  body.homework_id,
+            "read":         False,
+            "created_at":   datetime.utcnow().isoformat(),
+        })
+
     return {"status": update["status"]}
 
 # ─────────────────────────────────────────────────────────────

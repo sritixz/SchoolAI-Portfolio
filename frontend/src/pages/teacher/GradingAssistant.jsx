@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { selectAiHistory } from "../../store/slices/aiHistorySlice";
 import {
@@ -11,6 +12,7 @@ import {
 } from "../../data/teacher/gradingAssistantData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadGradingPdf } from "../../utils/aiPdfExport";
+import MathText from "../../components/MathText";
 import { uploadSubmissionFile, selectUploadStatus, selectUploadUrl, clearUpload } from "../../store/slices/homeworkSlice";
 
 export default function GradingAssistant() {
@@ -120,7 +122,7 @@ export default function GradingAssistant() {
               <span className="material-symbols-outlined text-gray-600">notifications</span>
             </div>
             <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">
-              {user?.name?.[0] || "T"}
+              {getInitial(user?.name) || "T"}
             </div>
           </div>
         </div>
@@ -367,7 +369,7 @@ function SmartFeedback({ result, feedbackText, setFeedbackText, editMode, setEdi
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-black text-gray-500 uppercase mb-1">🔷 Overall</p>
-          <p className="text-sm text-gray-700 leading-snug">{result.overall_verdict}</p>
+          <MathText text={result.overall_verdict} className="text-sm text-gray-700 leading-snug" tag="p" />
           <p className="text-xs font-bold text-[#695be6] mt-1">📊 Score: {result.score} / {result.max_score}</p>
         </div>
       </div>
@@ -380,7 +382,7 @@ function SmartFeedback({ result, feedbackText, setFeedbackText, editMode, setEdi
             {result.what_went_well.map((s, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
                 <span className="material-symbols-outlined text-green-500 text-sm flex-shrink-0 mt-0.5">check_circle</span>
-                {s}
+                <MathText text={s} />
               </li>
             ))}
           </ul>
@@ -395,7 +397,7 @@ function SmartFeedback({ result, feedbackText, setFeedbackText, editMode, setEdi
             {result.what_to_improve.map((a, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
                 <span className="material-symbols-outlined text-amber-500 text-sm flex-shrink-0 mt-0.5">warning</span>
-                {a}
+                <MathText text={a} />
               </li>
             ))}
           </ul>
@@ -410,7 +412,7 @@ function SmartFeedback({ result, feedbackText, setFeedbackText, editMode, setEdi
             {result.quick_fix.map((f, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-gray-700">
                 <span className="text-blue-500 font-bold flex-shrink-0">👉</span>
-                {f}
+                <MathText text={f} />
               </li>
             ))}
           </ul>
@@ -427,7 +429,7 @@ function SmartFeedback({ result, feedbackText, setFeedbackText, editMode, setEdi
                 <span className="size-4 rounded-full bg-[#695be6] text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
                   {i + 1}
                 </span>
-                {s}
+                <MathText text={s} />
               </li>
             ))}
           </ol>

@@ -506,11 +506,53 @@ export default function HomeworkAttempt() {
   if (submissionType === "file_upload" || submissionType === "handwritten") {
     const icon = submissionType === "handwritten" ? "draw" : "upload_file";
     const label = submissionType === "handwritten" ? "Handwritten Answer" : "File Upload";
+
+    const handleMultiFileUpload = async (files) => {
+      if (!files || !files.length) return;
+      const toUpload = Array.from(files).slice(0, 10 - (uploadFile?.length || 0));
+      if (!toUpload.length) return;
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        toUpload.forEach((f) => formData.append("files", f));
+        formData.append("folder", "homework-submissions");
+        const { default: api } = await import("../../api");
+        const { data } = await api.post("/storage/upload-multiple", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        // uploadFile stores array of {url, filename, preview}
+        const newFiles = data.files.map((f, i) => ({
+          url: f.url,
+          filename: f.filename,
+          preview: toUpload[i].type.startsWith("image/") ? URL.createObjectURL(toUpload[i]) : null,
+          size: toUpload[i].size,
+        }));
+        setUploadFile((prev) => [...(prev || []), ...newFiles]);
+        // Use first file URL for Redux uploadUrl (for backward compat)
+        if (data.files[0]) {
+          dispatch({ type: "homework/setUploadUrl", payload: data.files[0].url });
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+      } finally {
+        setUploading(false);
+      }
+    };
+
+    const uploadedFiles = Array.isArray(uploadFile) ? uploadFile : (uploadFile ? [{ filename: uploadFile.name, size: uploadFile.size, url: uploadUrl }] : []);
+    const allUrls = uploadedFiles.map((f) => f.url).filter(Boolean);
+
     return (
       <div className="min-h-screen bg-[#f6f6f8] flex flex-col" style={{ fontFamily: "'Lexend', sans-serif" }}>
         <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#5b69e6]/10">
           <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/student/homework")}
+                className="size-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-slate-600"
+              >
+                <span className="material-symbols-outlined text-xl">arrow_back</span>
+              </button>
               <div className="bg-[#5b69e6]/10 p-2 rounded-full">
                 <span className="material-symbols-outlined text-[#5b69e6]">{icon}</span>
               </div>
@@ -528,52 +570,99 @@ export default function HomeworkAttempt() {
               <h2 className="text-2xl font-black text-slate-800 mb-2">Submit Your Work</h2>
               <p className="text-slate-500 text-sm">
                 {submissionType === "handwritten"
-                  ? "Take a clear photo of your handwritten answers and upload it below."
-                  : "Upload your completed work as a PDF or image file."}
+                  ? "Take photos of your handwritten answers. You can upload up to 10 pages."
+                  : "Upload your completed work. Supports JPG, PNG, PDF, HEIC — up to 10 files."}
               </p>
             </div>
-            {!uploadFile ? (
+
+            {/* Uploaded files grid */}
+            {uploadedFiles.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-green-600 text-base">check_circle</span>
+                    {uploadedFiles.length} file{uploadedFiles.length > 1 ? "s" : ""} uploaded
+                  </p>
+                  {uploadedFiles.length < 10 && (
+                    <span className="text-xs text-slate-400">{10 - uploadedFiles.length} more allowed</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {uploadedFiles.map((f, idx) => (
+                    <div key={idx} className="relative group">
+                      {f.preview ? (
+                        <img src={f.preview} alt={f.filename} className="w-full aspect-square object-cover rounded-lg border border-slate-200" />
+                      ) : (
+                        <div className="w-full aspect-square rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center gap-1">
+                          <span className="material-symbols-outlined text-slate-400 text-2xl">description</span>
+                          <span className="text-[9px] text-slate-400 text-center px-1 truncate w-full text-center">{f.filename}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (f.preview) URL.revokeObjectURL(f.preview);
+                          setUploadFile((prev) => (Array.isArray(prev) ? prev.filter((_, i) => i !== idx) : null));
+                        }}
+                        className="absolute -top-1 -right-1 size-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      >
+                        <span className="material-symbols-outlined text-xs">close</span>
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add more slot */}
+                  {uploadedFiles.length < 10 && !uploading && (
+                    <label className="aspect-square rounded-lg border-2 border-dashed border-[#5b69e6]/30 bg-[#5b69e6]/5 hover:bg-[#5b69e6]/10 transition-colors flex items-center justify-center cursor-pointer">
+                      <span className="material-symbols-outlined text-[#5b69e6] text-2xl">add_photo_alternate</span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf,.heic,.heif,image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleMultiFileUpload(e.target.files)}
+                      />
+                    </label>
+                  )}
+                  {uploading && (
+                    <div className="aspect-square rounded-lg border-2 border-dashed border-[#5b69e6]/30 bg-[#5b69e6]/5 flex items-center justify-center">
+                      <span className="size-6 border-2 border-[#5b69e6]/30 border-t-[#5b69e6] rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Initial upload zone — shown when no files yet */}
+            {uploadedFiles.length === 0 && (
               <div className="border-4 border-dashed border-[#5b69e6]/20 rounded-2xl p-10 text-center bg-white">
                 <span className="material-symbols-outlined text-5xl text-[#5b69e6]/30 mb-4 block">{icon}</span>
                 <div className="flex flex-col gap-3 items-center">
                   {submissionType === "handwritten" && (
                     <label className="flex items-center gap-2 px-6 py-3 bg-[#5b69e6] text-white font-bold rounded-xl cursor-pointer hover:bg-[#5b69e6]/90 transition-colors">
                       <span className="material-symbols-outlined">photo_camera</span> Take Photo
-                      <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
+                      <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => handleMultiFileUpload(e.target.files)} />
                     </label>
                   )}
                   <label className="flex items-center gap-2 px-6 py-3 border-2 border-[#5b69e6] text-[#5b69e6] font-bold rounded-xl cursor-pointer hover:bg-[#5b69e6]/5 transition-colors">
                     <span className="material-symbols-outlined">file_upload</span> Browse Files
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.heic" className="hidden" onChange={(e) => e.target.files[0] && handleFileUpload(e.target.files[0])} />
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf,.heic,.heif,image/*" multiple className="hidden" onChange={(e) => handleMultiFileUpload(e.target.files)} />
                   </label>
-                  <p className="text-xs text-slate-400">JPG, PNG, PDF, HEIC · Max 20MB</p>
+                  <p className="text-xs text-slate-400">JPG, PNG, PDF, HEIC · Up to 10 files · Max 20MB each</p>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-white border-2 border-green-300 rounded-2xl p-6 flex items-center gap-4">
-                <div className="size-14 rounded-xl bg-green-100 flex items-center justify-center">
-                  {uploading
-                    ? <span className="size-6 border-2 border-green-400/40 border-t-green-500 rounded-full animate-spin" />
-                    : <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
-                  }
-                </div>
-                <div className="flex-1">
-                  <p className="font-bold text-slate-800">{uploadFile.name}</p>
-                  <p className="text-xs text-slate-400">{(uploadFile.size / 1024).toFixed(1)} KB · {uploading ? "Uploading..." : uploadUrl ? "Uploaded ✓" : "Ready to submit"}</p>
-                </div>
-                {!uploading && (
-                  <button onClick={() => { setUploadFile(null); dispatch(clearUpload()); }} className="text-red-400 hover:text-red-600">
-                    <span className="material-symbols-outlined">delete</span>
-                  </button>
-                )}
               </div>
             )}
+
             <button
-              disabled={!uploadFile || uploading || submitting}
+              disabled={uploadedFiles.length === 0 || uploading || submitting}
               onClick={async () => {
                 setSubmitting(true);
                 try {
-                  await dispatch(submitHomework({ homework_id: homeworkId, student_id: user?.id, answers: [], submission_file_url: uploadUrl || null }));
+                  // Submit with all file URLs (comma-separated for multi-file OCR)
+                  await dispatch(submitHomework({ 
+                    homework_id: homeworkId, 
+                    student_id: user?.id, 
+                    answers: [], 
+                    submission_file_url: allUrls.join(", ") 
+                  }));
                   navigate(`/student/homework/${homeworkId}/result`, {
                     state: { answers: {}, questionSet, fileSubmission: true, allowRetries: currentHw?.allow_retries || false },
                   });
@@ -588,7 +677,7 @@ export default function HomeworkAttempt() {
               className="w-full py-4 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 disabled:opacity-40 transition-colors flex items-center justify-center gap-2 text-lg shadow-xl shadow-[#5b69e6]/20">
               {submitting
                 ? <><span className="size-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Submitting...</>
-                : <><span className="material-symbols-outlined">send</span> Submit Homework</>
+                : <><span className="material-symbols-outlined">send</span> Submit {uploadedFiles.length} file{uploadedFiles.length > 1 ? "s" : ""}</>
               }
             </button>
           </div>
@@ -672,6 +761,12 @@ export default function HomeworkAttempt() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#5b69e6]/10">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/student/homework")}
+              className="size-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-slate-600 mr-1"
+            >
+              <span className="material-symbols-outlined text-xl">arrow_back</span>
+            </button>
             <div className="bg-[#5b69e6]/10 p-2 rounded-full">
               <span className="material-symbols-outlined text-[#5b69e6]">{questionSet.subjectIcon}</span>
             </div>

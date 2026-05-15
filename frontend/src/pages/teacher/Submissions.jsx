@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import api from "../../api";
 import SearchBar from "../../components/SearchBar";
 
@@ -57,71 +58,58 @@ export default function Submissions() {
     <div className="bg-[#faf9ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
-          <button onClick={() => navigate("/teacher")} className="p-2 hover:bg-gray-100 rounded-lg">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-4">
+          <button onClick={() => navigate("/teacher")} className="p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
             <span className="material-symbols-outlined text-gray-500">arrow_back</span>
           </button>
-          <div className="size-8 bg-[#695be6] rounded-lg flex items-center justify-center text-white">
+          <div className="size-8 bg-[#695be6] rounded-lg flex items-center justify-center text-white flex-shrink-0">
             <span className="material-symbols-outlined text-lg">assignment_turned_in</span>
           </div>
-          <h1 className="font-black text-lg">All Submissions</h1>
+          <h1 className="font-black text-base sm:text-lg truncate">All Submissions</h1>
           
           {/* Search */}
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by student or homework..."
-            resultCount={filtered.length}
-            width="max-w-md"
-          />
+          <div className="flex-1 hidden sm:block">
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by student or homework..."
+              resultCount={filtered.length}
+              width="max-w-md"
+            />
+          </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <div className="relative p-2 hover:bg-gray-100 rounded-lg cursor-pointer">
               <span className="material-symbols-outlined text-gray-600">notifications</span>
             </div>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">
-              {user?.name?.[0] || "T"}
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+              {getInitial(user?.name) || "T"}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1400px] mx-auto pt-24 px-6 pb-12">
+      <div className="max-w-[1400px] mx-auto pt-20 sm:pt-24 px-4 sm:px-6 pb-12">
+        {/* Mobile search */}
+        <div className="sm:hidden mb-4">
+          <SearchBar value={search} onChange={setSearch} placeholder="Search submissions..." resultCount={filtered.length} width="w-full" />
+        </div>
         {/* Filters */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter("all")}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                filter === "all"
-                  ? "bg-[#695be6] text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"
-              }`}
-            >
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setFilter("all")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${filter === "all" ? "bg-[#695be6] text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"}`}>
               All ({submissions.length})
             </button>
-            <button
-              onClick={() => setFilter("pending")}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                filter === "pending"
-                  ? "bg-[#695be6] text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"
-              }`}
-            >
-              Pending Review ({submissions.filter(s => s.status === "submitted").length})
+            <button onClick={() => setFilter("pending")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${filter === "pending" ? "bg-[#695be6] text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"}`}>
+              Pending ({submissions.filter(s => s.status === "submitted").length})
             </button>
-            <button
-              onClick={() => setFilter("graded")}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                filter === "graded"
-                  ? "bg-[#695be6] text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"
-              }`}
-            >
+            <button onClick={() => setFilter("graded")}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${filter === "graded" ? "bg-[#695be6] text-white" : "bg-white border border-gray-200 text-gray-600 hover:border-[#695be6]"}`}>
               Graded ({submissions.filter(s => s.status === "graded").length})
             </button>
           </div>
-          
           <p className="text-sm text-gray-500">{filtered.length} submissions</p>
         </div>
 

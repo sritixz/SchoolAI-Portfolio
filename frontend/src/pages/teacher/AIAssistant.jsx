@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { selectAiHistory, removeHistoryItem, clearHistory } from "../../store/slices/aiHistorySlice";
 import { downloadWorksheetPdf, downloadQuizPdf, downloadConceptPdf, downloadPresentationPdf, downloadGradingPdf, downloadLessonPlanPdf } from "../../utils/aiPdfExport";
 
@@ -118,7 +119,7 @@ export default function AIAssistant() {
             <button onClick={() => navigate("/teacher/quick-actions")} className="flex items-center gap-1.5 border border-gray-200 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
               <span className="material-symbols-outlined text-base">settings</span> Settings
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>

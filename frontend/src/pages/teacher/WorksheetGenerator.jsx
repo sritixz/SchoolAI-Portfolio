@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { saveWorksheetDraft, fetchWorksheetDrafts, updateWorksheetDraft, deleteWorksheetDraft, selectWorksheetDrafts } from "../../store/slices/teacherSlice";
 import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes, boardOptions, learningObjectiveOptions, difficultyStructureOptions } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadWorksheetPdf } from "../../utils/aiPdfExport";
+import MathText from "../../components/MathText";
 
 export default function WorksheetGenerator() {
   const navigate  = useNavigate();
@@ -130,7 +132,7 @@ export default function WorksheetGenerator() {
   return (
     <div className="bg-[#faf9ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/teacher/ai-assistant")}
               className="flex items-center gap-1.5 border border-gray-200 text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
@@ -145,14 +147,14 @@ export default function WorksheetGenerator() {
           <h1 className="font-black text-base absolute left-1/2 -translate-x-1/2">Worksheet Generator</h1>
           <div className="flex items-center gap-2">
             <p className="text-sm font-bold">{form.classLevel} Teacher</p>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1200px] mx-auto pt-20 flex min-h-screen">
+      <div className="max-w-[1200px] mx-auto pt-20 flex flex-col lg:flex-row min-h-screen">
         {/* Left: Config */}
-        <div className="w-[480px] flex-shrink-0 border-r border-gray-200 bg-white p-6 overflow-y-auto">
+        <div className="w-full lg:w-[480px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 bg-white p-4 sm:p-6 overflow-y-auto">
           <div className="mb-6">
             <h2 className="flex items-center gap-2 font-black text-base mb-4">
               <span className="size-6 bg-blue-100 rounded-full flex items-center justify-center">
@@ -566,7 +568,7 @@ export default function WorksheetGenerator() {
                               {q.options && (
                                 <div className="mt-2 space-y-1">
                                   {q.options.map((opt, oi) => (
-                                    <p key={oi} className="text-xs text-gray-700 ml-2">{opt}</p>
+                                    <MathText key={oi} text={opt} className="text-xs text-gray-700 ml-2" tag="p" />
                                   ))}
                                 </div>
                               )}

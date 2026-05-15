@@ -32,6 +32,22 @@ async def profile(user=Depends(require_role("student")), db=Depends(get_db)):
     doc = await db.users.find_one({"_id": ObjectId(user["id"])}, {"hashed_password": 0})
     return _ser(doc)
 
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    bio: Optional[str] = None
+    phone: Optional[str] = None
+    avatar: Optional[str] = None
+
+@router.patch("/profile")
+async def update_profile(body: ProfileUpdate, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Update editable student profile fields. class, roll_no, school are read-only."""
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates:
+        raise HTTPException(400, "No fields to update")
+    await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": updates})
+    doc = await db.users.find_one({"_id": ObjectId(user["id"])}, {"hashed_password": 0})
+    return _ser(doc)
+
 @router.get("/grades")
 async def grades(user=Depends(require_role("student")), db=Depends(get_db)):
     docs = await db.grades.find({"student_id": user["id"]}).to_list(None)

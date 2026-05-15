@@ -105,10 +105,33 @@ async def my_students(user=Depends(require_role("teacher")), db=Depends(get_db))
         subjects = [a["subject"] for a in assignments]
         
         for student in section_students:
+            student = _ser(student)
+            # Enrich with parent info
+            parent_ids = student.get("parent_ids", [])
+            parent_id = parent_ids[0] if parent_ids else student.get("parent_id")
+            parent_name = None
+            parent_email = None
+            parent_phone = None
+            if parent_id:
+                try:
+                    parent = await db.users.find_one(
+                        {"_id": ObjectId(parent_id)},
+                        {"name": 1, "email": 1, "phone": 1}
+                    )
+                    if parent:
+                        parent_name = parent.get("name")
+                        parent_email = parent.get("email")
+                        parent_phone = parent.get("phone")
+                except Exception:
+                    pass
             students.append({
-                **_ser(student),
+                **student,
                 "class_name": section.get("class_name"),
-                "subjects_taught": subjects
+                "subjects_taught": subjects,
+                "parent_id": parent_id,
+                "parent_name": parent_name,
+                "parent_email": parent_email,
+                "parent_phone": parent_phone,
             })
     
     return students
@@ -547,6 +570,7 @@ async def dashboard(user=Depends(require_role("teacher")), db=Depends(get_db)):
         hw      = await db.homework.find_one({"_id": ObjectId(sub["homework_id"])}, {"title": 1})
         recent_submissions.append({
             "submission_id":  str(sub["_id"]),
+            "homework_id":    sub["homework_id"],
             "student_id":     sub["student_id"],
             "student_name":   student.get("name", "Unknown") if student else "Unknown",
             "homework_title": hw.get("title", "Homework") if hw else "Homework",
@@ -559,6 +583,12 @@ async def dashboard(user=Depends(require_role("teacher")), db=Depends(get_db)):
     # Parent messages count (unread)
     parent_messages_count = await db.messages.count_documents({"teacher_id": user["id"]})
 
+    # Pending meeting requests (parent-initiated or teacher-initiated, not yet confirmed)
+    pending_meetings = await db.meeting_requests.count_documents({
+        "teacher_id": user["id"],
+        "status": "pending_response",
+    })
+
     # Interventions count (students with learning gaps flagged)
     interventions_count = await db.interventions.count_documents({"teacher_id": user["id"]})
 
@@ -568,6 +598,7 @@ async def dashboard(user=Depends(require_role("teacher")), db=Depends(get_db)):
         "homework_count":     hw_count,
         "recent_submissions": recent_submissions,
         "parent_messages":    parent_messages_count,
+        "pending_meetings":   pending_meetings,
         "interventions":      interventions_count,
     }
 
@@ -712,9 +743,17 @@ WORKSHEET DETAILS:
 - Difficulty Structure: {extra.get('difficulty_structure', 'Medium')} — Easy=Basic concept (1-step), Medium=Application (2-3 steps), Hard=Case-based/multi-step
 - Learning Objective: {extra.get('learning_objective', 'Concept Understanding')} — align all questions to this objective
 - Total Questions: {extra.get('total_questions', extra.get('totalQuestions', 10))}
-- Question Types: {', '.join(extra.get('question_types', ['mcq', 'shortAnswer']))}
+- Question Types ALLOWED: {', '.join(extra.get('question_types', ['mcq', 'shortAnswer']))}
 - Title: {extra.get('title', f'{body.topic} Worksheet')}
 - Special Instructions: {extra.get('special_instructions', 'None')}
+
+CRITICAL QUESTION TYPE RULES:
+- You MUST ONLY generate sections for the question types listed in "Question Types ALLOWED" above
+- DO NOT generate any other question types
+- If only "mcq" is allowed, generate ONLY MCQ questions
+- If only "shortAnswer" is allowed, generate ONLY Short Answer questions
+- If only "longAnswer" is allowed, generate ONLY Long Answer questions
+- Distribute the total questions across ONLY the allowed types
 
 BOARD-SPECIFIC GUIDANCE:
 - CBSE: Follow NCERT curriculum, use standard CBSE question patterns, include VSA/SA/LA sections
@@ -722,6 +761,18 @@ BOARD-SPECIFIC GUIDANCE:
 - State Board: Use state curriculum standards and regional context
 - IB: Use inquiry-based questions, include ATL skills
 - Cambridge: Use Cambridge assessment objectives and command words
+
+MATHEMATICAL NOTATION RULES (CRITICAL):
+- For Math/Science subjects: Use PLAIN TEXT mathematical notation that is readable without LaTeX rendering
+- Use standard keyboard symbols: ×, ÷, ², ³, √, ≤, ≥, ≠, π, ∞
+- For fractions: use "1/2" or "numerator/denominator" format
+- For exponents: use "x²" or "x^2" format (both acceptable)
+- For square roots: use "√" symbol or write "square root of x"
+- For equations: write clearly with proper spacing, e.g., "2x + 3 = 7" or "y = mx + c"
+- DO NOT use LaTeX syntax like \\frac, \\sqrt, \\( \\), $ $, or curly braces for math
+- Ensure all mathematical expressions are clean, readable, and exam-ready in plain text
+- Example GOOD: "Find the value of x if 2x + 5 = 15"
+- Example BAD: "Find the value of x if $2x + 5 = 15$" or with LaTeX commands
 
 Generate a COMPLETE worksheet with detailed answer key, marking scheme, and teacher notes. Questions must be curriculum-appropriate, board-aligned, and match the specified learning objective and difficulty structure.
 
@@ -737,6 +788,9 @@ Return ONLY valid JSON (no markdown):
   "instructions": "Read all questions carefully. Show all working where required. Write neatly.",
   "learning_objectives_covered": ["Objective 1 this worksheet assesses", "Objective 2"],
   "sections": [
+    ONLY INCLUDE SECTIONS FOR THE ALLOWED QUESTION TYPES. Examples below:
+    
+    IF "mcq" IS IN ALLOWED TYPES:
     {{
       "type": "MCQ",
       "title": "Section A: Multiple Choice Questions",
@@ -744,8 +798,8 @@ Return ONLY valid JSON (no markdown):
       "questions": [
         {{
           "number": 1,
-          "text": "Question text here",
-          "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
+          "text": "Question text here (use plain text for math, e.g., 'What is 2x + 3 when x = 5?')",
+          "options": ["A. 13", "B. 10", "C. 8", "D. 7"],
           "correct_answer": "A",
           "marks": 1,
           "bloom_level": "Knowledge",
@@ -753,6 +807,8 @@ Return ONLY valid JSON (no markdown):
         }}
       ]
     }},
+    
+    IF "shortAnswer" IS IN ALLOWED TYPES:
     {{
       "type": "Short Answer",
       "title": "Section B: Short Answer Questions",
@@ -760,7 +816,7 @@ Return ONLY valid JSON (no markdown):
       "questions": [
         {{
           "number": 5,
-          "text": "Question text here",
+          "text": "Question text here (use plain text for math)",
           "marks": 3,
           "bloom_level": "Application",
           "sample_answer": "Full model answer",
@@ -769,6 +825,8 @@ Return ONLY valid JSON (no markdown):
         }}
       ]
     }},
+    
+    IF "longAnswer" IS IN ALLOWED TYPES:
     {{
       "type": "Long Answer",
       "title": "Section C: Extended Response",
@@ -776,7 +834,7 @@ Return ONLY valid JSON (no markdown):
       "questions": [
         {{
           "number": 8,
-          "text": "Question text here",
+          "text": "Question text here (use plain text for math)",
           "marks": 5,
           "bloom_level": "Analysis",
           "sample_answer": "Comprehensive model answer",
@@ -784,6 +842,24 @@ Return ONLY valid JSON (no markdown):
             {{"criterion": "...", "marks": 2, "descriptor": "What earns these marks"}},
             {{"criterion": "...", "marks": 3, "descriptor": "What earns these marks"}}
           ]
+        }}
+      ]
+    }},
+    
+    IF "matching" IS IN ALLOWED TYPES:
+    {{
+      "type": "Matching",
+      "title": "Section D: Match the Following",
+      "instructions": "Match items from Column A with Column B.",
+      "questions": [
+        {{
+          "number": 10,
+          "text": "Match the following terms with their definitions",
+          "column_a": ["Term 1", "Term 2", "Term 3"],
+          "column_b": ["Definition A", "Definition B", "Definition C"],
+          "correct_matches": {{"Term 1": "Definition A", "Term 2": "Definition C", "Term 3": "Definition B"}},
+          "marks": 3,
+          "bloom_level": "Knowledge"
         }}
       ]
     }}
@@ -1515,7 +1591,7 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
 
     system_prompt = (
         f"You are a Senior Instructional Designer for {board} {subject}, {grade}. "
-        f"Generate ONE presentation slide as a raw JSON object. "
+        f"Generate ONE rich, content-dense presentation slide as a raw JSON object. "
         f"Learning objective: {learning_objective}. "
         f"Purpose: {purpose_rule} "
         f"Visual style: {style_rule} "
@@ -1526,7 +1602,16 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
         f"(1) Output ONLY the JSON object — no markdown fences, no prose before or after. "
         f"(2) Start your response with {{ and end with }}. "
         f"(3) Every string value must be complete — no truncation. "
-        f"(4) The 'detailed_visual_description' MUST be a rich, specific AI image prompt (not generic)."
+        f"(4) Bullets must be SUBSTANTIVE — each bullet is a complete, informative sentence (not a 3-word fragment). "
+        f"(5) The explanation paragraph must be 3-5 sentences, rich with context, examples, and a 'Did you know?' fact. "
+        f"(6) Include formulas in 'formula' field whenever the subject involves math, physics, chemistry, or any quantitative concept. "
+        f"(7) The 'detailed_visual_description' MUST be a rich, specific AI image prompt (not generic)."
+    )
+
+    formula_example = (
+        '"formula": "E = mc² (Energy = mass × speed of light squared)"'
+        if subject.lower() in ("physics", "chemistry", "mathematics", "math", "science")
+        else '"formula": ""'
     )
 
     user_prompt = f"""Generate slide {slide_number} of {total} for a {board} {subject} presentation on "{topic}".
@@ -1545,6 +1630,15 @@ COMPLETE CONTEXT:
 - Duration budget: {duration_minutes} min total
 - {special_context}{outline_context}
 
+CONTENT QUALITY RULES — MANDATORY:
+1. "bullets": Write 5-7 bullets. Each bullet MUST be a complete, informative sentence (15-25 words). Include specific facts, numbers, or examples. NO vague fragments.
+   BAD: "Carbon fixation happens"
+   GOOD: "Carbon fixation in the Calvin cycle converts CO₂ into glucose using ATP and NADPH produced in the light reactions."
+2. "explanation": Write a 3-5 sentence paragraph that explains the slide's concept in depth. Include a real-world analogy, a 'Did you know?' fact, and connect to prior knowledge.
+3. "formula": If this subject involves any equation, formula, or quantitative relationship, include it here. Use plain text with Unicode symbols (e.g. "PV = nRT", "F = ma", "a² + b² = c²"). Leave empty string if not applicable.
+4. "key_terms": Provide 2-3 key vocabulary terms with clear, grade-appropriate definitions.
+5. "steps": If the slide covers a process or procedure, list 4-6 numbered steps. Otherwise leave as empty array.
+
 VISUAL DESCRIPTION RULE — CRITICAL:
 The "detailed_visual_description" MUST be a UNIQUE, SPECIFIC, RICH AI image prompt for THIS slide's sub-topic.
 DO NOT use generic descriptions like "educational illustration of {topic}".
@@ -1560,12 +1654,22 @@ Return ONLY this JSON (start with {{, end with }}, no other text):
   "number": {slide_number},
   "type": "{slide_type}",
   "title": "Specific engaging title for slide {slide_number} about {topic}",
-  "subtitle": "One-line hook or sub-heading",
+  "subtitle": "One-line hook or sub-heading that sparks curiosity",
   "content": {{
-    "bullets": ["Specific fact or concept about {topic}", "Another substantive point", "Third point with example"],
+    "bullets": [
+      "Complete informative sentence with specific fact or concept about {topic} (15-25 words)",
+      "Second substantive point with a number, example, or real-world connection",
+      "Third point explaining a mechanism, cause, or effect with detail",
+      "Fourth point connecting to prior knowledge or a related concept",
+      "Fifth point with an application, implication, or interesting fact"
+    ],
     "steps": [],
-    "explanation": "2-3 sentences of context with a Did you know? fact specific to this slide's sub-topic.",
-    "key_terms": [{{"term": "Relevant term", "definition": "Clear one-line definition"}}],
+    "explanation": "A rich 3-5 sentence paragraph explaining this slide's concept in depth. Include a real-world analogy, a 'Did you know?' fact, and connect to what students already know. Make it engaging and memorable for {grade} students.",
+    "formula": "",
+    "key_terms": [
+      {{"term": "Key term 1", "definition": "Clear, grade-appropriate one-sentence definition"}},
+      {{"term": "Key term 2", "definition": "Clear, grade-appropriate one-sentence definition"}}
+    ],
     "diagram": {{
       "type": "none",
       "nodes": [],
@@ -1575,8 +1679,8 @@ Return ONLY this JSON (start with {{, end with }}, no other text):
     "visual_prompt": "Short 5-word search phrase specific to this slide",
     "detailed_visual_description": "UNIQUE rich AI image prompt specific to slide {slide_number}'s sub-topic (NOT generic)"{assessment_extra}
   }},
-  "speaker_notes": "3-4 sentence teacher script with specific analogies and talking points for {topic}.",
-  "engagement_prompt": "Specific question or activity about this slide's sub-topic",
+  "speaker_notes": "4-5 sentence teacher script with specific analogies, talking points, and a classroom activity suggestion for {topic}.",
+  "engagement_prompt": "A specific discussion question or hands-on activity prompt about this slide's sub-topic",
   "vibrant_accent_color": "#695be6"
 }}"""
 
@@ -2204,8 +2308,17 @@ async def evaluate_homework_list(homework_id: str, user=Depends(require_role("te
 
 @router.get("/parent-communication")
 async def parent_messages(user=Depends(require_role("teacher")), db=Depends(get_db)):
-    docs = await db.messages.find({"teacher_id": user["id"]}).sort("_id", -1).to_list(50)
-    return [_ser(d) for d in docs]
+    docs = await db.messages.find(
+        {"teacher_id": user["id"], "direction": {"$in": ["teacher_to_parent", "parent_to_teacher"]}}
+    ).sort("_id", -1).to_list(100)
+    enriched = []
+    for doc in docs:
+        student = await db.users.find_one({"_id": ObjectId(doc["student_id"])}, {"name": 1}) if doc.get("student_id") else None
+        enriched.append({
+            **_ser(doc),
+            "student_name": student.get("name", doc.get("student_id", "Student")) if student else doc.get("student_id", "Student"),
+        })
+    return enriched
 
 @router.get("/parent/{parent_id}")
 async def get_parent_info(parent_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
@@ -2246,15 +2359,36 @@ async def get_parent_info(parent_id: str, user=Depends(require_role("teacher")),
 @router.post("/parent-communication/send")
 async def send_parent_message(student_id: str, message: str,
                                user=Depends(require_role("teacher")), db=Depends(get_db)):
+    # Look up the student's parent so we can store parent_id for thread grouping
+    student = await db.users.find_one({"_id": ObjectId(student_id)}, {"parent_id": 1, "parent_ids": 1})
+    parent_id = None
+    if student:
+        if student.get("parent_ids") and len(student["parent_ids"]) > 0:
+            parent_id = str(student["parent_ids"][0])
+        elif student.get("parent_id"):
+            parent_id = str(student["parent_id"])
     doc = {
         "teacher_id": user["id"],
         "student_id": student_id,
+        "parent_id":  parent_id,
         "message":    message,
         "direction":  "teacher_to_parent",
         "sent_at":    datetime.utcnow().isoformat(),
+        "read":       True,
     }
     result = await db.messages.insert_one(doc)
     return {"id": str(result.inserted_id)}
+
+@router.patch("/parent-communication/{message_id}/read")
+async def mark_parent_message_read(message_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
+    try:
+        await db.messages.update_one(
+            {"_id": ObjectId(message_id), "teacher_id": user["id"]},
+            {"$set": {"read": True}}
+        )
+    except Exception:
+        raise HTTPException(400, "Invalid message ID")
+    return {"status": "ok"}
 
 # ─────────────────────────────────────────────────────────────
 # AI TOOL HISTORY
@@ -2505,9 +2639,55 @@ async def create_meeting_request(body: MeetingRequestBody, user=Depends(require_
 
 @router.get("/meeting-requests")
 async def get_meeting_requests(user=Depends(require_role("teacher")), db=Depends(get_db)):
-    """Get all meeting requests created by this teacher."""
-    docs = await db.meeting_requests.find({"teacher_id": user["id"]}).sort("created_at", -1).to_list(None)
-    return [_ser(d) for d in docs]
+    """Get all meeting requests for this teacher — both teacher-initiated and parent-initiated."""
+    docs = await db.meeting_requests.find({
+        "$or": [
+            {"teacher_id": user["id"]},           # teacher created it
+            {"teacher_id": user["id"], "initiated_by": "parent"},  # parent sent to this teacher
+        ]
+    }).sort("created_at", -1).to_list(None)
+
+    # Enrich with parent and student names
+    enriched = []
+    for doc in docs:
+        doc = _ser(doc)
+        # Fetch parent name
+        parent_name = None
+        parent_phone = None
+        parent_email = None
+        if doc.get("parent_id"):
+            try:
+                parent = await db.users.find_one({"_id": ObjectId(doc["parent_id"])}, {"name": 1, "phone": 1, "email": 1})
+                if parent:
+                    parent_name = parent.get("name")
+                    parent_phone = parent.get("phone")
+                    parent_email = parent.get("email")
+            except Exception:
+                pass
+        # Fetch student name
+        student_name = doc.get("student_name") or doc.get("child_name")
+        if not student_name and doc.get("student_id"):
+            try:
+                student = await db.users.find_one({"_id": ObjectId(doc["student_id"])}, {"name": 1, "class_name": 1})
+                if student:
+                    student_name = student.get("name")
+                    doc["student_class"] = student.get("class_name", "")
+            except Exception:
+                pass
+        if not student_name and doc.get("child_id"):
+            try:
+                child = await db.users.find_one({"_id": ObjectId(doc["child_id"])}, {"name": 1, "class_name": 1})
+                if child:
+                    student_name = child.get("name")
+                    doc["student_class"] = child.get("class_name", "")
+            except Exception:
+                pass
+        doc["parent_name"] = parent_name
+        doc["parent_phone"] = parent_phone
+        doc["parent_email"] = parent_email
+        doc["student_name"] = student_name
+        enriched.append(doc)
+    return enriched
 
 @router.patch("/meeting-requests/{req_id}/confirm")
 async def confirm_meeting(req_id: str, time_index: int = 0, user=Depends(require_role("teacher")), db=Depends(get_db)):

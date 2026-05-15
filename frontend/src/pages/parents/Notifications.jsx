@@ -10,8 +10,10 @@ import {
   fetchParentTeacherMessages,
   markTeacherMessageRead,
   optimisticMarkMessageRead,
+  sendMessageToTeacher,
   selectTeacherMessages,
   selectUnreadMessages,
+  selectChildren,
 } from "../../store/slices/parentSlice";
 
 const TABS = ["All", "Homework", "Achievements", "System", "Teacher Messages"];
@@ -39,6 +41,11 @@ export default function ParentNotifications() {
   const unread = useSelector(selectUnreadCount);
   const teacherMessages = useSelector(selectTeacherMessages);
   const unreadMessages = useSelector(selectUnreadMessages);
+  const children = useSelector(selectChildren);
+
+  const [replyModal, setReplyModal] = useState(null); // {teacher_id, child_id, teacher_name}
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     dispatch(fetchParentNotifications());
@@ -58,6 +65,22 @@ export default function ParentNotifications() {
     });
   };
 
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !replyModal) return;
+    setSending(true);
+    try {
+      await dispatch(sendMessageToTeacher({
+        teacher_id: replyModal.teacher_id,
+        child_id: replyModal.child_id,
+        message: replyText,
+      })).unwrap();
+      setReplyModal(null);
+      setReplyText("");
+      dispatch(fetchParentTeacherMessages());
+    } catch { /* show error */ }
+    finally { setSending(false); }
+  };
+
   const filtered = tab === "All" ? notifications :
     tab === "Homework" ? notifications.filter((n) => ["homework_new","homework_due","overdue"].includes(n.type)) :
     tab === "Achievements" ? notifications.filter((n) => n.type === "achievement") :
@@ -68,6 +91,35 @@ export default function ParentNotifications() {
 
   return (
     <div className="bg-[#f6f6f8] min-h-screen pb-10" style={{ fontFamily: "'Lexend', sans-serif" }}>
+      {/* Reply Modal */}
+      {replyModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-black text-base mb-1">Reply to {replyModal.teacher_name}</h3>
+            <p className="text-xs text-gray-400 mb-4">Your message will be sent directly to the teacher.</p>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              rows={4}
+              placeholder="Type your message..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#695be6] resize-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => { setReplyModal(null); setReplyText(""); }}
+                className="flex-1 border border-gray-200 text-sm font-bold py-2.5 rounded-xl hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={handleSendReply} disabled={sending || !replyText.trim()}
+                className="flex-1 bg-[#695be6] text-white text-sm font-bold py-2.5 rounded-xl hover:bg-[#5a4dd4] disabled:opacity-50 flex items-center justify-center gap-2">
+                {sending
+                  ? <><span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Sending...</>
+                  : <><span className="material-symbols-outlined text-base">send</span>Send</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white border-b border-gray-100 px-4 py-4 flex items-center gap-3">
         <button onClick={() => navigate("/parent")} className="size-9 flex items-center justify-center rounded-xl hover:bg-gray-100">
           <span className="material-symbols-outlined text-xl">arrow_back</span>
@@ -147,6 +199,21 @@ export default function ParentNotifications() {
                             {m.read ? "Read" : "Unread"}
                           </span>
                           <span className="text-[10px] text-gray-400">In-App Message</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const child = children[0];
+                              setReplyModal({
+                                teacher_id: m.teacher_id,
+                                child_id: child?._id || child?.id || "",
+                                teacher_name: m.teacher_name || "Teacher",
+                              });
+                              setReplyText("");
+                            }}
+                            className="ml-auto flex items-center gap-1 text-[10px] font-bold text-[#695be6] hover:bg-[#695be6]/10 px-2 py-1 rounded-lg transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-xs">reply</span> Reply
+                          </button>
                         </div>
                       </div>
                     </div>

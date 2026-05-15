@@ -63,7 +63,9 @@ async def stream_vin_chat(messages: list[dict], model: str = None):
         "temperature": 0.7,
         "max_tokens": 1024,
     }
-    async with httpx.AsyncClient(timeout=120) as client:
+    # Split timeout: 15s to connect, 180s to read (first token can be slow in prod)
+    timeout = httpx.Timeout(connect=15.0, read=180.0, write=15.0, pool=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream(
             "POST",
             f"{settings.OPENROUTER_BASE_URL}/chat/completions",
@@ -71,16 +73,22 @@ async def stream_vin_chat(messages: list[dict], model: str = None):
             json=payload,
         ) as resp:
             resp.raise_for_status()
-            async for line in resp.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                raw = line[6:].strip()
-                if raw == "[DONE]":
-                    break
-                try:
-                    chunk = _json.loads(raw)
-                    delta = chunk["choices"][0]["delta"].get("content", "")
-                    if delta:
-                        yield delta
-                except Exception:
-                    continue
+            # Use aiter_bytes + manual split to avoid proxy buffering stalls
+            buf = ""
+            async for chunk in resp.aiter_bytes():
+                buf += chunk.decode("utf-8", errors="replace")
+                while "\n" in buf:
+                    line, buf = buf.split("\n", 1)
+                    line = line.strip()
+                    if not line.startswith("data: "):
+                        continue
+                    raw = line[6:].strip()
+                    if raw == "[DONE]":
+                        return
+                    try:
+                        data = _json.loads(raw)
+                        delta = data["choices"][0]["delta"].get("content", "")
+                        if delta:
+                            yield delta
+                    except Exception:
+                        continue

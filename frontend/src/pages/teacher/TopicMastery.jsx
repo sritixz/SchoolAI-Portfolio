@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { runAiTool, selectAiToolResult, selectAiToolStatus, clearAiToolResult, fetchTopicMastery, selectTopicMastery, fetchMySections, selectMySections, setDiffContext, createIntervention } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
 import { masteryTopics, masteryStudents } from "../../data/teacherData";
@@ -435,7 +436,7 @@ export default function TopicMastery() {
             <button className="p-2 hover:bg-gray-100 rounded-lg hidden sm:flex">
               <span className="material-symbols-outlined text-gray-500 text-[20px]">help_outline</span>
             </button>
-            <div className="size-8 sm:size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-8 sm:size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
 

@@ -1,13 +1,16 @@
 import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { getFirstName, getInitial } from "../../utils/nameUtils";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchParentDashboard,
   fetchParentNotifications,
+  fetchParentTeacherMessages,
   selectChildren,
   selectUnreadCount,
   selectParentNotifications,
+  selectUnreadMessages,
 } from "../../store/slices/parentSlice";
 
 const MORE_OPTIONS = [
@@ -23,10 +26,12 @@ export default function ParentHome() {
   const children = useSelector(selectChildren);
   const unreadCount = useSelector(selectUnreadCount);
   const notifications = useSelector(selectParentNotifications);
+  const unreadMessages = useSelector(selectUnreadMessages);
 
   useEffect(() => {
     dispatch(fetchParentDashboard());
     dispatch(fetchParentNotifications());
+    dispatch(fetchParentTeacherMessages());
   }, [dispatch]);
 
   const child = children[0];
@@ -39,6 +44,7 @@ export default function ParentHome() {
 
   const NAV_ITEMS = [
     { label: "Homework", icon: "assignment", badge: hwNotifs.length > 0 ? `${hwNotifs.length} PENDING` : null, badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: child ? `${child.name}'s assignments` : "View assignments", bg: "bg-[#ede9ff]", path: "/parent/homework" },
+    { label: "Messages", icon: "chat", badge: unreadMessages > 0 ? `${unreadMessages} NEW` : null, badgeColor: "bg-[#695be6]/10 text-[#695be6]", sub: unreadMessages > 0 ? `${unreadMessages} unread from teacher` : "Chat with teachers", bg: "bg-[#e8f4ff]", path: "/parent/messages" },
     { label: "Progress", icon: "trending_up", badge: null, sub: "Topic mastery overview", bg: "bg-[#e6f9ee]", path: "/parent/progress" },
     { label: "Consistency", icon: "calendar_month", badge: null, sub: "Homework streak & habits", bg: "bg-[#fff8e6]", path: "/parent/consistency" },
     { label: "Notifications", icon: "notifications_active", badge: unreadCount > 0 ? `${unreadCount} NEW` : null, badgeColor: "bg-red-100 text-red-600", sub: "School updates & alerts", bg: "bg-[#fff0f0]", path: "/parent/notifications" },
@@ -67,7 +73,7 @@ export default function ParentHome() {
               </div>
             </div>
           </div>
-          <h1 className="text-2xl font-black">{greeting}, {user?.name?.split(" ")[0]}!</h1>
+          <h1 className="text-2xl font-black">{greeting}, {getFirstName(user?.name) || "Parent"}!</h1>
           <p className="text-white/80 text-sm mt-0.5">
             {child ? `Here's how ${child.name} is doing` : "Welcome to your parent dashboard"}
           </p>
@@ -89,12 +95,14 @@ export default function ParentHome() {
             <p className="text-xs text-gray-500 font-medium">PENDING HW</p>
             <p className="text-xs text-gray-400">This Week</p>
           </div>
-          <div className="p-4 text-center">
-            <span className="material-symbols-outlined text-orange-500 text-2xl">local_fire_department</span>
-            <p className="text-2xl font-black mt-1">{unreadCount}</p>
-            <p className="text-xs text-gray-500 font-medium">UNREAD</p>
-            <p className="text-xs text-emerald-500 font-semibold">Notifications</p>
-          </div>
+          <button className="p-4 text-center hover:bg-gray-50 transition-colors" onClick={() => navigate("/parent/messages")}>
+            <span className="material-symbols-outlined text-[#695be6] text-2xl">chat</span>
+            <p className="text-2xl font-black mt-1">{unreadMessages}</p>
+            <p className="text-xs text-gray-500 font-medium">MESSAGES</p>
+            <p className={`text-xs font-semibold ${unreadMessages > 0 ? "text-[#695be6]" : "text-gray-400"}`}>
+              {unreadMessages > 0 ? "Unread" : "All Read"}
+            </p>
+          </button>
           <div className="p-4 text-center">
             <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
             <p className="text-2xl font-black mt-1">{overdueCount}</p>

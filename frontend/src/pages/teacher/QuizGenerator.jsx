@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { selectGeneratedQuestions, selectGenerateStatus, clearGeneratedQuestions, saveQuizDraft, fetchQuizDrafts, deleteQuizDraft, updateQuizDraft, selectQuizDrafts } from "../../store/slices/teacherSlice";
 import {
   quizGeneratorDefaults,
@@ -13,6 +14,7 @@ import {
 } from "../../data/teacher/quizGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadQuizPdf } from "../../utils/aiPdfExport";
+import MathText from "../../components/MathText";
 
 export default function QuizGenerator() {
   const navigate  = useNavigate();
@@ -123,7 +125,7 @@ export default function QuizGenerator() {
 
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="size-8 bg-[#695be6]/10 rounded-lg flex items-center justify-center">
               <span className="material-symbols-outlined text-[#695be6] text-lg">quiz</span>
@@ -139,12 +141,12 @@ export default function QuizGenerator() {
             <button className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600">settings</span>
             </button>
-            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+            <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-[1200px] mx-auto pt-20 px-6 pb-12">
+      <div className="max-w-[1200px] mx-auto pt-20 px-4 sm:px-6 pb-12">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-4">
           <button onClick={() => navigate("/teacher/ai-assistant")} className="hover:underline">AI Assistant</button>
@@ -610,11 +612,11 @@ export default function QuizGenerator() {
                             />
                           </div>
                         )}
-                        {q.hint && <p className="text-xs text-amber-600 flex items-center gap-1 mt-1"><span className="material-symbols-outlined text-sm">lightbulb</span>{q.hint}</p>}
+                        {q.hint && <p className="text-xs text-amber-600 flex items-center gap-1 mt-1"><span className="material-symbols-outlined text-sm">lightbulb</span><MathText text={q.hint} /></p>}
                         {q.common_errors?.length > 0 && (
                           <div className="mt-2">
                             <p className="text-[10px] font-bold text-gray-400 uppercase">Common Errors</p>
-                            {q.common_errors.map((e,ei)=><p key={ei} className="text-xs text-red-600 flex items-start gap-1 mt-0.5"><span className="text-red-400 flex-shrink-0">⚠</span>{e}</p>)}
+                            {q.common_errors.map((e,ei)=><p key={ei} className="text-xs text-red-600 flex items-start gap-1 mt-0.5"><span className="text-red-400 flex-shrink-0">⚠</span><MathText text={e} /></p>)}
                           </div>
                         )}
                       </div>

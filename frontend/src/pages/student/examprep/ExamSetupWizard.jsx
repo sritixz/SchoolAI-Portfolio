@@ -161,7 +161,7 @@ export default function ExamSetupWizard({ user, navigate, onComplete }) {
     };
     try {
       const r = await api.post("/student/exam-prep/setup", profile);
-      onComplete(r.data);
+      onComplete({ ...r.data, id: r.data.id || `prep_${Date.now()}` });
     } catch (err) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
@@ -169,6 +169,7 @@ export default function ExamSetupWizard({ user, navigate, onComplete }) {
       if (status === 404 || !status) {
         const fallbackProfile = {
           ...profile,
+          id: `prep_${Date.now()}`,
           studyPlan: [],
           readiness: Object.fromEntries(profile.subjects.map((s) => [s.name, 50])),
           aiInsights: ["Keep studying consistently to improve your readiness!"],
@@ -223,7 +224,7 @@ export default function ExamSetupWizard({ user, navigate, onComplete }) {
     <div className="min-h-screen bg-gradient-to-br from-[#f6f6f8] to-[#ede9ff]" style={{ fontFamily: "'Lexend', sans-serif" }}>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-lg mx-auto px-6 h-14 flex items-center justify-between">
-          <button onClick={() => navigate("/student")} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate("/student/exam-prep")} className="p-2 hover:bg-gray-100 rounded-lg">
             <span className="material-symbols-outlined text-gray-600">arrow_back</span>
           </button>
           <p className="text-sm font-bold text-gray-500">Step {step} of {TOTAL_STEPS}</p>
@@ -495,7 +496,7 @@ function QuizScreen({ subject, quizData, loading, answers, submitted, score, tot
     <div className="min-h-screen bg-gradient-to-br from-[#f6f6f8] to-[#ede9ff] pb-32" style={{ fontFamily: "'Lexend', sans-serif" }}>
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-lg mx-auto px-6 h-14 flex items-center justify-between">
-          <button onClick={() => navigate("/student")} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate("/student/exam-prep")} className="p-2 hover:bg-gray-100 rounded-lg">
             <span className="material-symbols-outlined text-gray-600">arrow_back</span>
           </button>
           <p className="text-sm font-bold text-gray-700">Self-Assessment · {subject}</p>

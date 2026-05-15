@@ -1,13 +1,18 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getFirstName, getInitial } from "../../utils/nameUtils";
 import { useNavigate, Link } from "react-router-dom";
+import api from "../../api";
 import {
-  fetchTasks, fetchStudentDashboard,
+  fetchTasks,
   optimisticToggleTask, optimisticAddTask,
-  selectTasks, selectTasksStatus,
+  selectTasks,
+  fetchStudentNotifications, selectStudentNotifications,
+  markStudentNotifRead,
+  invalidateDashboard,
 } from "../../store/slices/studentSlice";
-import { fetchStudentHomework, selectStudentHomework } from "../../store/slices/homeworkSlice";
+import { fetchStudentHomework, selectStudentHomework, invalidateStudentList } from "../../store/slices/homeworkSlice";
 
 const SUBJECT_COLORS = {
   Mathematics: "text-[#695be6] bg-[#695be6]/10",
@@ -21,18 +26,30 @@ export default function StudentHome() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const reduxTasks    = useSelector(selectTasks);
-  const tasksStatus   = useSelector(selectTasksStatus);
   const reduxHomework = useSelector(selectStudentHomework);
+  const notifications = useSelector(selectStudentNotifications);
+  const unreadCount   = notifications.filter((n) => !n.read).length;
   const [tasks,    setTasks]    = useState([]);
   const [homework, setHomework] = useState([]);
+  const [streak,   setStreak]   = useState(0);
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [addingTask,    setAddingTask]    = useState(false);
   const [newTaskTitle,  setNewTaskTitle]  = useState("");
 
-  // Load tasks and homework via Redux
+  // Load tasks, homework, notifications and streak
   useEffect(() => {
     dispatch(fetchTasks());
     dispatch(fetchStudentHomework());
+    dispatch(fetchStudentNotifications());
+    api.get("/student/study-stats")
+      .then((r) => { if (r.data?.studyStreak != null) setStreak(r.data.studyStreak); })
+      .catch(() => {});
+
+    // Invalidate on unmount so next visit always gets fresh data
+    return () => {
+      dispatch(invalidateDashboard());
+      dispatch(invalidateStudentList());
+    };
   }, [dispatch]);
 
   // Sync Redux state into local state (fallback to mock if empty)
@@ -64,6 +81,70 @@ export default function StudentHome() {
   const pendingCount = tasks.filter((t) => !t.done).length;
   const pendingHw = homework.filter((h) => h.status === "pending").length;
 
+  // Helper: filter homework that should show in Today's Focus (unsubmitted + due soon/overdue)
+  const isDueOrOverdue = (hw) => {
+    const dueDateStr = hw.dueDate || hw.due_date;
+    if (!dueDateStr) return true; // no due date = show it
+    const today = new Date(); today.setHours(0,0,0,0);
+    const due = new Date(dueDateStr); due.setHours(0,0,0,0);
+    return due <= today; // due today or in the past
+  };
+  const homeworkDue = homework.filter((h) => 
+    !["graded","completed","evaluated"].includes(h.submission_status || h.status) && isDueOrOverdue(h)
+  );
+
+  // Build activity feed: prefer notifications, fall back to homework list
+  const notifActivity = notifications
+    .filter((n) => n.type === "homework_new" || n.type === "homework_graded")
+    .map((n) => ({ _source: "notif", ...n }));
+
+  // Synthesize activity items from homework list for any hw not already covered by a notification
+  const notifHwIds = new Set(notifActivity.map((n) => n.homework_id).filter(Boolean));
+  const hwActivity = homework.map((hw) => {
+    const hwId = hw.id || hw._id;
+    const isGraded = ["graded", "completed", "evaluated"].includes(hw.submission_status || hw.status);
+    // Only show graded ones from hw list if there's no notification for them
+    if (isGraded && !notifHwIds.has(hwId)) {
+      return {
+        _source: "hw",
+        type: "homework_graded",
+        title: `Homework Graded: ${hw.title || "Homework"}`,
+        desc: hw.subject || "",
+        homework_id: hwId,
+        read: true,
+        created_at: hw.graded_at || hw.due_date || null,
+      };
+    }
+    if (!isGraded && !notifHwIds.has(hwId)) {
+      return {
+        _source: "hw",
+        type: "homework_new",
+        title: `Homework Assigned: ${hw.title || "Homework"}`,
+        desc: `${hw.subject || ""}${hw.due_date ? ` • Due ${hw.due_date}` : ""}`,
+        homework_id: hwId,
+        read: true,
+        created_at: hw.assigned_at || hw.created_at || null,
+      };
+    }
+    return null;
+  }).filter(Boolean);
+
+  const activityFeed = [...notifActivity, ...hwActivity]
+    .sort((a, b) => (b.created_at || "") > (a.created_at || "") ? 1 : -1)
+    .slice(0, 5);
+
+  const handleActivityClick = (item) => {
+    const nid = item._id || item.id;
+    if (item._source === "notif" && !item.read && nid) dispatch(markStudentNotifRead(nid));
+    const hwId = item.homework_id;
+    if (!hwId) { navigate("/student/homework"); return; }
+    if (item.type === "homework_graded") {
+      navigate(`/student/homework/${hwId}/result`);
+    } else {
+      navigate(`/student/homework/${hwId}`);
+    }
+  };
+
   return (
     <div className="bg-[#f6f6f8] min-h-screen text-[#100e1a]" style={{ fontFamily: "'Lexend', sans-serif" }}>
 
@@ -71,9 +152,6 @@ export default function StudentHome() {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-full mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 hover:bg-gray-100 rounded-lg">
-              <span className="material-symbols-outlined">menu</span>
-            </button> */}
             <div className="flex items-center gap-2">
               <div className="size-8 bg-[#695be6] rounded-lg flex items-center justify-center text-white flex-shrink-0">
                 <span className="material-symbols-outlined text-xl">school</span>
@@ -84,22 +162,30 @@ export default function StudentHome() {
           <div className="flex items-center gap-3 sm:gap-5">
             <div onClick={() => navigate("/student/notifications")} className="relative cursor-pointer p-2 hover:bg-gray-100 rounded-lg flex-shrink-0">
               <span className="material-symbols-outlined text-gray-600">notifications</span>
-              <span className="absolute top-2 right-2 size-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </div>
             <div className="size-10 rounded-full border-2 border-[#695be6] p-0.5 overflow-hidden cursor-pointer flex-shrink-0" onClick={() => setMenuOpen(!menuOpen)}>
               {user?.avatar ? (
                 <img className="w-full h-full object-cover rounded-full" src={user.avatar} alt="avatar" />
               ) : (
                 <div className="w-full h-full bg-[#695be6] rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {user?.name?.[0]}
+                  {getInitial(user?.name)}
                 </div>
               )}
             </div>
           </div>
         </div>
-        {/* Dropdown menu */}
-        {menuOpen && (
-          <div className="absolute right-4 sm:right-6 top-16 bg-white border border-gray-100 rounded-xl shadow-lg py-2 w-44 z-50">
+      </header>
+
+      {/* Avatar dropdown — rendered outside header to avoid clipping */}
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+          <div className="fixed right-4 sm:right-6 top-16 bg-white border border-gray-100 rounded-xl shadow-lg py-2 w-44 z-50">
             <button
               onClick={() => { logout(); navigate("/login"); }}
               className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-50 flex items-center gap-2"
@@ -107,8 +193,8 @@ export default function StudentHome() {
               <span className="material-symbols-outlined text-base">logout</span> Logout
             </button>
           </div>
-        )}
-      </header>
+        </>
+      )}
 
       <main className="w-full pt-20 pb-24 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
@@ -118,14 +204,14 @@ export default function StudentHome() {
             <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#6B5CE7] to-[#D4C5F9] p-6 sm:p-8 text-white shadow-lg shadow-[#695be6]/20">
               <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
                 <div className="flex flex-col gap-2">
-                  <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Good Morning, {user?.name?.split(" ")[0]}! 👋</h1>
+                  <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Good Morning, {getFirstName(user?.name) || "Student"}! 👋</h1>
                   <p className="text-white/90 text-sm sm:text-base">You have {pendingCount} tasks for today • Stay focused!</p>
                 </div>
                 <div className="flex items-center gap-3 bg-white/20 backdrop-blur-md px-4 py-2 sm:px-5 sm:py-3 rounded-xl self-start sm:self-center border border-white/30 flex-shrink-0">
                   <span className="text-xl sm:text-2xl">🔥</span>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider opacity-80 leading-none">Streak</p>
-                    <p className="text-lg sm:text-xl font-black">{user?.streak} Days</p>
+                    <p className="text-lg sm:text-xl font-black">{streak} Days</p>
                   </div>
                 </div>
               </div>
@@ -163,64 +249,174 @@ export default function StudentHome() {
                   ))}
                 </div>
               </section>
+
+              {/* Recent Activity */}
+              {activityFeed.length > 0 && (
+                <section>
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <h3 className="text-lg sm:text-xl font-bold">Recent Activity</h3>
+                    <button
+                      onClick={() => navigate("/student/notifications")}
+                      className="text-xs text-[#695be6] font-bold hover:underline"
+                    >
+                      See all
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    {activityFeed.map((notif) => {
+                      const nid = notif._id || notif.id || notif.homework_id;
+                      const isGraded = notif.type === "homework_graded";
+                      return (
+                        <div
+                          key={nid}
+                          onClick={() => handleActivityClick(notif)}
+                          className={`cursor-pointer bg-white rounded-xl border shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all ${
+                            isGraded ? "border-l-4 border-l-green-400" : "border-l-4 border-l-[#695be6]"
+                          } ${notif.read ? "opacity-75" : ""}`}
+                        >
+                          <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${isGraded ? "bg-green-100" : "bg-[#695be6]/10"}`}>
+                            <span className={`material-symbols-outlined text-xl ${isGraded ? "text-green-600" : "text-[#695be6]"}`}>
+                              {isGraded ? "task_alt" : "menu_book"}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-bold text-sm truncate">{notif.title}</p>
+                              {!notif.read && <span className="size-2 bg-[#695be6] rounded-full shrink-0" />}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{notif.desc || notif.message}</p>
+                            {notif.created_at && (
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                {new Date(notif.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            )}
+                          </div>
+                          <span className="material-symbols-outlined text-gray-300 shrink-0">chevron_right</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
             </div>
 
             {/* Right: Today's Focus */}
             <div className="lg:col-span-1">
               <section>
                 <h3 className="text-lg sm:text-xl font-bold mb-4 px-1">Today's Focus</h3>
-                <div className="bg-white rounded-lg sm:rounded-xl border border-gray-100 shadow-sm p-4 sm:p-6 h-full">
-                  <div className="flex flex-col gap-3 sm:gap-4 max-h-96 overflow-y-auto">
-                    {tasks.length === 0 ? (
-                      <p className="text-gray-400 text-sm text-center py-8">No tasks yet. Add one to get started!</p>
-                    ) : (
-                      tasks.map((task, i) => (
-                        <div key={task.id}>
-                          <div className={`flex items-start gap-3 ${task.done ? "opacity-60" : ""}`}>
-                            <div className="mt-1 flex-shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={task.done}
-                                onChange={() => toggleTask(task.id)}
-                                className="size-4 sm:size-5 rounded border-gray-300 text-[#695be6] focus:ring-[#695be6] cursor-pointer"
-                              />
-                            </div>
+                <div className="bg-white rounded-lg sm:rounded-xl border border-gray-100 shadow-sm p-4 sm:p-5">
+
+                  {/* Homework due items */}
+                  {homeworkDue.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[#695be6] mb-2 px-1">Homework Due</p>
+                      <div className="flex flex-col gap-2">
+                        {homeworkDue.map((hw) => {
+                            const hwId = hw.id || hw._id;
+                            const dueDateStr = hw.dueDate || hw.due_date;
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const due = dueDateStr ? new Date(dueDateStr) : null;
+                            if (due) due.setHours(0,0,0,0);
+                            const isOverdue = due && due < today;
+                            const isToday = due && due.getTime() === today.getTime();
+                            const isTomorrow = due && due.getTime() === today.getTime() + 86400000;
+                            const dueLabelText = !due ? null
+                              : isOverdue  ? `Overdue · ${due.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
+                              : isToday    ? "Due Today"
+                              : isTomorrow ? "Due Tomorrow"
+                              : `Due ${due.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`;
+                            const dueColor = isOverdue ? "text-red-500" : (isToday || isTomorrow) ? "text-orange-500" : "text-[#695be6]";
+                            return (
+                              <div
+                                key={hwId}
+                                onClick={() => navigate(`/student/homework/${hwId}`)}
+                                className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer hover:shadow-sm transition-all ${isOverdue ? "bg-red-50 border-red-100" : "bg-[#695be6]/5 border-[#695be6]/10 hover:bg-[#695be6]/10"}`}
+                              >
+                                <div className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100" : "bg-[#695be6]/10"}`}>
+                                  <span className={`material-symbols-outlined text-sm ${isOverdue ? "text-red-500" : "text-[#695be6]"}`}>menu_book</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold truncate">{hw.title}</p>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {hw.subject && <span className="text-[10px] text-gray-400">{hw.subject}</span>}
+                                    {dueLabelText && (
+                                      <>
+                                        {hw.subject && <span className="text-[10px] text-gray-300">·</span>}
+                                        <span className={`text-[10px] font-bold flex items-center gap-0.5 ${dueColor}`}>
+                                          <span className="material-symbols-outlined text-[10px]">schedule</span>
+                                          {dueLabelText}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="material-symbols-outlined text-gray-300 text-sm shrink-0">chevron_right</span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Divider if both sections present */}
+                  {homeworkDue.length > 0 && tasks.length > 0 && (
+                    <hr className="border-gray-100 mb-3" />
+                  )}
+
+                  {/* Custom tasks */}
+                  {tasks.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">My Tasks</p>
+                      <div className="flex flex-col gap-2 max-h-52 overflow-y-auto">
+                        {tasks.map((task) => (
+                          <div key={task.id} className={`flex items-center gap-3 ${task.done ? "opacity-50" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={task.done}
+                              onChange={() => toggleTask(task.id)}
+                              className="size-4 rounded border-gray-300 text-[#695be6] focus:ring-[#695be6] cursor-pointer shrink-0"
+                            />
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-                                <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded flex-shrink-0 ${SUBJECT_COLORS[task.subject] || "text-gray-500 bg-gray-100"}`}>
+                              <p className={`text-sm font-medium truncate ${task.done ? "line-through text-gray-400" : ""}`}>{task.title}</p>
+                              {task.subject && task.subject !== "Custom" && (
+                                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${SUBJECT_COLORS[task.subject] || "text-gray-500 bg-gray-100"}`}>
                                   {task.subject}
                                 </span>
-                                <span className="text-[8px] sm:text-[10px] text-gray-400 flex items-center gap-1 flex-shrink-0">
-                                  <span className="material-symbols-outlined text-xs">{task.done ? "done_all" : "schedule"}</span>
-                                  {task.duration}
-                                </span>
-                              </div>
-                              <p className={`font-semibold leading-tight text-sm ${task.done ? "line-through" : ""} break-words`}>{task.title}</p>
+                              )}
                             </div>
                           </div>
-                          {i < tasks.length - 1 && <hr className="border-gray-100 mt-3 sm:mt-4" />}
-                        </div>
-                      ))
-                    )}
-                    {addingTask ? (
-                      <div className="flex gap-2 mt-2">
-                        <input
-                          autoFocus
-                          value={newTaskTitle}
-                          onChange={(e) => setNewTaskTitle(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && addTask()}
-                          placeholder="Task title..."
-                          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#695be6]"
-                        />
-                        <button onClick={addTask} className="bg-[#695be6] text-white px-3 py-2 rounded-lg text-sm font-bold flex-shrink-0">Add</button>
-                        <button onClick={() => setAddingTask(false)} className="text-gray-400 px-2 py-2 rounded-lg text-sm flex-shrink-0">✕</button>
+                        ))}
                       </div>
-                    ) : (
-                      <button onClick={() => setAddingTask(true)} className="w-full py-2 sm:py-3 mt-2 border-2 border-dashed border-gray-200 rounded-lg sm:rounded-xl text-gray-400 font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm">
-                        <span className="material-symbols-outlined text-base">add</span>Add Task
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {homeworkDue.length === 0 && tasks.length === 0 && (
+                    <p className="text-gray-400 text-sm text-center py-6">No tasks yet. Add one below!</p>
+                  )}
+
+                  {/* Add task */}
+                  {addingTask ? (
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        autoFocus
+                        value={newTaskTitle}
+                        onChange={(e) => setNewTaskTitle(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addTask()}
+                        placeholder="Task title..."
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#695be6]"
+                      />
+                      <button onClick={addTask} className="bg-[#695be6] text-white px-3 py-2 rounded-lg text-sm font-bold shrink-0">Add</button>
+                      <button onClick={() => setAddingTask(false)} className="text-gray-400 px-2 py-2 rounded-lg text-sm shrink-0">✕</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingTask(true)}
+                      className="w-full py-2.5 mt-1 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm"
+                    >
+                      <span className="material-symbols-outlined text-base">add</span>Add Task
+                    </button>
+                  )}
                 </div>
               </section>
             </div>

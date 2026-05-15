@@ -6,13 +6,15 @@ import SectionsTab    from "./onboarding/SectionsTab";
 import TeachersTab    from "./onboarding/TeachersTab";
 import StudentsTab    from "./onboarding/StudentsTab";
 import AssignmentsTab from "./onboarding/AssignmentsTab";
+import ParentsTab     from "./onboarding/ParentsTab";
 
 const TABS = [
-  { id: "grades",      label: "Grades",      icon: "school",      desc: "Configure grade levels and their subjects" },
-  { id: "sections",    label: "Sections",    icon: "grid_view",   desc: "Create class sections per grade" },
-  { id: "teachers",    label: "Teachers",    icon: "person",      desc: "Add teachers and their qualified subjects" },
-  { id: "students",    label: "Students",    icon: "groups",      desc: "Enroll students and link parents" },
-  { id: "assignments", label: "Assignments", icon: "assignment",  desc: "Assign teachers to subjects per section" },
+  { id: "grades",      label: "Grades",      icon: "school",           desc: "Configure grade levels and their subjects" },
+  { id: "sections",    label: "Sections",    icon: "grid_view",        desc: "Create class sections per grade" },
+  { id: "teachers",    label: "Teachers",    icon: "person",           desc: "Add teachers and their qualified subjects" },
+  { id: "students",    label: "Students",    icon: "groups",           desc: "Enroll students and link parents" },
+  { id: "parents",     label: "Parents",     icon: "family_restroom",  desc: "Manage parent accounts and student links" },
+  { id: "assignments", label: "Assignments", icon: "assignment",       desc: "Assign teachers to subjects per section" },
 ];
 
 export default function Onboarding() {
@@ -68,6 +70,7 @@ export default function Onboarding() {
           {activeTab === "sections"    && <SectionsTab />}
           {activeTab === "teachers"    && <TeachersTab />}
           {activeTab === "students"    && <StudentsTab />}
+          {activeTab === "parents"     && <ParentsTab />}
           {activeTab === "assignments" && <AssignmentsTab />}
         </div>
       </div>
