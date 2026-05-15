@@ -70,6 +70,10 @@ const studentSlice = createSlice({
     optimisticAddTask(state, { payload }) {
       state.tasks.push(payload);
     },
+    invalidateDashboard(state) {
+      state.tasksStatus = "idle";
+      state.notifStatus = "idle";
+    },
   },
   extraReducers: (b) => {
     b.addCase(fetchStudentDashboard.pending,   (s) => { s.dashboardStatus = "loading"; })
@@ -98,7 +102,7 @@ const studentSlice = createSlice({
   },
 });
 
-export const { optimisticToggleTask, optimisticAddTask } = studentSlice.actions;
+export const { optimisticToggleTask, optimisticAddTask, invalidateDashboard } = studentSlice.actions;
 
 export const selectDashboard       = (s) => s.student.dashboard;
 export const selectStudentProfile  = (s) => s.student.profile;

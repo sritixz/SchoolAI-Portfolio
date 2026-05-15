@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { getFirstName, getInitial } from "../../utils/nameUtils";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -37,20 +38,36 @@ const NAV = [
 export function AdminLayout({ children, active }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleNav = (path) => {
+    navigate(path);
+    setSidebarOpen(false);
+  };
 
   return (
     <div className="flex min-h-screen bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-56 bg-[#ede9fb] flex flex-col fixed top-0 left-0 h-full z-40">
+      <aside className={`w-56 bg-[#ede9fb] flex flex-col fixed top-0 left-0 h-full z-40 transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="p-4 border-b border-[#d5cef7]">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="size-8 bg-[#695be6] rounded-lg flex items-center justify-center text-white text-xs font-black">
-              {user?.school?.[0] || "D"}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="size-8 bg-[#695be6] rounded-lg flex items-center justify-center text-white text-xs font-black">
+                {user?.school?.[0] || "D"}
+              </div>
+              <div>
+                <p className="text-xs font-black text-[#100e1a] leading-tight">{user?.school || user?.school_name || "School"}</p>
+                <p className="text-[10px] text-gray-500">{new Date().getFullYear() - 1}-{new Date().getFullYear()}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-black text-[#100e1a] leading-tight">{user?.school || user?.school_name || "School"}</p>
-              <p className="text-[10px] text-gray-500">{new Date().getFullYear() - 1}-{new Date().getFullYear()}</p>
-            </div>
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1 hover:bg-[#d5cef7] rounded-lg">
+              <span className="material-symbols-outlined text-gray-500 text-xl">close</span>
+            </button>
           </div>
         </div>
 
@@ -61,7 +78,7 @@ export function AdminLayout({ children, active }) {
               {group.items.map((item) => (
                 <button
                   key={item.path}
-                  onClick={() => navigate(item.path)}
+                  onClick={() => handleNav(item.path)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${
                     active === item.path
                       ? "bg-[#695be6] text-white"
@@ -79,7 +96,7 @@ export function AdminLayout({ children, active }) {
         <div className="p-3 border-t border-[#d5cef7]">
           <div className="flex items-center gap-2 mb-2">
             <div className="size-8 bg-[#695be6] rounded-full flex items-center justify-center text-white text-xs font-black">
-              {user?.name?.[0] || "D"}
+              {getInitial(user?.name) || "D"}
             </div>
             <div>
               <p className="text-xs font-bold text-[#100e1a]">{user?.name || "Admin"}</p>
@@ -96,8 +113,20 @@ export function AdminLayout({ children, active }) {
       </aside>
 
       {/* Main */}
-      <main className="ml-56 flex-1 min-h-screen">
-        {children}
+      <main className="lg:ml-56 flex-1 min-h-screen w-full">
+        {/* Mobile top bar */}
+        <div className="lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-3">
+          <button onClick={() => setSidebarOpen(true)} className="p-2 hover:bg-gray-100 rounded-lg">
+            <span className="material-symbols-outlined text-gray-600">menu</span>
+          </button>
+          <div className="size-7 bg-[#695be6] rounded-lg flex items-center justify-center text-white text-xs font-black">
+            {user?.school?.[0] || "D"}
+          </div>
+          <p className="text-sm font-bold text-[#100e1a] truncate flex-1">{user?.school || "School Admin"}</p>
+        </div>
+        <div className="lg:pt-0 pt-14">
+          {children}
+        </div>
       </main>
     </div>
   );
@@ -144,7 +173,7 @@ export default function SchoolAdminHome() {
 
   return (
     <AdminLayout active="/schooladmin">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -165,7 +194,7 @@ export default function SchoolAdminHome() {
 
         {/* Welcome Banner */}
         <div className="bg-[#695be6] rounded-2xl p-6 text-white mb-6">
-          <h1 className="text-2xl font-black">Good Morning, {user?.name?.split(" ").pop() || user?.name || "Admin"}!</h1>
+          <h1 className="text-2xl font-black">Good Morning, {getFirstName(user?.name) || "Admin"}!</h1>
           <p className="text-white/80 text-sm mt-1">
             {criticalGapCount > 0
               ? <>You have <span className="font-bold text-white">{criticalGapCount} critical learning gap{criticalGapCount > 1 ? "s" : ""}</span> that require your immediate attention today.</>
@@ -199,9 +228,9 @@ export default function SchoolAdminHome() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Priority Attention */}
-          <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <div className="md:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex justify-between items-center mb-3">
               <p className="font-bold text-sm">Priority Attention Needed</p>
               <button onClick={() => navigate("/schooladmin/gaps")} className="text-xs text-[#695be6] font-medium">View All</button>

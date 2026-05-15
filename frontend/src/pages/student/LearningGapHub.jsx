@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchLearningGaps, fetchGapHealth, selectGaps, selectGapHealth } from "../../store/slices/learningGapsSlice";
 import { LEARNING_GAPS } from "../../data/learningGapData";
@@ -41,7 +42,7 @@ export default function LearningGapHub() {
           <div className="size-10 rounded-full ring-2 ring-[#685ae7]/20 overflow-hidden bg-[#685ae7]/10 flex items-center justify-center">
             {user?.avatar
               ? <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
-              : <span className="text-[#685ae7] font-bold">{user?.name?.[0]}</span>
+              : <span className="text-[#685ae7] font-bold">{getInitial(user?.name)}</span>
             }
           </div>
         </div>

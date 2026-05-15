@@ -1,59 +1,87 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api";
 import ExamSetupWizard from "./examprep/ExamSetupWizard";
 import ExamDashboard from "./examprep/ExamDashboard";
-
-const storageKey = (userId) => `exam_prep_profile_${userId}`;
+import { loadPrepList, savePrepList } from "./ExamPrepList";
 
 export default function ExamPrep() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { prepId } = useParams(); // undefined on /new, an id on /:prepId
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const key = storageKey(user?.id);
+  // "new" route — show wizard immediately
+  const isNew = prepId === "new" || prepId === undefined;
 
-  // Bug 5 fix: parse cache eagerly, handle errors explicitly, add key to deps
   useEffect(() => {
     if (!user?.id) { setLoading(false); return; }
 
-    const saved = localStorage.getItem(key);
-    const cachedProfile = saved
-      ? (() => { try { return JSON.parse(saved); } catch { return null; } })()
-      : null;
+    if (isNew) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
 
-    if (cachedProfile) setProfile(cachedProfile);
+    // Load from list
+    const list = loadPrepList(user.id);
+    const found = list.find((p) => p.id === prepId);
+    if (found) {
+      setProfile(found);
+      setLoading(false);
+      return;
+    }
 
+    // Fallback: try backend
     api.get("/student/exam-prep/profile")
       .then((r) => {
         if (r.data?.subjects?.length) {
           setProfile(r.data);
-          localStorage.setItem(key, JSON.stringify(r.data));
-        } else if (!cachedProfile) {
-          setProfile(null); // no cache + no backend profile → show wizard
+        } else {
+          setProfile(null);
         }
       })
-      .catch((err) => {
-        // Backend failed — keep cache if available, else show wizard
-        if (!cachedProfile) setProfile(null);
-        console.error("Failed to sync exam prep profile:", err);
-      })
+      .catch(() => setProfile(null))
       .finally(() => setLoading(false));
-  }, [user?.id, key]);
+  }, [user?.id, prepId, isNew]);
 
   const handleSetupComplete = (newProfile) => {
-    setProfile(newProfile);
-    localStorage.setItem(key, JSON.stringify(newProfile));
+    const list = loadPrepList(user.id);
+    const id = newProfile.id || `prep_${Date.now()}`;
+    const entry = { ...newProfile, id };
+
+    // Replace if same id exists, otherwise prepend
+    const idx = list.findIndex((p) => p.id === id);
+    const updated = idx >= 0
+      ? list.map((p) => (p.id === id ? entry : p))
+      : [entry, ...list];
+
+    savePrepList(user.id, updated);
+    setProfile(entry);
+    // Navigate to the specific prep route
+    navigate(`/student/exam-prep/${id}`, { replace: true });
   };
 
   const handleReset = () => {
-    setProfile(null);
-    localStorage.removeItem(key);
+    // Remove from list and go back to list page
+    if (prepId && prepId !== "new") {
+      const list = loadPrepList(user.id);
+      savePrepList(user.id, list.filter((p) => p.id !== prepId));
+    }
+    navigate("/student/exam-prep", { replace: true });
   };
 
-  if (loading && !profile) {
+  const handleProfileUpdate = (updatedProfile) => {
+    const list = loadPrepList(user.id);
+    const updated = list.map((p) => (p.id === updatedProfile.id ? updatedProfile : p));
+    savePrepList(user.id, updated);
+    setProfile(updatedProfile);
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
         <span className="size-8 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
@@ -62,8 +90,22 @@ export default function ExamPrep() {
   }
 
   if (!profile) {
-    return <ExamSetupWizard user={user} navigate={navigate} onComplete={handleSetupComplete} />;
+    return (
+      <ExamSetupWizard
+        user={user}
+        navigate={navigate}
+        onComplete={handleSetupComplete}
+      />
+    );
   }
 
-  return <ExamDashboard user={user} navigate={navigate} profile={profile} onReset={handleReset} />;
+  return (
+    <ExamDashboard
+      user={user}
+      navigate={navigate}
+      profile={profile}
+      onReset={handleReset}
+      onProfileUpdate={handleProfileUpdate}
+    />
+  );
 }

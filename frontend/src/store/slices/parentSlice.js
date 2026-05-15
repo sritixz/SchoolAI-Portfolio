@@ -66,8 +66,18 @@ export const markTeacherMessageRead = createAsyncThunk("parent/markTeacherMessag
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const sendMessageToTeacher = createAsyncThunk("parent/sendMessageToTeacher", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/parent/messages", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const fetchParentMeetingRequests = createAsyncThunk("parent/fetchMeetingRequests", async (_, { rejectWithValue }) => {
   try { return (await api.get("/parent/meeting-requests")).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const fetchChildTeachers = createAsyncThunk("parent/fetchChildTeachers", async (childId, { rejectWithValue }) => {
+  try { return (await api.get("/parent/child-teachers", { params: { child_id: childId } })).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
@@ -154,7 +164,7 @@ export const selectSupportAlerts      = (s) => s.parent.supportAlerts;
 export const selectPortfolio          = (s) => s.parent.portfolio;
 export const selectLearningProfile    = (s) => s.parent.learningProfile;
 export const selectTeacherMessages    = (s) => s.parent.teacherMessages;
-export const selectUnreadMessages     = (s) => s.parent.teacherMessages.filter((m) => !m.read).length;
+export const selectUnreadMessages     = (s) => s.parent.teacherMessages.filter((m) => m.direction === "teacher_to_parent" && !m.read).length;
 export const selectParentMeetingRequests = (s) => s.parent.meetingRequests;
 
 export default parentSlice.reducer;

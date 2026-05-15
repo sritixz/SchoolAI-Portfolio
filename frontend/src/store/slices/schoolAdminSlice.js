@@ -110,6 +110,22 @@ export const updateParent = createAsyncThunk("schoolAdmin/updateParent", async (
   try { return (await api.patch(`/schooladmin/parents/${id}`, body)).data; }
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
+export const fetchTeacherCredentials = createAsyncThunk("schoolAdmin/fetchTeacherCredentials", async (id, { rejectWithValue }) => {
+  try { return (await api.get(`/schooladmin/teachers/${id}/credentials`)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+export const fetchParentCredentials = createAsyncThunk("schoolAdmin/fetchParentCredentials", async (id, { rejectWithValue }) => {
+  try { return (await api.get(`/schooladmin/parents/${id}/credentials`)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+export const linkChildToParent = createAsyncThunk("schoolAdmin/linkChildToParent", async ({ parentId, studentId }, { rejectWithValue }) => {
+  try { return (await api.post(`/schooladmin/parents/${parentId}/link-child/${studentId}`)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+export const unlinkChildFromParent = createAsyncThunk("schoolAdmin/unlinkChildFromParent", async ({ parentId, studentId }, { rejectWithValue }) => {
+  try { return (await api.delete(`/schooladmin/parents/${parentId}/unlink-child/${studentId}`)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
 
 export const fetchPerformanceTrends = createAsyncThunk("schoolAdmin/fetchPerformanceTrends", async (_, { rejectWithValue }) => {
   try { return (await api.get("/schooladmin/performance-trends")).data; }
@@ -218,6 +234,7 @@ const schoolAdminSlice = createSlice({
      createTeacher, updateTeacher, deleteTeacher,
      createStudent, updateStudent, deleteStudent, transferStudent,
      createParent, updateParent,
+     linkChildToParent, unlinkChildFromParent,
      upsertAssignment, removeAssignment,
      resetCredentials].forEach((thunk) => {
       b.addCase(thunk.pending,   (s) => { s.mutationStatus = "loading"; s.mutationError = null; })
@@ -240,6 +257,7 @@ export const selectTeachersStatus    = (s) => s.schoolAdmin.teachersStatus;
 export const selectStudents          = (s) => s.schoolAdmin.students;
 export const selectStudentsStatus    = (s) => s.schoolAdmin.studentsStatus;
 export const selectParents           = (s) => s.schoolAdmin.parents;
+export const selectParentsStatus     = (s) => s.schoolAdmin.parentsStatus;
 export const selectPerformanceMatrix = (s) => s.schoolAdmin.performanceMatrix;
 export const selectGapHeatmap        = (s) => s.schoolAdmin.gapHeatmap;
 export const selectCrossClass        = (s) => s.schoolAdmin.crossClass;

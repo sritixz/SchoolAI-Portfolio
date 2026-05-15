@@ -50,7 +50,14 @@ export default function StudentsTab() {
       setForm({ name: "", phone: "", roll_no: "", section_id: "", parent_name: "", parent_email: "", parent_phone: "" });
       setMode("list");
       dispatch(fetchStudents(filterSec ? { section_id: filterSec } : {}));
-    } catch (e) { setError(e?.detail || "Failed"); }
+    } catch (e) {
+      const detail = e?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map((d) => d.msg).join(", "));
+      } else {
+        setError(detail || e?.message || "Failed");
+      }
+    }
     finally { dispatch(clearMutationStatus()); }
   };
 
@@ -60,7 +67,14 @@ export default function StudentsTab() {
       await dispatch(updateStudent({ id: editId, ...editForm })).unwrap();
       setEditId(null); setSuccess("Student updated");
       dispatch(fetchStudents(filterSec ? { section_id: filterSec } : {}));
-    } catch (e) { setError(e?.detail || "Update failed"); }
+    } catch (e) {
+      const detail = e?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map((d) => d.msg).join(", "));
+      } else {
+        setError(detail || e?.message || "Update failed");
+      }
+    }
     finally { dispatch(clearMutationStatus()); }
   };
 
@@ -77,7 +91,12 @@ export default function StudentsTab() {
   const handleReset = async (id) => {
     try {
       const d = await dispatch(resetCredentials({ user_id: id })).unwrap();
-      setResetPw((p) => ({ ...p, [id]: d.new_password }));
+      if (d.otp) {
+        setResetPw((p) => ({ ...p, [id]: d.otp }));
+        setSuccess(`OTP generated: ${d.otp} (valid 30 min)`);
+      } else {
+        setResetPw((p) => ({ ...p, [id]: d.new_password }));
+      }
     } catch { setError("Reset failed"); }
     finally { dispatch(clearMutationStatus()); }
   };
@@ -192,6 +211,14 @@ export default function StudentsTab() {
           <div key={s._id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             {editId === s._id ? (
               <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex flex-wrap gap-4 items-center">
+                  <span className="material-symbols-outlined text-blue-500 text-base">phone_iphone</span>
+                  <div className="text-xs">
+                    <p className="font-bold text-blue-700 mb-0.5">Login Credentials</p>
+                    <p className="text-gray-600">Password (Phone): <span className="font-mono font-bold text-blue-800">{s.phone}</span></p>
+                    <p className="text-gray-400 italic">Student logs in via OTP sent to this number.</p>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <Input label="Name" value={editForm.name || ""} onChange={(v) => setEditForm((p) => ({ ...p, name: v }))} />
                   <Input label="Phone" value={editForm.phone || ""} onChange={(v) => setEditForm((p) => ({ ...p, phone: v }))} />
@@ -234,7 +261,14 @@ export default function StudentsTab() {
                   <span className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-2 py-1 rounded-lg font-bold flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs">phone_iphone</span>OTP Login
                   </span>
-                  {/* No reset button for students — they use phone OTP, not passwords */}
+                  {resetPw[s._id] && (
+                    <span className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded-lg font-mono">
+                      OTP: {resetPw[s._id]}
+                    </span>
+                  )}
+                  <button onClick={() => handleReset(s._id)} className="text-xs text-gray-400 hover:text-[#695be6] font-bold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">lock_reset</span>Gen OTP
+                  </button>
                   <button
                     onClick={() => { setEditId(s._id); setEditForm({ name: s.name, phone: s.phone, roll_no: s.roll_no }); }}
                     className="text-xs text-[#695be6] font-bold flex items-center gap-1"

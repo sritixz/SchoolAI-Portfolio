@@ -124,7 +124,9 @@ export default function ParentTopicProgress() {
             <p className="font-bold">Topic Breakdown</p>
             {filteredTopics.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center text-gray-400">
-                <p>No topics found</p>
+                <span className="material-symbols-outlined text-4xl mb-2 block">bar_chart</span>
+                <p className="font-medium">No topic data yet</p>
+                <p className="text-sm mt-1">Topic progress will appear here once your child completes homework and assessments.</p>
               </div>
             ) : filteredTopics.map((t) => {
               const sc = STATUS_COLORS[t.status] || STATUS_COLORS["Developing"];

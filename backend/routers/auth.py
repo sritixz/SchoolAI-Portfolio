@@ -47,6 +47,8 @@ async def email_login(body: EmailLoginRequest, db=Depends(get_db)):
     user = await db.users.find_one({"email": body.email, "role": body.role})
     if not user or not pwd_ctx.verify(body.password, user.get("hashed_password", "")):
         raise HTTPException(401, "Invalid email or password")
+    if user.get("status") == "inactive":
+        raise HTTPException(403, "Account has been deactivated. Contact your school admin.")
     uid = str(user["_id"])
     return TokenResponse(
         access_token=_token(uid, user["role"]),
@@ -96,6 +98,8 @@ async def request_otp(body: PhoneOtpRequest, db=Depends(get_db)):
     user = await db.users.find_one({"phone": body.phone, "role": body.role})
     if not user:
         raise HTTPException(404, "Phone number not registered. Contact your school admin.")
+    if user.get("status") == "inactive":
+        raise HTTPException(403, "Account has been deactivated. Contact your school admin.")
 
     otp = _gen_otp()
     expires = (datetime.utcnow() + timedelta(minutes=10)).isoformat()

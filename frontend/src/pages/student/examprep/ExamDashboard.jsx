@@ -19,7 +19,7 @@ const MODE_META = {
   last_day:  { label: "Last-Day Mode",  color: "bg-red-100 text-red-700",     icon: "emergency_home", desc: "Ultra-short revision only" },
 };
 
-export default function ExamDashboard({ user, navigate, profile, onReset }) {
+export default function ExamDashboard({ user, navigate, profile, onReset, onProfileUpdate }) {
   const [activeTab, setActiveTab]   = useState("today");
   const [studyPlan, setStudyPlan]   = useState(profile.studyPlan || []);
   const [readiness, setReadiness]   = useState(profile.readiness || {});
@@ -67,6 +67,7 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
   const minDaysLeft = daysArr.length ? Math.min(...daysArr) : 0;
   const derivedMode = minDaysLeft <= 1 ? "last_day" : minDaysLeft <= 5 ? "revision" : "regular";
   const activeMode  = derivedMode !== "regular" ? derivedMode : currentMode;
+  const allExamsPast = freshSubjects.length > 0 && freshSubjects.every((s) => s.daysLeft === 0);
 
   const handleSessionToggle = async (dayNum, sessionIdx, done, subject, scorePct) => {
     // Optimistic update
@@ -95,7 +96,7 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate("/student")} className="p-2 hover:bg-gray-100 rounded-lg">
+            <button onClick={() => navigate("/student/exam-prep")} className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-600 text-xl">arrow_back</span>
             </button>
             <div>
@@ -108,6 +109,34 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
               <span className="material-symbols-outlined text-xs">{modeMeta.icon}</span>
               {modeMeta.label}
             </span>
+            <button
+              onClick={async () => {
+                setLoadingPlan(true);
+                try {
+                  const r = await api.post("/student/exam-prep/setup", {
+                    class: profile.class,
+                    board: profile.board,
+                    state_board: profile.stateBoard,
+                    subjects: profile.subjects,
+                    daily_study_minutes: profile.dailyStudyMinutes,
+                    self_assessment_scores: profile.selfAssessmentScores,
+                  });
+                  setStudyPlan(r.data.studyPlan || []);
+                  setReadiness(r.data.readiness || {});
+                  setAiInsights(r.data.aiInsights || []);
+                  setCurrentMode(r.data.currentMode || "regular");
+                  setWeakTopics(r.data.weakTopics || {});
+                  const updated = { ...profile, ...r.data };
+                  localStorage.setItem(`exam_prep_profile_${user?.id}`, JSON.stringify(updated));
+                  if (onProfileUpdate) onProfileUpdate(updated);
+                } catch { /* keep existing plan */ }
+                finally { setLoadingPlan(false); }
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+              title="Refresh study plan based on latest performance"
+            >
+              <span className="material-symbols-outlined text-gray-400 text-xl">refresh</span>
+            </button>
             <button onClick={onReset} className="p-2 hover:bg-gray-100 rounded-lg" title="Reset setup">
               <span className="material-symbols-outlined text-gray-400 text-xl">settings</span>
             </button>
@@ -136,6 +165,7 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
             activeMode={activeMode} modeMeta={modeMeta} weakTopics={weakTopics}
             onPractice={setPracticeSubject} onNotes={setNotesSubject}
             onSessionToggle={handleSessionToggle}
+            allExamsPast={allExamsPast} onReset={onReset}
           />
         )}
         {activeTab === "plan"     && <FullPlanTab studyPlan={studyPlan} loading={loadingPlan} onSessionToggle={handleSessionToggle} />}
@@ -170,9 +200,24 @@ export default function ExamDashboard({ user, navigate, profile, onReset }) {
 }
 
 // ── Today View ────────────────────────────────────────────────────────────────
-function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, loadingPlan, activeMode, modeMeta, weakTopics, onPractice, onNotes, onSessionToggle }) {
+function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, loadingPlan, activeMode, modeMeta, weakTopics, onPractice, onNotes, onSessionToggle, allExamsPast, onReset }) {
   return (
     <>
+      {allExamsPast && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-black text-sm text-green-800">🎉 All exams completed!</p>
+            <p className="text-xs text-green-600 mt-0.5">Ready to prep for new exams?</p>
+          </div>
+          <button
+            onClick={onReset}
+            className="shrink-0 flex items-center gap-1.5 bg-[#695be6] text-white text-xs font-bold px-3 py-2 rounded-xl hover:bg-[#5a4dd4] transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">replay</span>
+            Start Over
+          </button>
+        </div>
+      )}
       <ReadinessReport profile={profile} readiness={readiness} />
 
       {/* Mode Banner */}

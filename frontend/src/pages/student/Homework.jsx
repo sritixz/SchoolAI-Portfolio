@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getFirstName, getInitial } from "../../utils/nameUtils";
 import { useNavigate } from "react-router-dom";
 import { fetchStudentHomework, selectStudentHomework, selectStudentHwStatus } from "../../store/slices/homeworkSlice";
 
@@ -61,19 +62,19 @@ function HomeworkCard({ hw }) {
   })[hw.status] ?? { label: "Open", cls: "bg-gray-100 text-gray-700" };
 
   return (
-    <div className={`bg-white p-8 rounded-xl shadow-sm border border-l-4 ${sc.border} hover:shadow-lg transition-shadow ${hw.status === "overdue" ? "opacity-90 hover:opacity-100" : ""}`}>
+    <div className={`bg-white p-4 sm:p-8 rounded-xl shadow-sm border border-l-4 ${sc.border} hover:shadow-lg transition-shadow ${hw.status === "overdue" ? "opacity-90 hover:opacity-100" : ""}`}>
       {/* Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
+      <div className="flex flex-wrap justify-between items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap gap-2 items-center">
-            <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${subjectCls}`}>
+            <span className={`px-2 sm:px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${subjectCls}`}>
               {hw.subject}
             </span>
-            <span className={`px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${sc.badge}`}>
+            <span className={`px-2 sm:px-3 py-1 text-xs font-bold rounded-full uppercase tracking-wider ${sc.badge}`}>
               {sc.label}
             </span>
           </div>
-          <h3 className="text-2xl font-bold mt-2 text-[#2D2D2D]">{hw.title}</h3>
+          <h3 className="text-lg sm:text-2xl font-bold mt-2 text-[#2D2D2D]">{hw.title}</h3>
           <p className="text-sm text-gray-500 mt-0.5">Assigned by {hw.assignedBy}</p>
         </div>
         {hw.status === "completed" && hw.grade && (
@@ -213,7 +214,7 @@ function HomeworkCard({ hw }) {
               navigate(`/student/homework/${hw.id}`);
             }
           }}
-          className={`flex-1 py-4 font-bold rounded-full transition-all text-lg ${actionBtn.cls}`}
+          className={`flex-1 py-3 sm:py-4 font-bold rounded-full transition-all text-base sm:text-lg ${actionBtn.cls}`}
         >
           {actionBtn.label}
         </button>
@@ -277,7 +278,16 @@ export default function StudentHomework() {
     <div className="flex min-h-screen bg-[#FFF0F0]" style={{ fontFamily: "'Lexend', sans-serif" }}>
 
       {/* ── Sidebar ── */}
-      <aside className="w-72 sticky top-0 h-screen bg-white border-r border-gray-200 flex flex-col p-6 overflow-y-auto shrink-0">
+      <aside className="hidden md:flex w-72 sticky top-0 h-screen bg-white border-r border-gray-200 flex-col p-6 overflow-y-auto shrink-0">
+        {/* Back to Dashboard */}
+        <button
+          onClick={() => navigate("/student")}
+          className="flex items-center gap-2 mb-6 px-3 py-2 rounded-xl hover:bg-gray-100 text-gray-600 font-semibold text-sm transition-colors self-start"
+        >
+          <span className="material-symbols-outlined text-base">arrow_back</span>
+          Dashboard
+        </button>
+
         {/* Profile */}
         <div className="flex items-center gap-4 mb-8">
           <div className="size-14 rounded-full p-0.5 border-2 border-[#6B5CE7] shrink-0">
@@ -285,12 +295,12 @@ export default function StudentHomework() {
               <img src={user.avatar} alt="avatar" className="w-full h-full rounded-full object-cover" />
             ) : (
               <div className="w-full h-full rounded-full bg-[#6B5CE7] flex items-center justify-center text-white font-bold">
-                {user?.name?.[0]}
+                {getInitial(user?.name)}
               </div>
             )}
           </div>
           <div>
-            <h1 className="text-base font-bold leading-tight">Good Morning, {user?.name?.split(" ")[0]}</h1>
+            <h1 className="text-base font-bold leading-tight">Good Morning, {getFirstName(user?.name) || "Student"}</h1>
             <p className="text-xs text-gray-500 font-medium">Friday, 27 March 2026</p>
           </div>
         </div>
@@ -347,35 +357,49 @@ export default function StudentHomework() {
             </button>
           ))}
         </div>
-
-        {/* Back to home */}
-        <button
-          onClick={() => navigate("/student")}
-          className="mt-auto pt-6 flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">arrow_back</span> Back to Home
-        </button>
       </aside>
 
       {/* ── Main ── */}
-      <main className="flex-1 px-10 py-8 overflow-y-auto">
+      <main className="flex-1 px-4 sm:px-10 py-6 sm:py-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-[#2D2D2D]">
-              Your Homework
-              {(activeStatus || activeSubject) && (
-                <span className="ml-3 text-base font-medium text-gray-400">
-                  {filtered.length} result{filtered.length !== 1 ? "s" : ""}
-                </span>
-              )}
-            </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6 sm:mb-8">
+            <div className="flex items-center gap-3">
+              <button onClick={() => navigate("/student")} className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 shadow-sm">
+                <span className="material-symbols-outlined text-base">arrow_back</span>
+                Home
+              </button>
+              <h2 className="text-xl sm:text-3xl font-bold text-[#2D2D2D]">
+                Your Homework
+                {(activeStatus || activeSubject) && (
+                  <span className="ml-3 text-sm sm:text-base font-medium text-gray-400">
+                    {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </h2>
+            </div>
             <button
               onClick={sortCycle}
-              className="flex items-center gap-2 text-[#6B5CE7] font-bold cursor-pointer hover:bg-gray-100 transition-colors bg-[#F9F9F9] px-4 py-2 rounded-full border border-gray-200"
+              className="flex items-center gap-2 text-[#6B5CE7] font-bold cursor-pointer hover:bg-gray-100 transition-colors bg-[#F9F9F9] px-3 sm:px-4 py-2 rounded-full border border-gray-200 text-sm"
             >
-              <span>Sort by: {sortLabels[sortOrder]}</span>
+              <span>Sort: {sortLabels[sortOrder]}</span>
               <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
             </button>
+          </div>
+
+          {/* Mobile status filters */}
+          <div className="md:hidden flex gap-2 overflow-x-auto pb-3 mb-4" style={{ scrollbarWidth: "none" }}>
+            {[
+              { key: null,         label: "All",         bg: "bg-gray-100",   text: "text-gray-700" },
+              { key: "pending",    label: "Pending",     bg: "bg-[#FFE5E5]",  text: "text-red-700" },
+              { key: "overdue",    label: "Overdue",     bg: "bg-[#FFB3BA]",  text: "text-red-800" },
+              { key: "in_progress",label: "In Progress", bg: "bg-[#D4C5F9]",  text: "text-indigo-800" },
+              { key: "completed",  label: "Completed",   bg: "bg-[#C8E6C9]",  text: "text-green-800" },
+            ].map(({ key, label, bg, text }) => (
+              <button key={label} onClick={() => setActiveStatus(key)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${bg} ${text} ${activeStatus === key ? "border-[#6B5CE7]" : "border-transparent"}`}>
+                {label}
+              </button>
+            ))}
           </div>
 
           {filtered.length === 0 ? (
@@ -392,8 +416,8 @@ export default function StudentHomework() {
       </main>
 
       {/* ── LumiTutor FAB ── */}
-      <div className="fixed bottom-8 right-8 flex flex-col items-end gap-3">
-        <div className="bg-white px-4 py-2 rounded-xl shadow-xl border border-gray-100 mb-2 relative">
+      <div className="fixed bottom-6 right-4 sm:bottom-8 sm:right-8 flex flex-col items-end gap-3">
+        <div className="hidden sm:block bg-white px-4 py-2 rounded-xl shadow-xl border border-gray-100 mb-2 relative">
           <p className="text-sm font-medium text-[#2D2D2D]">Stuck? Ask me anything!</p>
           <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white rotate-45 border-r border-b border-gray-100"></div>
         </div>

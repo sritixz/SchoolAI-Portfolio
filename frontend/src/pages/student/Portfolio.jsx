@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../../api";
 
@@ -113,16 +114,47 @@ export default function Portfolio() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [entries, setEntries] = useState([]);
-  const [profile, setProfile] = useState(null);
-  const d = profile || PORTFOLIO_DATA;
+  const [profile, setProfile] = useState(PORTFOLIO_DATA);
+  const [studentInfo, setStudentInfo] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", bio: "" });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const d = profile;
 
   useEffect(() => {
+    // Fetch student profile for class, rollNo, school
+    api.get("/student/profile").then((r) => {
+      if (r.data) {
+        setStudentInfo(r.data);
+        setEditForm({ name: r.data.name || "", bio: r.data.bio || "" });
+      }
+    }).catch(() => {});
+
     api.get("/portfolio/student").then((r) => {
       if (r.data?.length) setEntries(r.data);
     }).catch(() => {});
-    // Fetch full portfolio summary (grades, attendance, badges, extracurricular, IB profile)
+
     api.get("/student/portfolio-summary").then((r) => {
-      if (r.data) setProfile(r.data);
+      if (r.data) {
+        setProfile({
+          bio: r.data.bio || PORTFOLIO_DATA.bio,
+          stats: {
+            attendance:       r.data.stats?.attendance       || PORTFOLIO_DATA.stats.attendance,
+            points:           r.data.stats?.points           ?? PORTFOLIO_DATA.stats.points,
+            conceptsMastered: r.data.stats?.conceptsMastered ?? PORTFOLIO_DATA.stats.conceptsMastered,
+            improvement:      r.data.stats?.improvement      || PORTFOLIO_DATA.stats.improvement,
+            classRank:        r.data.stats?.classRank        || PORTFOLIO_DATA.stats.classRank,
+          },
+          // Only use API data if it's non-empty, otherwise fall back to mock
+          ibProfile:        r.data.ibProfile?.length        ? r.data.ibProfile        : PORTFOLIO_DATA.ibProfile,
+          academicProgress: r.data.academicProgress?.length ? r.data.academicProgress : PORTFOLIO_DATA.academicProgress,
+          badges:           r.data.badges?.length           ? r.data.badges           : PORTFOLIO_DATA.badges,
+          extracurricular:  r.data.extracurricular?.length  ? r.data.extracurricular  : PORTFOLIO_DATA.extracurricular,
+          projects:         PORTFOLIO_DATA.projects,
+          appreciations:    PORTFOLIO_DATA.appreciations,
+        });
+      }
     }).catch(() => {});
   }, []);
 
@@ -136,7 +168,7 @@ export default function Portfolio() {
     grade: e.grade || "",
     date: e.created_at ? new Date(e.created_at).toLocaleDateString() : "",
     tags: e.tags || [],
-  })) : d.projects;
+  })) : (d.projects || []);
 
   // Appreciations from API (teacher_note entries) or fall back to mock
   const apiAppreciations = entries.filter((e) => e.type === "teacher_note" || e.type === "achievement");
@@ -149,7 +181,7 @@ export default function Portfolio() {
         message: e.text || "",
         stars: 0,
       }))
-    : d.appreciations;
+    : (d.appreciations || []);
 
   return (
     <div className="min-h-screen bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -170,7 +202,9 @@ export default function Portfolio() {
             <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">My Portfolio</h1>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm">
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm">
               <span className="material-symbols-outlined text-[20px]">edit</span>
               <span>Edit Profile</span>
             </button>
@@ -188,19 +222,23 @@ export default function Portfolio() {
         <section className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#695be6] to-[#D4C5F9] p-8 text-white shadow-xl shadow-[#695be6]/10">
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
             <div className="size-[100px] rounded-full border-4 border-white/30 p-1 bg-white/10 overflow-hidden shadow-inner shrink-0">
-              {user?.avatar
-                ? <img src={user.avatar} alt="avatar" className="w-full h-full object-cover rounded-full" />
-                : <div className="w-full h-full bg-white/20 rounded-full flex items-center justify-center text-4xl font-black">{user?.name?.[0]}</div>
+              {(user?.avatar || studentInfo?.avatar)
+                ? <img src={user?.avatar || studentInfo?.avatar} alt="avatar" className="w-full h-full object-cover rounded-full" />
+                : <div className="w-full h-full bg-white/20 rounded-full flex items-center justify-center text-4xl font-black">{getInitial(user?.name || studentInfo?.name)}</div>
               }
             </div>
             <div className="text-center md:text-left">
-              <h2 className="text-4xl font-bold mb-1">{user?.name}</h2>
-              <p className="text-white/90 text-lg font-medium">Class {user?.class} · Roll No. {user?.rollNo}</p>
+              <h2 className="text-4xl font-bold mb-1">{user?.name || studentInfo?.name}</h2>
+              <p className="text-white/90 text-lg font-medium">
+                {studentInfo?.class_name || studentInfo?.grade ? `Class ${studentInfo?.class_name || studentInfo?.grade}` : ""}
+                {(studentInfo?.class_name || studentInfo?.grade) && studentInfo?.roll_no ? " · " : ""}
+                {studentInfo?.roll_no ? `Roll No. ${studentInfo.roll_no}` : ""}
+              </p>
               <div className="flex items-center justify-center md:justify-start gap-2 mt-2 text-white/80">
                 <span className="material-symbols-outlined text-sm">school</span>
-                <span className="text-sm">{user?.school}</span>
+                <span className="text-sm">{studentInfo?.school || "—"}</span>
               </div>
-              <p className="mt-3 text-white/80 text-sm leading-relaxed max-w-md">{d.bio}</p>
+              <p className="mt-3 text-white/80 text-sm leading-relaxed max-w-md">{studentInfo?.bio || d.bio}</p>
             </div>
             <div className="hidden lg:flex ml-auto gap-4 shrink-0">
               <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 text-center min-w-[110px]">
@@ -229,28 +267,36 @@ export default function Portfolio() {
                 <span className="material-symbols-outlined text-[#695be6]">psychology</span>
                 IB Learner Profile
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {d.ibProfile.map((ib) => {
-                  const c = IB_COLORS[ib.color];
-                  return (
-                    <div key={ib.id} className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className={`size-12 rounded-lg ${c.bg} ${c.text} flex items-center justify-center`}>
-                          <span className="material-symbols-outlined text-2xl">{ib.icon}</span>
+              {d.ibProfile.length === 0 ? (
+                <div className="bg-white rounded-lg border border-gray-100 p-8 text-center text-gray-400">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">psychology</span>
+                  <p className="font-semibold text-sm">No IB profile data yet</p>
+                  <p className="text-xs mt-1">Your teacher will add IB learner profile evidence here</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {d.ibProfile.map((ib) => {
+                    const c = IB_COLORS[ib.color] || IB_COLORS.blue;
+                    return (
+                      <div key={ib.id} className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className={`size-12 rounded-lg ${c.bg} ${c.text} flex items-center justify-center`}>
+                            <span className="material-symbols-outlined text-2xl">{ib.icon}</span>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${c.badge}`}>{ib.evidenceCount} Evidence</span>
                         </div>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${c.badge}`}>{ib.evidenceCount} Evidence</span>
-                      </div>
-                      <h4 className="font-bold text-lg mb-1">{ib.trait}</h4>
-                      <div className="flex items-center gap-3 mt-4">
-                        <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
-                          <div className={`${c.bar} h-full rounded-full`} style={{ width: `${ib.percent}%` }} />
+                        <h4 className="font-bold text-lg mb-1">{ib.trait}</h4>
+                        <div className="flex items-center gap-3 mt-4">
+                          <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
+                            <div className={`${c.bar} h-full rounded-full`} style={{ width: `${ib.percent}%` }} />
+                          </div>
+                          <span className={`text-sm font-bold ${c.text}`}>{ib.percent}%</span>
                         </div>
-                        <span className={`text-sm font-bold ${c.text}`}>{ib.percent}%</span>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Academic Progress */}
@@ -263,33 +309,43 @@ export default function Portfolio() {
                 <span className="text-sm text-gray-500 font-medium">Semester 2 • 2026</span>
               </div>
               <div className="p-6 space-y-6">
-                <div className="space-y-4">
-                  {d.academicProgress.map((s) => (
-                    <div key={s.subject}>
-                      <div className="flex justify-between mb-1.5 px-1">
-                        <span className="font-medium text-sm">{s.subject}</span>
-                        <span className="font-bold text-sm">{s.percent}%</span>
+                {d.academicProgress.length === 0 ? (
+                  <div className="text-center text-gray-400 py-6">
+                    <span className="material-symbols-outlined text-4xl mb-2 block">monitoring</span>
+                    <p className="font-semibold text-sm">No grades recorded yet</p>
+                    <p className="text-xs mt-1">Grades will appear here once your teacher adds them</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      {d.academicProgress.map((s) => (
+                        <div key={s.subject}>
+                          <div className="flex justify-between mb-1.5 px-1">
+                            <span className="font-medium text-sm">{s.subject}</span>
+                            <span className="font-bold text-sm">{s.percent}%</span>
+                          </div>
+                          <div className="bg-gray-100 h-4 rounded-full overflow-hidden">
+                            <div className="bg-[#695be6] h-full rounded-full" style={{ width: `${s.percent}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#695be6]">{d.stats.conceptsMastered}</p>
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Concepts Mastered</p>
                       </div>
-                      <div className="bg-gray-100 h-4 rounded-full overflow-hidden">
-                        <div className="bg-[#695be6] h-full rounded-full" style={{ width: `${s.percent}%` }} />
+                      <div className="text-center border-x border-gray-100 px-4">
+                        <p className="text-2xl font-bold text-emerald-500">{d.stats.improvement}</p>
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Improvement</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#695be6]">{d.stats.classRank}</p>
+                        <p className="text-[10px] uppercase font-bold text-gray-400">Class Rank</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-[#695be6]">{d.stats.conceptsMastered}</p>
-                    <p className="text-[10px] uppercase font-bold text-gray-400">Concepts Mastered</p>
-                  </div>
-                  <div className="text-center border-x border-gray-100 px-4">
-                    <p className="text-2xl font-bold text-emerald-500">{d.stats.improvement}</p>
-                    <p className="text-[10px] uppercase font-bold text-gray-400">Improvement</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-[#695be6]">{d.stats.classRank}</p>
-                    <p className="text-[10px] uppercase font-bold text-gray-400">Class Rank</p>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -299,25 +355,33 @@ export default function Portfolio() {
                 <span className="material-symbols-outlined text-[#695be6]">folder_special</span>
                 Projects
               </h3>
-              <div className="space-y-4">
-                {projects.map((p) => (
-                  <div key={p.id} className="p-4 border border-slate-100 rounded-xl hover:border-[#695be6]/30 transition-colors">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <h4 className="font-bold text-slate-800">{p.title}</h4>
-                        <p className="text-xs text-slate-400">{p.subject} · {p.date}</p>
+              {projects.length === 0 ? (
+                <div className="text-center text-gray-400 py-6">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">folder_open</span>
+                  <p className="font-semibold text-sm">No projects yet</p>
+                  <p className="text-xs mt-1">Projects added by your teacher will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {projects.map((p) => (
+                    <div key={p.id} className="p-4 border border-slate-100 rounded-xl hover:border-[#695be6]/30 transition-colors">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                          <h4 className="font-bold text-slate-800">{p.title}</h4>
+                          <p className="text-xs text-slate-400">{p.subject} · {p.date}</p>
+                        </div>
+                        {p.grade && <span className="text-lg font-black text-green-600">{p.grade}</span>}
                       </div>
-                      <span className="text-lg font-black text-green-600">{p.grade}</span>
+                      <p className="text-sm text-slate-600 mb-3">{p.description}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.tags.map((t) => (
+                          <span key={t} className="px-2 py-0.5 bg-[#695be6]/10 text-[#695be6] text-xs font-medium rounded-full">{t}</span>
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-sm text-slate-600 mb-3">{p.description}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.tags.map((t) => (
-                        <span key={t} className="px-2 py-0.5 bg-[#695be6]/10 text-[#695be6] text-xs font-medium rounded-full">{t}</span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Extracurricular */}
@@ -326,19 +390,27 @@ export default function Portfolio() {
                 <span className="material-symbols-outlined text-[#695be6]">diversity_3</span>
                 Extracurricular
               </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {d.extracurricular.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                    <div className="size-9 bg-[#695be6]/10 rounded-lg flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[#695be6] text-lg">{e.icon}</span>
+              {d.extracurricular.length === 0 ? (
+                <div className="text-center text-gray-400 py-6">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">diversity_3</span>
+                  <p className="font-semibold text-sm">No activities recorded yet</p>
+                  <p className="text-xs mt-1">Clubs and activities will appear here once added</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {d.extracurricular.map((e) => (
+                    <div key={e.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                      <div className="size-9 bg-[#695be6]/10 rounded-lg flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[#695be6] text-lg">{e.icon}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 leading-tight">{e.name}</p>
+                        <p className="text-xs text-slate-400">{e.role}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-800 leading-tight">{e.name}</p>
-                      <p className="text-xs text-slate-400">{e.role}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -351,17 +423,25 @@ export default function Portfolio() {
                 <span className="material-symbols-outlined text-yellow-500">military_tech</span>
                 Badges & Awards
               </h3>
-              <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: "none" }}>
-                {d.badges.map((b) => (
-                  <div key={b.id} className="flex-shrink-0 text-center space-y-2 group cursor-pointer">
-                    <div className={`size-16 rounded-full ${BADGE_COLORS[b.color]} flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm`}>
-                      <span className="material-symbols-outlined text-3xl">{b.icon}</span>
+              {d.badges.length === 0 ? (
+                <div className="text-center text-gray-400 py-6">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">military_tech</span>
+                  <p className="font-semibold text-sm">No badges yet</p>
+                  <p className="text-xs mt-1">Keep completing tasks to earn badges!</p>
+                </div>
+              ) : (
+                <div className="flex gap-4 overflow-x-auto pb-4" style={{ scrollbarWidth: "none" }}>
+                  {d.badges.map((b) => (
+                    <div key={b.id} className="flex-shrink-0 text-center space-y-2 group cursor-pointer">
+                      <div className={`size-16 rounded-full ${BADGE_COLORS[b.color] || "bg-gray-100 text-gray-600"} flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm`}>
+                        <span className="material-symbols-outlined text-3xl">{b.icon}</span>
+                      </div>
+                      <p className="text-xs font-bold">{b.label}</p>
+                      <p className="text-[10px] text-gray-400">{b.date}</p>
                     </div>
-                    <p className="text-xs font-bold">{b.label}</p>
-                    <p className="text-[10px] text-gray-400">{b.date}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Appreciations timeline */}
@@ -432,6 +512,95 @@ export default function Portfolio() {
           )}
         </div>
       </nav>
+
+      {/* ── Edit Profile Modal ── */}
+      {editOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setEditOpen(false); setSaveError(""); }} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10" style={{ fontFamily: "'Lexend', sans-serif" }}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold">Edit Profile</h2>
+              <button onClick={() => { setEditOpen(false); setSaveError(""); }} className="size-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                <span className="material-symbols-outlined text-gray-500">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Read-only fields */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Read-only</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Class</span>
+                  <span className="font-semibold">{studentInfo?.class_name || studentInfo?.grade || "—"}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Roll No.</span>
+                  <span className="font-semibold">{studentInfo?.roll_no || "—"}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">School</span>
+                  <span className="font-semibold">{studentInfo?.school || "—"}</span>
+                </div>
+              </div>
+
+              {/* Editable fields */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Full Name</label>
+                <input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] focus:ring-2 focus:ring-[#695be6]/10"
+                  placeholder="Your full name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Bio</label>
+                <textarea
+                  value={editForm.bio}
+                  onChange={(e) => setEditForm((f) => ({ ...f, bio: e.target.value }))}
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] focus:ring-2 focus:ring-[#695be6]/10 resize-none"
+                  placeholder="Tell us about yourself..."
+                />
+              </div>
+
+              {saveError && <p className="text-xs text-red-500">{saveError}</p>}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setEditOpen(false); setSaveError(""); }}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true);
+                  setSaveError("");
+                  try {
+                    const payload = {};
+                    if (editForm.name.trim())  payload.name  = editForm.name.trim();
+                    if (editForm.bio.trim())   payload.bio   = editForm.bio.trim();
+                    const { data } = await api.patch("/student/profile", payload);
+                    setStudentInfo(data);
+                    setEditOpen(false);
+                  } catch (err) {
+                    setSaveError(err.response?.data?.detail || "Failed to save. Please try again.");
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-[#695be6] text-white rounded-xl text-sm font-bold hover:bg-[#5a4dd4] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? <><span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</> : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,12 @@
 from pydantic_settings import BaseSettings
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from backend directory
+backend_dir = Path(__file__).parent
+env_file = backend_dir / ".env"
+if env_file.exists():
+    load_dotenv(env_file)
 
 class Settings(BaseSettings):
     # MongoDB
@@ -8,13 +16,19 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60*24*60  # 60 days
 
     # OpenRouter (LLM)
     OPENROUTER_API_KEY: str = ""
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_MODEL: str = "openai/gpt-4o-mini"
     VIN_MODEL: str = "google/gemini-flash-1.5"  # Vin AI uses Gemini Flash
+
+    # Groq (Speech-to-Text)
+    GROQ_API_KEY: str = ""
+
+    # AssemblyAI (Speech-to-Text)
+    ASSEMBLYAI_API_KEY: str = ""
 
     # Pinecone
     PINECONE_API_KEY: str = ""
@@ -50,6 +64,16 @@ class Settings(BaseSettings):
     # Media search
     YOUTUBE_API_KEY: str = ""
     MEDIA_CACHE_TTL_DAYS: int = 30
+
+    # Google Custom Search (images) — free 100 queries/day
+    # Get API key: https://developers.google.com/custom-search/v1/introduction
+    # Create CSE: https://programmablesearchengine.google.com/
+    GOOGLE_CSE_API_KEY: str = ""
+    GOOGLE_CSE_ID: str = ""  # Your Programmable Search Engine ID
+
+    # Serper.dev (Google Images) — 2,500 free searches on signup, ~1s response
+    # Get your key at: https://serper.dev (no credit card required)
+    SERPER_API_KEY: str = ""
 
     # Dev
     DEBUG: bool = True          # set False in production to hide dev_otp

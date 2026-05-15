@@ -3,8 +3,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
-  GAP_HEALTH, GAP_SUBJECTS, SEVERITY_UI, SUBJECT_BADGE_UI,
-  LEARNING_GAPS, getGapsBySubject,
+  GAP_SUBJECTS, SEVERITY_UI, SUBJECT_BADGE_UI,
+  getGapsBySubject,
 } from "../../data/learningGapData";
 import {
   fetchLearningGaps, fetchGapHealth, analyzeGaps,
@@ -168,19 +168,28 @@ export default function LearningGaps() {
   const dispatch = useDispatch();
   const [activeSubject, setActiveSubject] = useState("All");
   const reduxGaps     = useSelector(selectGaps);
+  const gapsStatus    = useSelector(selectGapsStatus);
   const reduxHealth   = useSelector(selectGapHealth);
   const analyzeStatus = useSelector(selectAnalyzeStatus);
   const analyzeResult = useSelector(selectAnalyzeResult);
-  const [gaps,   setGaps]   = useState(LEARNING_GAPS);
-  const [health, setHealth] = useState(GAP_HEALTH);
+  const [gaps,   setGaps]   = useState([]);  // Start empty, not with fake data
+  const [health, setHealth] = useState({ score: 100, maxScore: 100, totalGaps: 0, resolvedGaps: 0, severity: { critical: 0, moderate: 0, minor: 0 } });
   const [analyzeMsg, setAnalyzeMsg] = useState(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   useEffect(() => {
     dispatch(fetchLearningGaps());
     dispatch(fetchGapHealth());
   }, [dispatch]);
 
-  useEffect(() => { if (reduxGaps.length)  setGaps(reduxGaps); },   [reduxGaps]);
+  // Update gaps when Redux data arrives
+  useEffect(() => {
+    if (gapsStatus === "succeeded") {
+      setGaps(reduxGaps);
+      setInitialLoadDone(true);
+    }
+  }, [reduxGaps, gapsStatus]);
+
   useEffect(() => { if (reduxHealth?.score !== undefined) setHealth((p) => ({ ...p, ...reduxHealth })); }, [reduxHealth]);
 
   // After analysis completes, refresh gaps and show message
@@ -199,10 +208,11 @@ export default function LearningGaps() {
   };
 
   const isAnalyzing = analyzeStatus === "loading";
+  const isLoading = gapsStatus === "loading" && !initialLoadDone;
 
   const filtered = activeSubject === "All" ? gaps : gaps.filter((g) => g.subject === activeSubject);
   const h = health;
-  const sevCounts = h.severity || { critical: gaps.filter(g=>g.severity==="critical").length, moderate: gaps.filter(g=>g.severity==="moderate").length, minor: gaps.filter(g=>g.severity==="minor").length };
+  const sevCounts = h.severity || { critical: 0, moderate: 0, minor: 0 };
   const totalForPct = (sevCounts.critical + sevCounts.moderate + sevCounts.minor) || 1;
   const sevPcts = {
     critical: (sevCounts.critical / totalForPct) * 100,
@@ -332,17 +342,39 @@ export default function LearningGaps() {
 
         {/* Gap cards */}
         <section className="grid grid-cols-1 gap-6">
-          {isAnalyzing
+          {isLoading || isAnalyzing
             ? (
               <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-400">
                 <span className="material-symbols-outlined text-5xl animate-spin text-[#685ae7]">progress_activity</span>
-                <p className="text-sm font-semibold">Analyzing your homework and assessment performance...</p>
-                <p className="text-xs">This may take a few seconds</p>
+                <p className="text-sm font-semibold">
+                  {isAnalyzing ? "Analyzing your homework and assessment performance..." : "Loading your learning gaps..."}
+                </p>
+                {isAnalyzing && <p className="text-xs">This may take a few seconds</p>}
               </div>
             )
-            : filtered.length === 0
-              ? <p className="text-center text-slate-400 py-12">No gaps found for this subject.</p>
-              : filtered.map((gap) => <GapCard key={gap.id || gap._id} gap={gap} />)
+            : gaps.length === 0
+              ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-4 text-slate-400">
+                  <div className="size-20 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                    <span className="material-symbols-outlined text-4xl">check_circle</span>
+                  </div>
+                  <div className="text-center max-w-md">
+                    <h3 className="text-lg font-bold text-slate-700 mb-2">No Learning Gaps Identified Yet</h3>
+                    <p className="text-sm text-slate-500 mb-4">
+                      Complete some homework assignments and we'll analyze your performance to identify areas where you can improve.
+                    </p>
+                    <button
+                      onClick={handleAnalyze}
+                      className="px-6 py-2 rounded-lg bg-[#685ae7] text-white text-sm font-bold hover:bg-[#685ae7]/90 transition-all"
+                    >
+                      Analyze My Performance
+                    </button>
+                  </div>
+                </div>
+              )
+              : filtered.length === 0
+                ? <p className="text-center text-slate-400 py-12">No gaps found for this subject.</p>
+                : filtered.map((gap) => <GapCard key={gap.id || gap._id} gap={gap} />)
           }
         </section>
 

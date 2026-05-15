@@ -86,6 +86,11 @@ export const confirmMeetingRequest = createAsyncThunk("teacher/confirmMeetingReq
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const markParentMessageRead = createAsyncThunk("teacher/markParentMessageRead", async (msgId, { rejectWithValue }) => {
+  try { await api.patch(`/teacher/parent-communication/${msgId}/read`); return msgId; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 // ── Student Groups ────────────────────────────────────────────
 export const fetchGroups = createAsyncThunk("teacher/fetchGroups", async (_, { rejectWithValue }) => {
   try { return (await api.get("/teacher/groups")).data; }
@@ -214,6 +219,10 @@ const teacherSlice = createSlice({
     b.addCase(fetchTopicMastery.fulfilled, (s, a) => { s.topicMastery = a.payload; });
 
     b.addCase(fetchParentMessages.fulfilled, (s, a) => { s.parentMessages = a.payload; s.parentMessagesStatus = "succeeded"; });
+    b.addCase(markParentMessageRead.fulfilled, (s, a) => {
+      const m = s.parentMessages.find((m) => m._id === a.payload || m.id === a.payload);
+      if (m) m.read = true;
+    });
 
     b.addCase(generateAiQuestions.pending,   (s) => { s.generateStatus = "loading"; s.generateError = null; })
      .addCase(generateAiQuestions.fulfilled, (s, a) => { s.generateStatus = "succeeded"; s.generatedQuestions = [...s.generatedQuestions, ...a.payload]; })
@@ -288,6 +297,7 @@ export const selectInterventions       = (s) => s.teacher.interventions;
 export const selectInterventionStats   = (s) => s.teacher.interventionStats;
 export const selectTopicMastery        = (s) => s.teacher.topicMastery;
 export const selectParentMessages      = (s) => s.teacher.parentMessages;
+export const selectUnreadParentMessages= (s) => s.teacher.parentMessages.filter((m) => m.direction === "parent_to_teacher" && !m.read).length;
 export const selectGeneratedQuestions  = (s) => s.teacher.generatedQuestions;
 export const selectGenerateStatus      = (s) => s.teacher.generateStatus;
 export const selectGenerateError       = (s) => s.teacher.generateError;

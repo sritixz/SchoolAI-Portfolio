@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchEvaluateList, gradeHomework, triggerAiAnalysis,
@@ -308,6 +308,7 @@ function SubmissionCard({ sub, selected, onClick }) {
 // ── Main ─────────────────────────────────────────────────────
 export default function EvaluateHomework() {
   const { id: homeworkId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -315,7 +316,8 @@ export default function EvaluateHomework() {
   const evaluateStatus = useSelector(selectEvaluateStatus);
 
   // Track selected submission by ID so we can re-sync after data refresh
-  const [selectedId, setSelectedId] = useState(null);
+  // Seed from ?student= param so deep-links from Home/Library work
+  const [selectedId, setSelectedId] = useState(() => searchParams.get("student") || null);
   const [overrides,  setOverrides]  = useState({});
   const [feedback,   setFeedback]   = useState("");
   const [grade,      setGrade]      = useState("");
@@ -366,12 +368,17 @@ export default function EvaluateHomework() {
 
   const runAI = async () => {
     if (!selected) return;
+    if (!selected.submission_file_url && (!selected.answers || selected.answers.length === 0)) {
+      setError("No file or answers found on this submission — OCR/AI analysis cannot run.");
+      return;
+    }
     setAiLoading(true);
     try {
       await dispatch(triggerAiAnalysis(selected._id)).unwrap();
       setTimeout(() => { load(); setAiLoading(false); }, 3500);
     } catch {
       setAiLoading(false);
+      setError("AI analysis failed. Please try again.");
     }
   };
 

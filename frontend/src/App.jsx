@@ -16,6 +16,7 @@ import GapQuiz from "./pages/student/GapQuiz";
 import QuizSelector from "./pages/student/QuizSelector";
 import Portfolio from "./pages/student/Portfolio";
 import ExamPrep from "./pages/student/ExamPrep";
+import ExamPrepList from "./pages/student/ExamPrepList";
 import StudentNotifications from "./pages/student/Notifications";
 import CareerExplorer from "./pages/student/CareerExplorer";
 import CareerCategory from "./pages/student/CareerCategory";
@@ -30,6 +31,7 @@ import ParentGrowthPortfolio from "./pages/parents/GrowthPortfolio";
 import ParentCuriosityPrompts from "./pages/parents/CuriosityPrompts";
 import ParentLearningProfile from "./pages/parents/LearningProfile";
 import ParentRequestMeeting from "./pages/parents/RequestMeeting";
+import ParentMessages from "./pages/parents/Messages";
 import TeacherHome from "./pages/teacher/Home";
 import TeacherAIAssistant from "./pages/teacher/AIAssistant";
 import TeacherInterventions from "./pages/teacher/InterventionAlerts";
@@ -85,7 +87,9 @@ export default function App() {
           <Route path="/student/learning-gaps/quizzes"        element={<S><QuizSelector /></S>} />
           <Route path="/student/learning-gaps/quiz/:quizId"   element={<S><GapQuiz /></S>} />
           <Route path="/student/portfolio"                    element={<S><Portfolio /></S>} />
-          <Route path="/student/exam-prep"                    element={<S><ExamPrep /></S>} />
+          <Route path="/student/exam-prep"                    element={<S><ExamPrepList /></S>} />
+          <Route path="/student/exam-prep/new"               element={<S><ExamPrep /></S>} />
+          <Route path="/student/exam-prep/:prepId"           element={<S><ExamPrep /></S>} />
           <Route path="/student/notifications"               element={<S><StudentNotifications /></S>} />
           <Route path="/student/career"                       element={<S><CareerExplorer /></S>} />
           <Route path="/student/career/:domainId"             element={<S><CareerCategory /></S>} />
@@ -102,6 +106,7 @@ export default function App() {
           <Route path="/parent/curiosity"           element={<S role="parent"><ParentCuriosityPrompts /></S>} />
           <Route path="/parent/learning-profile"    element={<S role="parent"><ParentLearningProfile /></S>} />
           <Route path="/parent/meeting"             element={<S role="parent"><ParentRequestMeeting /></S>} />
+          <Route path="/parent/messages"            element={<S role="parent"><ParentMessages /></S>} />
 
           {/* Teacher */}
           <Route path="/teacher"                          element={<S role="teacher"><TeacherHome /></S>} />

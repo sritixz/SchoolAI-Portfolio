@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { useDispatch, useSelector } from "react-redux";
 import {
   createHomework, updateHomework, assignHomework, fetchHomeworkById,
@@ -186,7 +187,7 @@ export default function CreateHomework() {
             <button className="hidden sm:flex items-center justify-center rounded-lg h-8 w-8 sm:h-10 sm:w-10 bg-[#eee8f3] hover:bg-[#ddd1e6] transition-colors">
               <span className="material-symbols-outlined text-[20px] sm:text-[24px]">settings</span>
             </button>
-            <div className="size-8 sm:size-10 rounded-full bg-[#932ce2] flex items-center justify-center text-white font-bold text-xs sm:text-sm border-2 border-[#932ce2]">{user?.name?.[0] || "T"}</div>
+            <div className="size-8 sm:size-10 rounded-full bg-[#932ce2] flex items-center justify-center text-white font-bold text-xs sm:text-sm border-2 border-[#932ce2]">{getInitial(user?.name) || "T"}</div>
           </div>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchMyStudents, selectMyStudents } from "../../store/slices/teacherSlice";
 import api from "../../api";
@@ -109,7 +110,7 @@ export default function QuickActions() {
 
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/teacher")} className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-500">arrow_back</span>
@@ -134,11 +135,11 @@ export default function QuickActions() {
               </div>
             </div>
           </nav>
-          <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{user?.name?.[0] || "T"}</div>
+          <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">{getInitial(user?.name) || "T"}</div>
         </div>
       </header>
 
-      <main className="max-w-[1200px] mx-auto pt-24 px-6 pb-12">
+      <main className="max-w-[1200px] mx-auto pt-20 sm:pt-24 px-4 sm:px-6 pb-12">
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-3xl font-black">Quick Actions</h1>

@@ -17,11 +17,12 @@ export default function StudentNotifications() {
   }, [dispatch]);
 
   const TYPE_ICON = {
-    homework_new:  { icon: "menu_book",       bg: "bg-[#695be6]/10", color: "text-[#695be6]", border: "border-l-[#695be6]" },
-    homework_due:  { icon: "schedule",        bg: "bg-orange-100",   color: "text-orange-500", border: "border-l-orange-400" },
-    achievement:   { icon: "emoji_events",    bg: "bg-green-100",    color: "text-green-600",  border: "border-l-green-500" },
-    overdue:       { icon: "error",           bg: "bg-red-100",      color: "text-red-600",    border: "border-l-red-500" },
-    teacher_message:{ icon: "school",         bg: "bg-blue-100",     color: "text-blue-600",   border: "border-l-blue-400" },
+    homework_new:    { icon: "menu_book",    bg: "bg-[#695be6]/10", color: "text-[#695be6]", border: "border-l-[#695be6]" },
+    homework_graded: { icon: "task_alt",     bg: "bg-green-100",    color: "text-green-600",  border: "border-l-green-500" },
+    homework_due:    { icon: "schedule",     bg: "bg-orange-100",   color: "text-orange-500", border: "border-l-orange-400" },
+    achievement:     { icon: "emoji_events", bg: "bg-green-100",    color: "text-green-600",  border: "border-l-green-500" },
+    overdue:         { icon: "error",        bg: "bg-red-100",      color: "text-red-600",    border: "border-l-red-500" },
+    teacher_message: { icon: "school",       bg: "bg-blue-100",     color: "text-blue-600",   border: "border-l-blue-400" },
   };
 
   const unread = notifications.filter((n) => !n.read).length;
@@ -68,7 +69,12 @@ export default function StudentNotifications() {
               return (
                 <div
                   key={id}
-                  onClick={() => { if (!n.read) dispatch(markStudentNotifRead(id)); }}
+                  onClick={() => {
+                    if (!n.read) dispatch(markStudentNotifRead(id));
+                    const hwId = n.homework_id;
+                    if (n.type === "homework_new" && hwId) navigate(`/student/homework/${hwId}`);
+                    else if (n.type === "homework_graded" && hwId) navigate(`/student/homework/${hwId}/result`);
+                  }}
                   className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${ic.border} shadow-sm p-4 cursor-pointer transition-opacity ${n.read ? "opacity-70" : ""}`}
                 >
                   <div className="flex items-start gap-3">

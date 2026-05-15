@@ -1,5 +1,6 @@
 import axios from "axios";
 import { requestStarted, requestFinished } from "./store/slices/loadingSlice";
+import { logoutUser } from "./store/slices/authSlice";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8001",
@@ -24,10 +25,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Stop global loader on response or error
+// Stop global loader on response or error; auto-logout on 401
 api.interceptors.response.use(
   (response) => { dispatch(requestFinished()); return response; },
-  (error)    => { dispatch(requestFinished()); return Promise.reject(error); }
+  (error) => {
+    dispatch(requestFinished());
+    if (error.response?.status === 401) {
+      dispatch(logoutUser());
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;

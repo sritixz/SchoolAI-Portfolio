@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
+import { getInitial } from "../../utils/nameUtils";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { selectAiHistory, removeHistoryItem, fetchHistory } from "../../store/slices/aiHistorySlice";
 import {
@@ -15,6 +16,7 @@ import {
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadConceptPdf } from "../../utils/aiPdfExport";
 import MediaPanel from "../../components/MediaPanel";
+import MathText from "../../components/MathText";
 
 export default function ConceptExplainer() {
   const navigate   = useNavigate();
@@ -113,7 +115,7 @@ export default function ConceptExplainer() {
               <span className="material-symbols-outlined text-gray-600">notifications</span>
             </div>
             <div className="size-9 rounded-full bg-[#695be6] flex items-center justify-center text-white font-bold text-sm">
-              {user?.name?.[0] || "T"}
+              {getInitial(user?.name) || "T"}
             </div>
           </div>
         </div>
@@ -483,7 +485,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
           {isEditing ? (
             <EditableText value={result.one_line_summary} onChange={(v) => updateField("one_line_summary", v)} rows={2} />
           ) : (
-            <p className="text-gray-700 leading-relaxed">{result.one_line_summary}</p>
+            <MathText text={result.one_line_summary} className="text-gray-700 leading-relaxed" tag="p" />
           )}
         </Section>
       )}
@@ -494,7 +496,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
           {isEditing ? (
             <EditableText value={result.plain_english_explanation} onChange={(v) => updateField("plain_english_explanation", v)} rows={4} />
           ) : (
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{result.plain_english_explanation}</p>
+            <MathText text={result.plain_english_explanation} className="text-gray-700 leading-relaxed whitespace-pre-line" tag="p" />
           )}
         </Section>
       )}
@@ -516,7 +518,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                       className="w-full bg-transparent border-b border-gray-200 outline-none text-xs text-gray-500 focus:border-[#695be6]" placeholder="Explanation" />
                   </div>
                 ) : (
-                  <span><strong>{s.action}</strong>{s.explanation ? ` — ${s.explanation}` : ""}</span>
+                  <span><MathText text={`${s.action}${s.explanation ? ` — ${s.explanation}` : ""}`} /></span>
                 )}
               </li>
             ))}
@@ -532,7 +534,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
               <EditableText value={result.diagram_description} onChange={(v) => updateField("diagram_description", v)} rows={3}
                 className="text-xs text-blue-800" />
             ) : (
-              <p className="text-xs text-blue-800 leading-relaxed whitespace-pre-line">{result.diagram_description}</p>
+              <MathText text={result.diagram_description} className="text-xs text-blue-800 leading-relaxed whitespace-pre-line" tag="p" />
             )}
           </div>
         </Section>
@@ -549,10 +551,10 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
               </>
             ) : (
               <>
-                <p className="font-semibold text-gray-800">{result.primary_analogy.analogy}</p>
-                <p className="text-xs text-gray-600">{result.primary_analogy.explanation}</p>
+                <MathText text={result.primary_analogy.analogy} className="font-semibold text-gray-800" tag="p" />
+                <MathText text={result.primary_analogy.explanation} className="text-xs text-gray-600" tag="p" />
                 {result.primary_analogy.limitations && (
-                  <p className="text-xs text-amber-700 italic">⚠ Limitation: {result.primary_analogy.limitations}</p>
+                  <MathText text={`⚠ Limitation: ${result.primary_analogy.limitations}`} className="text-xs text-amber-700 italic" tag="p" />
                 )}
               </>
             )}
@@ -567,7 +569,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
             {isEditing ? (
               <EditableText value={result.technical_explanation} onChange={(v) => updateField("technical_explanation", v)} rows={3} className="text-xs" />
             ) : (
-              <p className="text-xs text-gray-700 leading-relaxed">{result.technical_explanation}</p>
+              <MathText text={result.technical_explanation} className="text-xs text-gray-700 leading-relaxed" tag="p" />
             )}
           </div>
         </Section>
@@ -588,8 +590,8 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-bold text-green-800">{ex.example}</p>
-                    <p className="text-xs text-gray-600 mt-1">{ex.connection}</p>
+                    <MathText text={ex.example} className="text-xs font-bold text-green-800" tag="p" />
+                    <MathText text={ex.connection} className="text-xs text-gray-600 mt-1" tag="p" />
                   </>
                 )}
               </div>
@@ -613,9 +615,9 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                   </>
                 ) : (
                   <>
-                    <p className="text-xs font-bold text-red-700 mb-1">❌ {m.misconception}</p>
-                    <p className="text-xs text-green-700 font-semibold">✅ {m.correction}</p>
-                    {m.how_to_address && <p className="text-xs text-gray-500 italic mt-1">{m.how_to_address}</p>}
+                    <MathText text={`❌ ${m.misconception}`} className="text-xs font-bold text-red-700 mb-1" tag="p" />
+                    <MathText text={`✅ ${m.correction}`} className="text-xs text-green-700 font-semibold" tag="p" />
+                    {m.how_to_address && <MathText text={m.how_to_address} className="text-xs text-gray-500 italic mt-1" tag="p" />}
                   </>
                 )}
               </div>
@@ -639,7 +641,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                       className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
                   </span>
                 ) : (
-                  <><strong className="text-[#695be6]">{v.term}</strong>: {v.definition}</>
+                  <><strong className="text-[#695be6]">{v.term}</strong>: <MathText text={v.definition} /></>
                 )}
               </p>
             ))}
@@ -657,13 +659,13 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                   <input value={q.question || ""} onChange={(e) => updateArrayField("quick_check_questions", i, "question", e.target.value)}
                     className="w-full text-xs font-bold text-gray-700 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
                 ) : (
-                  <p className="text-xs font-bold text-gray-700">Q{i + 1}. {q.question}</p>
+                  <MathText text={`Q${i + 1}. ${q.question}`} className="text-xs font-bold text-gray-700" tag="p" />
                 )}
                 {q.options?.length > 0 && (
                   <ul className="mt-1 space-y-0.5">
                     {q.options.map((opt, j) => (
                       <li key={j} className={`text-xs ${opt.is_correct ? "text-green-700 font-semibold" : "text-gray-600"}`}>
-                        {String.fromCharCode(65 + j)}. {opt.text || opt} {opt.is_correct ? "✅" : ""}
+                        <MathText text={`${String.fromCharCode(65 + j)}. ${opt.text || opt}${opt.is_correct ? " ✅" : ""}`} />
                       </li>
                     ))}
                   </ul>
@@ -684,7 +686,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
             {isEditing ? (
               <EditableText value={result.exam_answer_format} onChange={(v) => updateField("exam_answer_format", v)} rows={3} className="text-xs" />
             ) : (
-              <p className="text-xs text-gray-700 leading-relaxed">{result.exam_answer_format}</p>
+              <MathText text={result.exam_answer_format} className="text-xs text-gray-700 leading-relaxed" tag="p" />
             )}
           </div>
         </Section>
@@ -696,7 +698,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
           <div className="space-y-1">
             {result.key_vocabulary.map((v, i) => (
               <p key={i} className="text-xs text-gray-700">
-                <strong className="text-[#695be6]">{v.term}</strong>: {v.definition}
+                <strong className="text-[#695be6]">{v.term}</strong>: <MathText text={v.definition} />
                 {v.example_in_sentence && <span className="text-gray-400 italic"> — "{v.example_in_sentence}"</span>}
               </p>
             ))}
@@ -715,7 +717,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                   {isEditing ? (
                     <input value={t} onChange={(e) => updateArrayField("teaching_tips", i, null, e.target.value)}
                       className="flex-1 bg-transparent border-b border-purple-200 outline-none focus:border-[#695be6]" />
-                  ) : t}
+                  ) : <MathText text={t} />}
                 </li>
               ))}
             </ul>
@@ -730,7 +732,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
             {isEditing ? (
               <EditableText value={result.simplified_version} onChange={(v) => updateField("simplified_version", v)} rows={3} className="text-xs" />
             ) : (
-              <p className="text-xs text-gray-700 leading-relaxed">{result.simplified_version}</p>
+              <MathText text={result.simplified_version} className="text-xs text-gray-700 leading-relaxed" tag="p" />
             )}
           </div>
         </Section>
@@ -743,7 +745,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
             {isEditing ? (
               <EditableText value={result.extension_for_advanced} onChange={(v) => updateField("extension_for_advanced", v)} rows={3} className="text-xs" />
             ) : (
-              <p className="text-xs text-gray-700 leading-relaxed">{result.extension_for_advanced}</p>
+              <MathText text={result.extension_for_advanced} className="text-xs text-gray-700 leading-relaxed" tag="p" />
             )}
           </div>
         </Section>
@@ -759,7 +761,7 @@ function ConceptOutput({ result, isEditing, updateField, updateArrayField }) {
                 {isEditing ? (
                   <input value={q} onChange={(e) => updateArrayField("discussion_questions", i, null, e.target.value)}
                     className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:border-[#695be6]" />
-                ) : q}
+                ) : <MathText text={q} />}
               </p>
             ))}
           </div>

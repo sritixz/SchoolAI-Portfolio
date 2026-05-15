@@ -117,7 +117,7 @@ export default function RootCauseAnalysis() {
 
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => navigate("/teacher/analytics")} className="p-2 hover:bg-gray-100 rounded-lg">
               <span className="material-symbols-outlined text-gray-500">arrow_back</span>
@@ -149,7 +149,7 @@ export default function RootCauseAnalysis() {
         </div>
       </header>
 
-      <main className="max-w-[1200px] mx-auto pt-20 px-6 pb-12">
+      <main className="max-w-[1200px] mx-auto pt-20 px-4 sm:px-6 pb-12">
 
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
