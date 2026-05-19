@@ -549,12 +549,18 @@ export default function WorksheetGenerator() {
                             <span className="size-6 rounded-full bg-[#695be6] text-white text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{q.number}</span>
                             <div className="flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <textarea
-                                  value={q.text || ""}
-                                  onChange={(e) => updateSectionQuestion(si, qi, "text", e.target.value)}
-                                  rows={2}
-                                  className="flex-1 text-sm font-medium resize-none outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
-                                />
+                                <div className="flex-1">
+                                  <textarea
+                                    value={q.text || ""}
+                                    onChange={(e) => updateSectionQuestion(si, qi, "text", e.target.value)}
+                                    rows={2}
+                                    className="w-full text-sm font-medium resize-none outline-none border-b border-transparent hover:border-gray-300 focus:border-[#695be6] transition-colors"
+                                  />
+                                  {/* Math preview — shown when question contains math symbols */}
+                                  {q.text && /[$\\^_{}×÷²³√≤≥≠π∞]/.test(q.text) && (
+                                    <MathText text={q.text} className="text-xs text-[#695be6]/70 mt-1 italic" tag="p" />
+                                  )}
+                                </div>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <input
                                     type="number" min={1} max={20}

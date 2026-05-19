@@ -147,7 +147,7 @@ function GapCard({ gap }) {
             to="/student/vin-ai"
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#685ae7]/10 text-[#685ae7] hover:bg-[#685ae7]/20 transition-colors text-xs font-bold border border-[#685ae7]/20"
           >
-            <span className="material-symbols-outlined text-base">smart_toy</span>Ask Vin
+            <span className="material-symbols-outlined text-base">smart_toy</span>Ask LumiTutor
           </Link>
         </div>
         <Link
@@ -388,7 +388,7 @@ export default function LearningGaps() {
             <p className="text-sm text-slate-500 mt-2">Vin can analyze all your current gaps and create a 7-day schedule to get you back on track.</p>
           </div>
           <Link to="/student/vin-ai" className="mt-2 px-6 py-2 rounded-lg bg-white border border-[#ec5b13] text-[#ec5b13] font-bold hover:bg-[#ec5b13] hover:text-white transition-all">
-            Talk to Vin Assistant
+            Talk to LumiTutor
           </Link>
         </section>
       </main>

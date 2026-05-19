@@ -14,6 +14,39 @@ const GRAY    = [100, 100, 100];
 const LIGHT   = [245, 243, 255];
 const WHITE   = [255, 255, 255];
 
+/**
+ * Sanitize a string for jsPDF — replace Unicode math/chemistry symbols
+ * that jsPDF's built-in helvetica cannot render (shows as boxes/garbage).
+ */
+function _sanitizeForPdf(str) {
+  if (!str) return "";
+  return String(str)
+    // Arrows
+    .replace(/→/g, "->").replace(/←/g, "<-").replace(/⇌/g, "<->").replace(/⟶/g, "->")
+    // Subscripts
+    .replace(/₀/g,"0").replace(/₁/g,"1").replace(/₂/g,"2").replace(/₃/g,"3")
+    .replace(/₄/g,"4").replace(/₅/g,"5").replace(/₆/g,"6").replace(/₇/g,"7")
+    .replace(/₈/g,"8").replace(/₉/g,"9")
+    // Superscripts
+    .replace(/⁰/g,"^0").replace(/¹/g,"^1").replace(/²/g,"^2").replace(/³/g,"^3")
+    .replace(/⁴/g,"^4").replace(/⁵/g,"^5").replace(/⁶/g,"^6").replace(/⁷/g,"^7")
+    .replace(/⁸/g,"^8").replace(/⁹/g,"^9").replace(/⁺/g,"^+").replace(/⁻/g,"^-")
+    // Greek letters
+    .replace(/α/g,"alpha").replace(/β/g,"beta").replace(/γ/g,"gamma").replace(/δ/g,"delta")
+    .replace(/Δ/g,"Delta").replace(/λ/g,"lambda").replace(/μ/g,"mu").replace(/π/g,"pi")
+    .replace(/σ/g,"sigma").replace(/Σ/g,"Sigma").replace(/θ/g,"theta").replace(/Ω/g,"Omega")
+    // Math symbols
+    .replace(/±/g,"+/-").replace(/×/g,"x").replace(/÷/g,"/").replace(/≈/g,"~=")
+    .replace(/≠/g,"!=").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/∞/g,"inf")
+    .replace(/√/g,"sqrt").replace(/∑/g,"sum").replace(/∫/g,"integral")
+    // Chemistry
+    .replace(/°C/g,"deg C").replace(/°/g,"deg")
+    // Bullets/special chars that may not render
+    .replace(/•/g,"-").replace(/·/g,".").replace(/…/g,"...")
+    // Strip any remaining non-ASCII
+    .replace(/[^\x00-\x7F]/g, "");
+}
+
 function newDoc() {
   return new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 }
@@ -759,38 +792,40 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
   doc.setTextColor(25, 25, 35);
 
   // ── Right panel: image or diagram ────────────────────────────────────────
+  // Fixed column split: content = left 60%, image = right 38%, 2% gap
   const rpX = W * 0.62;
-  const rpW = W - rpX - 6;
+  const rpW = W - rpX - 4;
   const rpY = 28;
   const rpH = H - rpY - 44;
 
   const imgB64 = slide.content?.image_b64 || slide.content?._fetched_image;
   if (imgB64) {
-    // Embed real generated image — preserve aspect ratio (contain, not cover)
     try {
       const fmt = imgB64.includes("jpeg") || imgB64.includes("jpg") ? "JPEG" : "PNG";
       const raw = imgB64.startsWith("data:") ? imgB64.split(",")[1] : imgB64;
-
-      // Assume 4:3 source (1024×768 from Pollinations) — scale to fit panel
-      const natAspect = 4 / 3;
-      const panelAspect = rpW / rpH;
-      let drawW, drawH;
-      if (natAspect > panelAspect) {
-        drawW = rpW;
-        drawH = rpW / natAspect;
-      } else {
-        drawH = rpH;
-        drawW = rpH * natAspect;
-      }
-      const drawX = rpX + (rpW - drawW) / 2;
-      const drawY = rpY + (rpH - drawH) / 2;
 
       // Panel background
       doc.setFillColor(...accent.map(c => Math.min(255, c + 110)));
       doc.roundedRect(rpX, rpY, rpW, rpH, 4, 4, "F");
 
+      // Fill the panel — cover mode: scale to fill, crop overflow with clipping
+      const natAspect = 4 / 3;
+      const panelAspect = rpW / rpH;
+      let drawW, drawH;
+      if (natAspect > panelAspect) {
+        // Image is wider than panel — fit height, crop sides
+        drawH = rpH;
+        drawW = rpH * natAspect;
+      } else {
+        // Image is taller than panel — fit width, crop top/bottom
+        drawW = rpW;
+        drawH = rpW / natAspect;
+      }
+      const drawX = rpX + (rpW - drawW) / 2;
+      const drawY = rpY + (rpH - drawH) / 2;
+
       doc.addImage(raw, fmt, drawX, drawY, drawW, drawH, undefined, "FAST");
-      // Accent border
+      // Accent border on top of image
       doc.setDrawColor(...accent); doc.setLineWidth(1.5);
       doc.roundedRect(rpX, rpY, rpW, rpH, 3, 3, "S");
       // Slide type badge overlay
@@ -805,15 +840,15 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
     _drawDiagram(doc, slide, rpX, rpY, rpW, rpH, accent);
   }
 
-  // ── Content area (left side) ──────────────────────────────────────────────
+  // ── Content area (left side) — strictly bounded to left 60% ─────────────
   const contentX = 13;
-  const contentW = W * 0.59;
+  const contentW = W * 0.60 - contentX - 4;  // hard stop before right panel
   let y = 32;
 
   // Subtitle
   if (slide.subtitle) {
     doc.setFontSize(9); doc.setFont("helvetica", "italic"); doc.setTextColor(110, 100, 130);
-    doc.text(slide.subtitle, contentX, y);
+    doc.text(_sanitizeForPdf(slide.subtitle), contentX, y);
     doc.setTextColor(25, 25, 35); y += 7;
   }
 
@@ -825,7 +860,7 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
       doc.setFillColor(...accent);
       doc.roundedRect(contentX, y - 2.5, 3, 3, 0.5, 0.5, "F");
       doc.setFontSize(9.5); doc.setFont("helvetica", "normal"); doc.setTextColor(25, 25, 35);
-      const bLines = doc.splitTextToSize(String(b), contentW - 8);
+      const bLines = doc.splitTextToSize(_sanitizeForPdf(b), contentW - 8);
       doc.text(bLines, contentX + 6, y);
       y += bLines.length * 5.2 + 2;
     });
@@ -841,17 +876,32 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
       doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont("helvetica", "bold");
       doc.text(String(i + 1), contentX + 3.5, y, { align: "center" });
       doc.setTextColor(25, 25, 35); doc.setFontSize(9); doc.setFont("helvetica", "normal");
-      const sLines = doc.splitTextToSize(String(s), contentW - 12);
+      const sLines = doc.splitTextToSize(_sanitizeForPdf(s), contentW - 12);
       doc.text(sLines, contentX + 10, y);
       y += sLines.length * 5.2 + 3;
     });
     y += 2;
   }
 
+  // Formula — styled accent box
+  const formula = slide.content?.formula;
+  if (formula && y < H - 62) {
+    const fText = _sanitizeForPdf(formula);
+    const fLines = doc.splitTextToSize(fText, contentW - 10);
+    const fH = fLines.length * 5.5 + 8;
+    doc.setFillColor(...accentLight.map(c => Math.min(255, c + 30)));
+    doc.roundedRect(contentX - 1, y - 2, contentW + 2, fH, 2, 2, "F");
+    doc.setDrawColor(...accent); doc.setLineWidth(0.8);
+    doc.roundedRect(contentX - 1, y - 2, contentW + 2, fH, 2, 2, "S");
+    doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(...accent);
+    doc.text(fLines, contentX + 4, y + 3);
+    y += fH + 4;
+  }
+
   // Explanation paragraph — styled card
   const explanation = slide.content?.explanation;
   if (explanation && y < H - 62) {
-    const expLines = doc.splitTextToSize(String(explanation), contentW - 10);
+    const expLines = doc.splitTextToSize(_sanitizeForPdf(explanation), contentW - 10);
     const expH = Math.min(expLines.length * 4.8 + 8, 28);
     // Card background
     doc.setFillColor(...accentLight.map(c => Math.min(255, c + 50)));
@@ -869,13 +919,14 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
   if (keyTerms.length && y < H - 52) {
     keyTerms.slice(0, 2).forEach((kt) => {
       if (!kt?.term) return;
-      const termW = doc.getTextWidth(kt.term + ": ") + 4;
+      const termLabel = _sanitizeForPdf(kt.term) + ": ";
+      const termW = doc.getTextWidth(termLabel) + 4;
       doc.setFillColor(...accent);
       doc.roundedRect(contentX, y - 2, contentW, 9, 1.5, 1.5, "F");
       doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont("helvetica", "bold");
-      doc.text(kt.term + ":", contentX + 3, y + 4);
+      doc.text(termLabel, contentX + 3, y + 4);
       doc.setFont("helvetica", "normal");
-      const defLines = doc.splitTextToSize(kt.definition || "", contentW - termW - 4);
+      const defLines = doc.splitTextToSize(_sanitizeForPdf(kt.definition || ""), contentW - termW - 4);
       doc.text(defLines[0] || "", contentX + termW + 2, y + 4);
       y += 12;
     });
@@ -886,7 +937,7 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
   const questions = _getQuestions(slide);
   if (questions.length) {
     questions.forEach((q, qi) => {
-      const qText = q.question || (typeof q === "string" ? q : "");
+      const qText = _sanitizeForPdf(q.question || (typeof q === "string" ? q : ""));
       if (qText && y < H - 55) {
         doc.setFillColor(...accentLight);
         doc.roundedRect(contentX - 1, y - 2, contentW + 2, 8, 1, 1, "F");
@@ -905,7 +956,7 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
           doc.setFontSize(8.5);
           doc.setFont("helvetica", isCorrect ? "bold" : "normal");
           doc.setTextColor(isCorrect ? 22 : 70, isCorrect ? 101 : 70, isCorrect ? 52 : 70);
-          doc.text((isCorrect ? "✓ " : "   ") + String(opt), contentX + 4, y + 3);
+          doc.text((isCorrect ? "* " : "  ") + _sanitizeForPdf(String(opt)), contentX + 4, y + 3);
           y += 7;
         });
         y += 2;
@@ -923,7 +974,7 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
     doc.setFontSize(6.5); doc.setFont("helvetica", "bold"); doc.setTextColor(120, 60, 0);
     doc.text("SPEAKER NOTES", 15, noteY + 5.5);
     doc.setFont("helvetica", "normal"); doc.setTextColor(80, 50, 0);
-    const noteLines = doc.splitTextToSize(slide.speaker_notes, W * 0.55 - 10);
+    const noteLines = doc.splitTextToSize(_sanitizeForPdf(slide.speaker_notes), W * 0.55 - 10);
     doc.text(noteLines.slice(0, 2), 15, noteY + 11);
   }
 
@@ -937,7 +988,7 @@ function _drawSlide(doc, slide, slideNum, total, _unused = null) {
     doc.setFontSize(7); doc.setFont("helvetica", "bold"); doc.setTextColor(6, 95, 70);
     doc.text("Ask: ", 15, epY + 6.5);
     doc.setFont("helvetica", "normal");
-    const epLines = doc.splitTextToSize(slide.engagement_prompt, W * 0.55 - 22);
+    const epLines = doc.splitTextToSize(_sanitizeForPdf(slide.engagement_prompt), W * 0.55 - 22);
     doc.text(epLines[0] || "", 27, epY + 6.5);
   }
 
@@ -967,19 +1018,20 @@ export async function downloadPresentationPdf(result) {
   const total  = slides.length;
 
   // ── Pre-fetch all images via proxy in batches of 6 ───────────────────────
-  // If the preview already cached _fetched_image via the onLoad handler, this
-  // is nearly instant. Otherwise falls back to proxy/direct fetch.
   const BATCH = 6;
   for (let i = 0; i < total; i += BATCH) {
-    await Promise.all(
+    await Promise.allSettled(
       slides.slice(i, i + BATCH).map(async (slide) => {
-        // Guard: content must be a plain object to store _fetched_image
         if (typeof slide.content !== "object" || slide.content === null) {
           slide.content = {};
         }
-        if (slide.content._fetched_image) return; // already cached
-        const b64 = await _fetchSlideImage(slide);
-        if (b64) slide.content._fetched_image = b64;
+        if (slide.content._fetched_image) return;
+        try {
+          const b64 = await _fetchSlideImage(slide);
+          if (b64) slide.content._fetched_image = b64;
+        } catch {
+          // silently skip — diagram fallback will be used
+        }
       })
     );
   }
@@ -1290,17 +1342,21 @@ export async function downloadPresentationPptx(result) {
   const total  = slides.length;
 
   // Pre-fetch all images via proxy in batches of 6
+  // Non-blocking: a failed image just means we use the diagram fallback for that slide
   const BATCH = 6;
   for (let i = 0; i < total; i += BATCH) {
-    await Promise.all(
+    await Promise.allSettled(
       slides.slice(i, i + BATCH).map(async (slide) => {
-        // Guard: content must be a plain object to store _fetched_image
         if (typeof slide.content !== "object" || slide.content === null) {
           slide.content = {};
         }
         if (slide.content._fetched_image) return;
-        const b64 = await _fetchSlideImage(slide);
-        if (b64) slide.content._fetched_image = b64;
+        try {
+          const b64 = await _fetchSlideImage(slide);
+          if (b64) slide.content._fetched_image = b64;
+        } catch {
+          // silently skip — diagram fallback will be used
+        }
       })
     );
   }

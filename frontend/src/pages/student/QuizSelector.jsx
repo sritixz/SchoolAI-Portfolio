@@ -4,7 +4,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getInitial } from "../../utils/nameUtils";
 import { fetchQuizList, selectQuizList, selectQuizListStatus } from "../../store/slices/learningGapsSlice";
-import { QUIZ_BANK } from "../../data/learningGapData";
 
 const DIFFICULTY_COLORS = {
   easy:   "bg-green-100 text-green-700",
@@ -32,7 +31,7 @@ export default function QuizSelector() {
 
   useEffect(() => { dispatch(fetchQuizList()); }, [dispatch]);
 
-  const quizzes = apiQuizzes.length ? apiQuizzes : QUIZ_BANK;
+  const quizzes = apiQuizzes.length ? apiQuizzes : [];
 
   const subjects = ["All", ...new Set(quizzes.map((q) => q.subject))];
   const difficulties = ["All", "easy", "medium", "hard"];
@@ -108,7 +107,15 @@ export default function QuizSelector() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <span className="material-symbols-outlined text-5xl mb-3 block">search_off</span>
-            <p className="font-semibold">No quizzes match your filters.</p>
+            <p className="font-semibold mb-1">No quizzes available yet.</p>
+            <p className="text-sm mb-6">Quizzes are generated based on your learning gaps. Complete some homework and run an analysis first.</p>
+            <Link
+              to="/student/learning-gaps/gaps"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#685ae7] text-white text-sm font-bold hover:bg-[#685ae7]/90 transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">insights</span>
+              View My Learning Gaps
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

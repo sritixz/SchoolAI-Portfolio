@@ -51,13 +51,21 @@ export function renderMath(text) {
   );
 
   // 3. Inline math: $...$
-  // Require meaningful math content to avoid treating "$5" as LaTeX
+  // Require meaningful math content to avoid treating "$5" (currency) as LaTeX.
+  // Rules:
+  //   - Must contain at least one math operator/symbol (not just digits)
+  //   - Must NOT be a plain number like "$5" or "$100"
+  //   - Must NOT start with a digit (currency guard: $5, $100, $1.5)
   result = result.replace(/(?<!\$)\$([^$\n]{1,200}?)\$(?!\$)/g, (match, latex) => {
+    const trimmed = latex.trim();
+    // Reject plain currency: starts with digit or is purely numeric
+    if (/^\d/.test(trimmed) || /^\d[\d.,\s]*$/.test(trimmed)) return match;
+    // Must have actual math content: operators, backslash commands, or mixed alphanum
     const hasMathContent =
-      /[\\^_{}\d=+\-*/]/.test(latex) &&
-      /[\\^_{}=+\-*/]|\\[a-zA-Z]|\d+[a-zA-Z]|[a-zA-Z]\d/.test(latex);
+      /[\\^_{}=+\-*/]/.test(trimmed) &&
+      /[\\^_{}=+\-*/]|\\[a-zA-Z]|\d+[a-zA-Z]|[a-zA-Z]\d/.test(trimmed);
     if (!hasMathContent) return match;
-    return `<span class="math-inline">${renderLatex(latex, false)}</span>`;
+    return `<span class="math-inline">${renderLatex(trimmed, false)}</span>`;
   });
 
   // 4. Inline math: \(...\)
@@ -100,6 +108,26 @@ export function renderMath(text) {
   }
 
   return result;
+}
+
+/**
+ * Converts common markdown syntax to HTML.
+ * Handles: ***bold+italic***, **bold**, *italic*, `code`, and newlines → <br>.
+ * Safe to run before renderMath — does not touch $ or \ sequences.
+ */
+export function renderMarkdown(text) {
+  if (!text || typeof text !== "string") return text;
+  return text
+    // ***bold italic***
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    // **bold**
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    // *italic* (not preceded/followed by another *)
+    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
+    // `inline code`
+    .replace(/`([^`]+)`/g, '<code class="bg-slate-100 px-1 rounded text-xs font-mono">$1</code>')
+    // newlines → <br>
+    .replace(/\n/g, "<br>");
 }
 
 export function stripMath(text) {

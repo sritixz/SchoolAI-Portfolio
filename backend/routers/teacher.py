@@ -749,11 +749,13 @@ WORKSHEET DETAILS:
 
 CRITICAL QUESTION TYPE RULES:
 - You MUST ONLY generate sections for the question types listed in "Question Types ALLOWED" above
-- DO NOT generate any other question types
-- If only "mcq" is allowed, generate ONLY MCQ questions
-- If only "shortAnswer" is allowed, generate ONLY Short Answer questions
-- If only "longAnswer" is allowed, generate ONLY Long Answer questions
-- Distribute the total questions across ONLY the allowed types
+- DO NOT generate any other question types — this is a hard constraint, not a suggestion
+- If only "mcq" is allowed → generate ONLY MCQ questions, zero short/long answer sections
+- If only "shortAnswer" is allowed → generate ONLY Short Answer questions
+- If only "longAnswer" is allowed → generate ONLY Long Answer questions
+- If multiple types are listed → distribute total questions proportionally across ONLY those types
+- The "sections" array MUST contain ONLY sections whose type matches the allowed list
+- VIOLATION: generating a section type not in the allowed list will make the worksheet unusable
 
 BOARD-SPECIFIC GUIDANCE:
 - CBSE: Follow NCERT curriculum, use standard CBSE question patterns, include VSA/SA/LA sections
@@ -788,7 +790,8 @@ Return ONLY valid JSON (no markdown):
   "instructions": "Read all questions carefully. Show all working where required. Write neatly.",
   "learning_objectives_covered": ["Objective 1 this worksheet assesses", "Objective 2"],
   "sections": [
-    ONLY INCLUDE SECTIONS FOR THE ALLOWED QUESTION TYPES. Examples below:
+    STRICT RULE: Include ONLY sections for these allowed types: {', '.join(extra.get('question_types', ['mcq', 'shortAnswer']))}
+    DO NOT add any section whose type is not in that list. Examples for each type:
     
     IF "mcq" IS IN ALLOWED TYPES:
     {{
@@ -2117,16 +2120,39 @@ async def image_proxy(url: str):
     Proxy an external image URL to avoid browser CORS restrictions.
     Handles Wikipedia/Wikimedia (requires descriptive User-Agent),
     Pollinations.ai, and any other direct image URL.
+    Domains known to block scrapers (Springer, ResearchGate, etc.) are
+    redirected to a Pollinations fallback instead of returning 502.
     """
-    from fastapi.responses import Response
+    from fastapi.responses import Response, RedirectResponse
     import urllib.parse
+
+    # Domains that reliably block proxy requests — redirect to Pollinations fallback
+    BLOCKED_DOMAINS = (
+        "springernature.com", "springer.com", "researchgate.net",
+        "sciencedirect.com", "elsevier.com", "nature.com",
+        "wiley.com", "tandfonline.com", "jstor.org",
+    )
 
     decoded = urllib.parse.unquote(url)
     if not decoded.startswith(("https://", "http://")):
         raise HTTPException(400, "Invalid image URL")
 
+    # Fast-path: known blocked domain → return Pollinations placeholder immediately
+    from urllib.parse import urlparse
+    parsed_host = urlparse(decoded).netloc.lower()
+    if any(blocked in parsed_host for blocked in BLOCKED_DOMAINS):
+        # Return a transparent 1x1 PNG so the browser doesn't show a broken image
+        import base64
+        transparent_png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        )
+        return Response(
+            content=transparent_png,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*"},
+        )
+
     # Wikimedia requires a descriptive User-Agent or returns 403.
-    # Use a browser-like UA so all sources accept the request.
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (compatible; EduAI/1.0; "
@@ -2147,12 +2173,21 @@ async def image_proxy(url: str):
             ) as client:
                 resp = await client.get(decoded)
                 if resp.status_code in (429, 503) and attempt < 2:
-                    # Rate-limited — back off and retry
                     await asyncio.sleep(2 ** attempt)
                     continue
+                if resp.status_code in (403, 401, 451):
+                    # Access denied by the origin — return transparent placeholder
+                    import base64
+                    transparent_png = base64.b64decode(
+                        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+                    )
+                    return Response(
+                        content=transparent_png,
+                        media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600", "Access-Control-Allow-Origin": "*"},
+                    )
                 resp.raise_for_status()
                 content_type = resp.headers.get("content-type", "image/jpeg")
-                # Strip any non-image content type (e.g. HTML error pages)
                 if "image" not in content_type and "octet-stream" not in content_type:
                     raise HTTPException(502, f"Unexpected content-type: {content_type}")
                 return Response(

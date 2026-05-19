@@ -4,6 +4,8 @@ import { useDispatch } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getInitial } from "../../utils/nameUtils";
 import { clearAiToolResult } from "../../store/slices/teacherSlice";
+import { addHistoryItem, persistHistoryItem } from "../../store/slices/aiHistorySlice";
+import { nanoid } from "nanoid";
 import {
   presentationVisualStyles,
   presentationPurposes,
@@ -50,10 +52,13 @@ export default function PresentationCreator() {
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const pollRef = useRef(null);
+  // Stable image cache: slide index → base64 data URL
+  // Keyed by index so it survives React re-renders without mutating slide objects
+  const imgCacheRef = useRef({});
 
   const generating = progress.state === "processing";
 
-  // Load history on mount
+  // Load history on mount + resume any in-progress job after page reload
   useEffect(() => {
     const loadHistory = async () => {
       try {
@@ -64,6 +69,37 @@ export default function PresentationCreator() {
       }
     };
     loadHistory();
+
+    // Resume in-progress job if page was reloaded mid-generation
+    const savedJobId = localStorage.getItem("pptx_job_id");
+    if (savedJobId) {
+      // Check if the job is still running before resuming
+      api.get(`/teacher/ai-tool/status/${savedJobId}`)
+        .then(res => {
+          const data = res.data;
+          if (data.status === "processing") {
+            setJobId(savedJobId);
+            setProgress({
+              state:   "processing",
+              current: data.current_slide ?? 0,
+              total:   data.total_slides  ?? 0,
+              pct:     data.progress_pct  ?? 0,
+            });
+            startPolling(savedJobId);
+          } else if (data.status === "completed" && data.result_data) {
+            // Job finished while page was reloading — show result immediately
+            setJobId(savedJobId);
+            setAiResult(data);
+            prewarmImages(data.slides || []);
+            setProgress({ state: "completed", current: data.total_slides, total: data.total_slides, pct: 100 });
+            localStorage.removeItem("pptx_job_id");
+          } else {
+            localStorage.removeItem("pptx_job_id");
+          }
+        })
+        .catch(() => localStorage.removeItem("pptx_job_id"));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // clean up on unmount
@@ -74,6 +110,52 @@ export default function PresentationCreator() {
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  // Pre-warm image cache for all slides as soon as result is available.
+  // This runs in the background so by the time the user clicks Download,
+  // most images are already cached as base64.
+  const prewarmImages = (slides) => {
+    if (!slides?.length) return;
+    const apiBase =
+      import.meta.env?.VITE_API_BASE_URL ||
+      import.meta.env?.VITE_API_URL ||
+      "http://localhost:8001";
+
+    slides.forEach((slide, idx) => {
+      if (imgCacheRef.current[idx]) return; // already cached
+      const imgUrl = slide.content?.image_url;
+      if (!imgUrl) return;
+      const proxyUrl = imgUrl.startsWith("/teacher/image-proxy")
+        ? `${apiBase}${imgUrl}`
+        : `${apiBase}/teacher/image-proxy?url=${encodeURIComponent(imgUrl)}`;
+      fetch(proxyUrl, { headers: { Accept: "image/*" } })
+        .then(r => r.ok ? r.blob() : null)
+        .then(blob => {
+          if (!blob || !blob.size) return;
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (reader.result) imgCacheRef.current[idx] = reader.result;
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(() => {});
+    });
+  };
+
+  const saveToSharedHistory = (result, formData) => {
+    const item = {
+      id:        nanoid(),
+      tool:      "presentation",
+      title:     result.title || formData.topic,
+      subject:   formData.subject,
+      topic:     formData.topic,
+      grade:     formData.classLevel,
+      result,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch(addHistoryItem(item));
+    dispatch(persistHistoryItem(item));
   };
 
   const startPolling = (id) => {
@@ -92,9 +174,13 @@ export default function PresentationCreator() {
         if (data.status === "completed") {
           stopPolling();
           setAiResult(data);
+          prewarmImages(data.slides || []);
+          localStorage.removeItem("pptx_job_id");
+          saveToSharedHistory(data, form);
         } else if (data.status === "failed") {
           stopPolling();
           setProgress(p => ({ ...p, state: "failed" }));
+          localStorage.removeItem("pptx_job_id");
         }
         errorCount = 0; // reset on success
       } catch (err) {
@@ -103,13 +189,19 @@ export default function PresentationCreator() {
         if (errorCount >= 2) {
           stopPolling();
           setProgress({ state: "failed", current: 0, total: 0, pct: 0 });
+          localStorage.removeItem("pptx_job_id");
         }
       }
     }, 2000);
   };
 
   const handleGenerate = async () => {
+    if (!form.topic.trim() || !form.subject.trim()) {
+      alert("Please enter a Topic and Subject before generating.");
+      return;
+    }
     setAiResult(null);
+    imgCacheRef.current = {}; // clear image cache for new generation
     setProgress({ state: "processing", current: 0, total: form.numSlides, pct: 0 });
     try {
       const res = await api.post("/teacher/ai-tool/presentation/generate", {
@@ -132,8 +224,11 @@ export default function PresentationCreator() {
           include_mini_quiz:    form.includeMiniQuiz,
         },
       });
-      setJobId(res.data.job_id);
-      startPolling(res.data.job_id);
+      const newJobId = res.data.job_id;
+      setJobId(newJobId);
+      // Persist so a page reload can resume polling
+      localStorage.setItem("pptx_job_id", newJobId);
+      startPolling(newJobId);
     } catch (err) {
       setProgress({ state: "failed", current: 0, total: 0, pct: 0 });
     }
@@ -284,20 +379,22 @@ export default function PresentationCreator() {
               Presentation Basics
             </h2>
             <div className="mb-3">
-              <label className="text-xs font-bold text-gray-500 mb-1 block">Topic</label>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Topic <span className="text-red-400">*</span></label>
               <input
                 value={form.topic}
                 onChange={(e) => setForm({ ...form, topic: e.target.value })}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
+                placeholder="e.g. Photosynthesis, Quadratic Equations, World War II"
+                className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] ${!form.topic.trim() ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Subject</label>
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Subject <span className="text-red-400">*</span></label>
                 <input
                   value={form.subject}
                   onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
+                  placeholder="e.g. Biology, Math"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] ${!form.subject.trim() ? "border-red-200 bg-red-50/30" : "border-gray-200"}`}
                 />
               </div>
               <div>
@@ -305,6 +402,7 @@ export default function PresentationCreator() {
                 <input
                   value={form.classLevel}
                   onChange={(e) => setForm({ ...form, classLevel: e.target.value })}
+                  placeholder="e.g. Grade 8"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]"
                 />
               </div>
@@ -552,8 +650,8 @@ export default function PresentationCreator() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={generating}
-            className="w-full bg-[#695be6] text-white font-black py-4 rounded-xl hover:bg-[#5a4dd4] transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+            disabled={generating || !form.topic.trim() || !form.subject.trim()}
+            className="w-full bg-[#695be6] text-white font-black py-4 rounded-xl hover:bg-[#5a4dd4] transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {generating ? (
               <><span className="material-symbols-outlined animate-spin text-base">refresh</span> Generating...</>
@@ -646,7 +744,18 @@ export default function PresentationCreator() {
                   <button onClick={async () => {
                     setDownloading(true);
                     try {
-                      await downloadPresentationPptx(aiResult);
+                      // Inject cached images into slides before export
+                      const resultWithCache = {
+                        ...aiResult,
+                        slides: (aiResult.slides || []).map((slide, idx) => ({
+                          ...slide,
+                          content: {
+                            ...(slide.content || {}),
+                            _fetched_image: imgCacheRef.current[idx] || slide.content?._fetched_image,
+                          },
+                        })),
+                      };
+                      await downloadPresentationPptx(resultWithCache);
                     } finally {
                       setDownloading(false);
                     }
@@ -662,7 +771,17 @@ export default function PresentationCreator() {
                   <button onClick={async () => { 
                     setDownloading(true);
                     try {
-                      await downloadPresentationPdf(aiResult);
+                      const resultWithCache = {
+                        ...aiResult,
+                        slides: (aiResult.slides || []).map((slide, idx) => ({
+                          ...slide,
+                          content: {
+                            ...(slide.content || {}),
+                            _fetched_image: imgCacheRef.current[idx] || slide.content?._fetched_image,
+                          },
+                        })),
+                      };
+                      await downloadPresentationPdf(resultWithCache);
                     } finally {
                       setDownloading(false);
                     }

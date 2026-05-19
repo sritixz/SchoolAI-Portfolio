@@ -69,11 +69,18 @@ async def get_tasks(user=Depends(require_role("student")), db=Depends(get_db)):
 
 @router.patch("/tasks/{task_id}/toggle")
 async def toggle_task(task_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    from datetime import date
     task = await db.tasks.find_one({"_id": ObjectId(task_id), "student_id": user["id"]})
     if not task:
         raise HTTPException(404, "Task not found")
     new_done = not task.get("done", False)
-    await db.tasks.update_one({"_id": ObjectId(task_id)}, {"$set": {"done": new_done}})
+    update = {"done": new_done}
+    # Set completed_date when marking done so streak calculation works
+    if new_done:
+        update["completed_date"] = date.today().isoformat()
+    else:
+        update["completed_date"] = None
+    await db.tasks.update_one({"_id": ObjectId(task_id)}, {"$set": update})
     return {"done": new_done}
 
 @router.post("/tasks")

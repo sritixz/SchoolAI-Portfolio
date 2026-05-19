@@ -44,9 +44,9 @@ export const presentationContentDepths = [
 ];
 
 export const presentationDefaults = {
-  topic: "Linear Equations",
-  subject: "Math",
-  classLevel: "Grade 8",
+  topic: "",
+  subject: "",
+  classLevel: "",
   numSlides: 12,
   durationMinutes: 30,
   purpose: "teaching",
