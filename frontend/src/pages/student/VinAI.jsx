@@ -27,7 +27,9 @@ import {
 } from "../../store/slices/vinAiSlice";
 import { fetchMe, selectUserProfile } from "../../store/slices/authSlice";
 import { parseVinXML } from "../../utils/xmlParser";
-import { renderMath } from "../../utils/mathRenderer";
+import { renderMath, renderMarkdown } from "../../utils/mathRenderer";
+import MediaPanel from "../../components/MediaPanel";
+import { fetchImages, fetchVideos } from "../../api/mediaApi";
 
 /**
  * Converts plain-text step/content formatting into HTML.
@@ -62,10 +64,6 @@ function formatStepText(text) {
 
   return out.join("\n");
 }
-import { ResponseValidator } from "../../utils/responseValidator";
-import { ResponseValidationDebug } from "../../components/ResponseValidationDebug";
-import MediaPanel from "../../components/MediaPanel";
-import { fetchImages, fetchVideos } from "../../api/mediaApi";
 
 // ── generate a UUID for each new chat session ──
 function newSessionId() {
@@ -201,8 +199,6 @@ function MediaButton({ mediaQuery, grade, board, onExpand }) {
 // ─────────────────────────────────────────────────────────────
 function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onRequestExamReady, interactionCount, grade, board, onExpandMedia, isHistoric, isLoadingExamReady, msgIndex, allMessages }) {
   const parsed = parseVinXML(xmlBuffer);
-  const isDev = import.meta.env.DEV;
-  const validation = done ? ResponseValidator.validateResponse(parsed, interactionCount, grade) : null;
 
   // Build context-aware media query — always reflects the current conversation context
   const contextualMediaQuery = (() => {
@@ -288,7 +284,7 @@ function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onReq
       )}
       {parsed.question && !isHistoric && <PracticeQuestion question={parsed.question} onAnswer={onAnswerQuestion} />}
       {parsed.examReady && <ExamReadyAnswer examReady={parsed.examReady} />}
-      {done && !parsed.examReady && !isHistoric && interactionCount >= 1 && (
+      {done && !parsed.examReady && interactionCount >= 1 && (
         <button onClick={onRequestExamReady} disabled={isLoadingExamReady}
           className="w-full py-2.5 border-2 border-[#695be6] text-[#695be6] font-bold rounded-xl text-sm hover:bg-[#695be6] hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-wait">
           {isLoadingExamReady
@@ -316,9 +312,6 @@ function StreamingMessage({ xmlBuffer, done, onFollowup, onAnswerQuestion, onReq
             <span key={i} className="size-2 bg-[#695be6]/40 rounded-full animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
           ))}
         </div>
-      )}
-      {isDev && done && validation && (
-        <ResponseValidationDebug parsed={parsed} turnNumber={interactionCount} grade={grade} isDev={isDev} />
       )}
     </div>
   );
@@ -384,7 +377,7 @@ function ExamReadyAnswer({ examReady }) {
         {examReady.directAnswer && (
           <div className="px-4 py-3">
             <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-1">Direct Answer</p>
-            <p className="text-sm text-slate-800 font-medium" dangerouslySetInnerHTML={{ __html: renderMath(examReady.directAnswer) }} />
+            <p className="text-sm text-slate-800 font-medium" dangerouslySetInnerHTML={{ __html: renderMath(renderMarkdown(examReady.directAnswer)) }} />
           </div>
         )}
         {examReady.keyPoints?.length > 0 && (
@@ -394,7 +387,7 @@ function ExamReadyAnswer({ examReady }) {
               {examReady.keyPoints.map((pt, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
                   <span className="material-symbols-outlined text-[#695be6] text-base mt-0.5 shrink-0">check_circle</span>
-                  <span dangerouslySetInnerHTML={{ __html: renderMath(pt) }} />
+                  <span dangerouslySetInnerHTML={{ __html: renderMath(renderMarkdown(pt)) }} />
                 </li>
               ))}
             </ul>
@@ -403,7 +396,7 @@ function ExamReadyAnswer({ examReady }) {
         {examReady.examFormat && (
           <div className="px-4 py-3">
             <p className="text-[10px] font-bold text-[#695be6] uppercase tracking-wider mb-1">Exam Format</p>
-            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: renderMath(examReady.examFormat) }} />
+            <p className="text-sm text-slate-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMath(renderMarkdown(examReady.examFormat)) }} />
           </div>
         )}
         {examReady.keywords?.length > 0 && (
@@ -421,7 +414,7 @@ function ExamReadyAnswer({ examReady }) {
             <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
               <span className="material-symbols-outlined text-sm">emoji_objects</span>Real-Life Example
             </p>
-            <p className="text-sm text-amber-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMath(examReady.realLifeExample) }} />
+            <p className="text-sm text-amber-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMath(renderMarkdown(examReady.realLifeExample)) }} />
           </div>
         )}
       </div>
@@ -601,7 +594,18 @@ export default function VinAI() {
 
   // ── When a session is loaded from sidebar, rebuild messages from all turns ──
   useEffect(() => {
-    if (loadSessionStatus !== "succeeded" || !loadedTurns.length) return;
+    if (loadSessionStatus !== "succeeded") return;
+
+    // Session exists but has no turns saved (e.g. old draft-only sessions)
+    if (!loadedTurns.length) {
+      setMessages([]);
+      chatHistoryRef.current = [];
+      setInteractionCount(0);
+      setSessionId(loadedSessionId);
+      setStatus("idle");
+      setShowMobileHistory(false);
+      return;
+    }
 
     const rebuilt = [];
     for (const turn of loadedTurns) {
@@ -836,15 +840,14 @@ export default function VinAI() {
   const processorRef = useRef(null);
   const recordingStateRef = useRef(false);
 
-  const stopRecording = useCallback(() => {
-    setIsListening(false);
-  }, []);
-
   const toggleVoice = useCallback(async () => {
     if (isListening) {
       recordingStateRef.current = false;
       if (mediaRecorderRef.current?.mediaRecorder) {
-        mediaRecorderRef.current.mediaRecorder.stop();
+        const mr = mediaRecorderRef.current.mediaRecorder;
+        // Request any buffered data before stopping so onstop gets a full blob
+        if (mr.state === "recording") mr.requestData();
+        mr.stop();
       }
       return;
     }
@@ -852,31 +855,31 @@ export default function VinAI() {
     setVoiceError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       });
       
-      let mimeType = "audio/webm";
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = "audio/webm;codecs=opus";
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = "audio/webm;codecs=vp8";
-          if (!MediaRecorder.isTypeSupported(mimeType)) { mimeType = ""; }
-        }
-      }
+      // Pick best supported mimeType
+      const mimeType = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "",
+      ].find((m) => !m || MediaRecorder.isTypeSupported(m));
       
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       audioChunksRef.current = [];
       recordingStateRef.current = true;
       
+      // Collect data every 250ms so we always have chunks even for short recordings
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
       };
       
       mediaRecorder.onstop = () => {
-        processRecording(stream, mediaRecorder, mimeType);
+        processRecording(stream, mediaRecorder, mimeType || "audio/webm");
       };
       
-      mediaRecorder.start();
+      mediaRecorder.start(250); // timeslice = collect data every 250ms
       mediaRecorderRef.current = { stream, mediaRecorder };
       setIsListening(true);
     } catch (err) {
@@ -892,7 +895,7 @@ export default function VinAI() {
     
     const webmBlob = new Blob(audioChunksRef.current, { type: mimeType || "audio/webm" });
     
-    if (webmBlob.size < 2000) {
+    if (webmBlob.size < 500) {
       setVoiceError("Recording too short. Please speak for at least 1-2 seconds.");
       setIsListening(false);
       return;
@@ -1064,7 +1067,7 @@ export default function VinAI() {
     loadSessionStatus === "loading" ? "Loading conversation..." :
     "LumiTutor is here to help";
 
-  const isViewingHistory = !!loadedSessionId && loadedTurns.length > 0 && messages.length > 0 && messages[0]?.id?.toString().includes("-u");
+  const isViewingHistory = !!loadedSessionId && loadedTurns.length > 0 && messages.length > 0;
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>

@@ -662,14 +662,54 @@ class SaveDraftRequest(BaseModel):
 async def save_draft(req: SaveDraftRequest, user=Depends(require_role("student")), db=Depends(get_db)):
     """Save current chat as a draft session so it appears in history."""
     now = datetime.utcnow().isoformat()
-    
+
     # Extract first user message as title
     title = "Untitled Chat"
     for msg in req.messages:
         if msg.get("role") == "user":
             title = msg.get("text", "")[:80]
             break
-    
+
+    # Pair up user+assistant messages into turns and save to doubt_history
+    # Only insert turns that don't already exist for this session
+    existing = await db.doubt_history.find(
+        {"session_id": req.session_id, "student_id": user["id"]},
+        {"question": 1}
+    ).to_list(200)
+    existing_questions = {d["question"] for d in existing}
+
+    turns_to_insert = []
+    messages = req.messages
+    i = 0
+    while i < len(messages):
+        user_msg = messages[i] if messages[i].get("role") == "user" else None
+        asst_msg = messages[i + 1] if i + 1 < len(messages) and messages[i + 1].get("role") == "assistant" else None
+        if user_msg and asst_msg:
+            question = user_msg.get("text", "")
+            full_xml = asst_msg.get("xmlBuffer", "")
+            # Skip if already saved (avoid duplicates on repeated draft saves)
+            if question and full_xml and question not in existing_questions:
+                subject = _extract_tag(full_xml, "subject") or req.subject or "General"
+                preview = _extract_content_preview(full_xml)
+                turns_to_insert.append({
+                    "student_id": user["id"],
+                    "session_id": req.session_id,
+                    "question": question,
+                    "subject": subject,
+                    "preview": preview,
+                    "full_xml": full_xml,
+                    "starred": False,
+                    "created_at": now,
+                })
+            i += 2
+        else:
+            i += 1
+
+    if turns_to_insert:
+        await db.doubt_history.insert_many(turns_to_insert)
+
+    turn_count = len(existing) + len(turns_to_insert)
+
     # Upsert session metadata
     await db.chat_sessions.update_one(
         {"session_id": req.session_id, "student_id": user["id"]},
@@ -679,15 +719,15 @@ async def save_draft(req: SaveDraftRequest, user=Depends(require_role("student")
                 "session_id": req.session_id,
                 "subject": req.subject,
                 "updated_at": now,
+                "turn_count": turn_count,
             },
             "$setOnInsert": {
                 "title": title,
                 "created_at": now,
                 "starred": False,
-                "turn_count": 0,
             },
         },
         upsert=True,
     )
-    
+
     return {"success": True, "session_id": req.session_id}

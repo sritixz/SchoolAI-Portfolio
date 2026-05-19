@@ -1,8 +1,9 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getInitial } from "../../utils/nameUtils";
-import { selectAiHistory, removeHistoryItem, clearHistory } from "../../store/slices/aiHistorySlice";
+import { selectAiHistory, removeHistoryItem, clearHistory, fetchHistory } from "../../store/slices/aiHistorySlice";
 import { downloadWorksheetPdf, downloadQuizPdf, downloadConceptPdf, downloadPresentationPdf, downloadGradingPdf, downloadLessonPlanPdf } from "../../utils/aiPdfExport";
 
 const TOOLS = [
@@ -67,6 +68,10 @@ export default function AIAssistant() {
   const dispatch = useDispatch();
   const { user } = useAuth();
   const history = useSelector(selectAiHistory);
+
+  useEffect(() => {
+    dispatch(fetchHistory());
+  }, [dispatch]);
 
   const TOOL_ICONS = {
     worksheet: "edit_document", lessonplan: "menu_book", concept: "lightbulb",
