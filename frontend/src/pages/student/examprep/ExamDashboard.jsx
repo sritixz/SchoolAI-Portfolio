@@ -79,6 +79,7 @@ export default function ExamDashboard({ user, navigate, profile, onReset, onProf
     try {
       const r = await api.post("/student/exam-prep/session-progress", {
         day: dayNum, session_index: sessionIdx, done, subject, score_pct: scorePct ?? null,
+        prep_id: profile.id,
       });
       if (r.data.readiness) setReadiness(r.data.readiness);
     } catch { /* silent */ }
@@ -114,21 +115,20 @@ export default function ExamDashboard({ user, navigate, profile, onReset, onProf
                 setLoadingPlan(true);
                 try {
                   const r = await api.post("/student/exam-prep/setup", {
+                    prep_id: profile.id,
                     class: profile.class,
                     board: profile.board,
-                    state_board: profile.stateBoard,
+                    stateBoard: profile.stateBoard,
                     subjects: profile.subjects,
-                    daily_study_minutes: profile.dailyStudyMinutes,
-                    self_assessment_scores: profile.selfAssessmentScores,
+                    dailyStudyMinutes: profile.dailyStudyMinutes,
+                    selfAssessmentScores: profile.selfAssessmentScores,
                   });
                   setStudyPlan(r.data.studyPlan || []);
                   setReadiness(r.data.readiness || {});
                   setAiInsights(r.data.aiInsights || []);
                   setCurrentMode(r.data.currentMode || "regular");
                   setWeakTopics(r.data.weakTopics || {});
-                  const updated = { ...profile, ...r.data };
-                  localStorage.setItem(`exam_prep_profile_${user?.id}`, JSON.stringify(updated));
-                  if (onProfileUpdate) onProfileUpdate(updated);
+                  if (onProfileUpdate) onProfileUpdate({ ...profile, ...r.data });
                 } catch { /* keep existing plan */ }
                 finally { setLoadingPlan(false); }
               }}

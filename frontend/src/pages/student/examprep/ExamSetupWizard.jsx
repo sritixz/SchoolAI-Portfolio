@@ -165,20 +165,6 @@ export default function ExamSetupWizard({ user, navigate, onComplete }) {
     } catch (err) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
-      // If the API endpoint isn't available yet, fall back to a local plan
-      if (status === 404 || !status) {
-        const fallbackProfile = {
-          ...profile,
-          id: `prep_${Date.now()}`,
-          studyPlan: [],
-          readiness: Object.fromEntries(profile.subjects.map((s) => [s.name, 50])),
-          aiInsights: ["Keep studying consistently to improve your readiness!"],
-          currentMode: "regular",
-          weakTopics: {},
-        };
-        onComplete(fallbackProfile);
-        return;
-      }
       const msg = detail && detail !== "Not Found"
         ? detail
         : "Failed to save your study plan. Please try again.";

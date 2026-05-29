@@ -290,6 +290,7 @@ class ExamPrepSetupRequest(BaseModel):
     subjects: List[SubjectSetup]
     dailyStudyMinutes: int = 60
     selfAssessmentScores: Optional[dict] = None
+    prep_id: Optional[str] = None  # if provided, update existing prep; else create new
 
     model_config = {"populate_by_name": True}
 
@@ -300,6 +301,40 @@ class ExamPrepSetupRequest(BaseModel):
             data = dict(data)
             data["class_val"] = data.pop("class")
         return data
+
+@router.get("/exam-prep/list")
+async def list_exam_preps(user=Depends(require_role("student")), db=Depends(get_db)):
+    """Return all exam prep profiles for this student."""
+    docs = await db.exam_prep_profiles.find({"student_id": user["id"]}).sort("updatedAt", -1).to_list(None)
+    result = []
+    for doc in docs:
+        doc = _ser(doc)
+        result.append({
+            "id":                 doc.get("prep_id") or doc.get("_id"),
+            "class":              doc.get("class", ""),
+            "board":              doc.get("board", ""),
+            "stateBoard":         doc.get("stateBoard"),
+            "subjects":           doc.get("subjects", []),
+            "dailyStudyMinutes":  doc.get("dailyStudyMinutes", 60),
+            "studyPlan":          doc.get("studyPlan", []),
+            "readiness":          doc.get("readiness", {}),
+            "aiInsights":         doc.get("aiInsights", []),
+            "currentMode":        doc.get("currentMode", "regular"),
+            "weakTopics":         doc.get("weakTopics", {}),
+            "selfAssessmentScores": doc.get("selfAssessmentScores"),
+            "updatedAt":          doc.get("updatedAt", ""),
+        })
+    return result
+
+
+@router.delete("/exam-prep/{prep_id}")
+async def delete_exam_prep(prep_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Delete a specific exam prep profile."""
+    result = await db.exam_prep_profiles.delete_one({"student_id": user["id"], "prep_id": prep_id})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Exam prep not found")
+    return {"status": "deleted"}
+
 
 @router.post("/exam-prep/setup")
 async def exam_prep_setup(body: ExamPrepSetupRequest, user=Depends(require_role("student")), db=Depends(get_db)):
@@ -432,8 +467,12 @@ SMART RULES:
             }]
         }
 
+    import uuid
+    prep_id = body.prep_id or str(uuid.uuid4())
+
     profile_doc = {
         "student_id": user["id"],
+        "prep_id": prep_id,
         "class": class_label,
         "board": body.board,
         "stateBoard": body.stateBoard,
@@ -448,11 +487,12 @@ SMART RULES:
         "updatedAt": today_str,
     }
     await db.exam_prep_profiles.update_one(
-        {"student_id": user["id"]},
+        {"student_id": user["id"], "prep_id": prep_id},
         {"$set": profile_doc},
         upsert=True,
     )
     return {
+        "id": prep_id,
         "class": class_label,
         "board": body.board,
         "stateBoard": body.stateBoard,
@@ -562,18 +602,21 @@ class SessionProgressRequest(BaseModel):
     session_index: int
     done: bool
     subject: Optional[str] = None
-    score_pct: Optional[int] = None  # if practice was done
+    score_pct: Optional[int] = None
+    prep_id: Optional[str] = None
 
 
 @router.post("/exam-prep/session-progress")
 async def update_session_progress(body: SessionProgressRequest, user=Depends(require_role("student")), db=Depends(get_db)):
     """Mark a study session as done and optionally trigger plan adaptation."""
-    doc = await db.exam_prep_profiles.find_one({"student_id": user["id"]})
+    query = {"student_id": user["id"]}
+    if body.prep_id:
+        query["prep_id"] = body.prep_id
+    doc = await db.exam_prep_profiles.find_one(query)
     if not doc:
         raise HTTPException(404, "No exam prep profile found")
 
     study_plan = doc.get("studyPlan", [])
-    # Find the day and update the session
     for day_obj in study_plan:
         if day_obj.get("day") == body.day:
             sessions = day_obj.get("sessions", [])
@@ -583,15 +626,13 @@ async def update_session_progress(body: SessionProgressRequest, user=Depends(req
                     sessions[body.session_index]["score_pct"] = body.score_pct
             break
 
-    # Update readiness if score provided
     readiness = doc.get("readiness", {})
     if body.score_pct is not None and body.subject:
         current = readiness.get(body.subject, 50)
-        # Weighted update: 70% old + 30% new score
         readiness[body.subject] = round(current * 0.7 + body.score_pct * 0.3)
 
     await db.exam_prep_profiles.update_one(
-        {"student_id": user["id"]},
+        {"_id": doc["_id"]},
         {"$set": {"studyPlan": study_plan, "readiness": readiness}}
     )
     return {"status": "ok", "readiness": readiness}

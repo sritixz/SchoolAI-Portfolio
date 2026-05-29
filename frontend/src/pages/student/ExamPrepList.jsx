@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-
-const listKey = (userId) => `exam_prep_list_${userId}`;
+import api from "../../api";
 
 const SUBJECT_COLORS = {
   Maths:   "from-[#695be6] to-[#8e82f3]",
@@ -38,37 +37,36 @@ function getPrepStatus(prep) {
   return "upcoming";
 }
 
-export function loadPrepList(userId) {
-  try {
-    return JSON.parse(localStorage.getItem(listKey(userId)) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function savePrepList(userId, list) {
-  localStorage.setItem(listKey(userId), JSON.stringify(list));
-}
+// Keep these as no-ops for backward compat — actual persistence is now via API
+export function loadPrepList() { return []; }
+export function savePrepList() {}
 
 export default function ExamPrepList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [preps, setPreps] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user?.id) return;
-    setPreps(loadPrepList(user.id));
+    api.get("/student/exam-prep/list")
+      .then((r) => setPreps(r.data || []))
+      .catch(() => setPreps([]))
+      .finally(() => setLoading(false));
   }, [user?.id]);
 
-  const handleDelete = (prepId) => {
-    const updated = preps.filter((p) => p.id !== prepId);
-    setPreps(updated);
-    savePrepList(user.id, updated);
+  const handleDelete = async (prepId) => {
+    try {
+      await api.delete(`/student/exam-prep/${prepId}`);
+      setPreps((prev) => prev.filter((p) => p.id !== prepId));
+    } catch {
+      // optimistic fallback
+      setPreps((prev) => prev.filter((p) => p.id !== prepId));
+    }
   };
 
   return (
     <div className="min-h-screen bg-[#f6f6f8] pb-24" style={{ fontFamily: "'Lexend', sans-serif" }}>
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -91,7 +89,12 @@ export default function ExamPrepList() {
       </header>
 
       <main className="max-w-2xl mx-auto pt-20 px-4 space-y-4">
-        {preps.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-20 gap-2">
+            <span className="size-6 border-2 border-[#695be6]/30 border-t-[#695be6] rounded-full animate-spin" />
+            <p className="text-xs text-gray-400">Loading your preps...</p>
+          </div>
+        ) : preps.length === 0 ? (
           <EmptyState onNew={() => navigate("/student/exam-prep/new")} />
         ) : (
           <>
@@ -108,7 +111,6 @@ export default function ExamPrepList() {
         )}
       </main>
 
-      {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-2 z-50">
         <div className="max-w-2xl mx-auto flex items-end justify-around h-14">
           {[
@@ -141,7 +143,6 @@ function PrepCard({ prep, onOpen, onDelete }) {
   const meta = STATUS_META[status];
   const subjects = prep.subjects || [];
 
-  // nearest upcoming exam
   const now = new Date();
   const upcoming = subjects
     .filter((s) => s.examDate)
@@ -165,7 +166,6 @@ function PrepCard({ prep, onOpen, onDelete }) {
               {subjects.length} subject{subjects.length !== 1 ? "s" : ""}
               {upcoming ? ` · Next: ${upcoming.name} in ${Math.ceil((upcoming._date - now) / 86400000)}d` : status === "past" ? " · All exams done" : ""}
             </p>
-            {/* Subject pills */}
             <div className="flex flex-wrap gap-1.5">
               {subjects.map((s) => (
                 <span
@@ -181,21 +181,16 @@ function PrepCard({ prep, onOpen, onDelete }) {
         </div>
       </button>
 
-      {/* Past exam — restart option */}
       {status === "past" && (
         <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-between bg-gray-50">
           <p className="text-xs text-gray-400">All exams completed</p>
-          <button
-            onClick={onOpen}
-            className="text-xs font-bold text-[#695be6] hover:underline flex items-center gap-1"
-          >
+          <button onClick={onOpen} className="text-xs font-bold text-[#695be6] hover:underline flex items-center gap-1">
             <span className="material-symbols-outlined text-sm">replay</span>
             Start Over
           </button>
         </div>
       )}
 
-      {/* Delete */}
       <div className="border-t border-gray-100 px-4 py-2 flex justify-end">
         {confirmDelete ? (
           <div className="flex items-center gap-3">
