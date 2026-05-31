@@ -74,6 +74,7 @@ export default function StudentNotifications() {
                     const hwId = n.homework_id;
                     if (n.type === "homework_new" && hwId) navigate(`/student/homework/${hwId}`);
                     else if (n.type === "homework_graded" && hwId) navigate(`/student/homework/${hwId}/result`);
+                    else if (n.type === "homework_due" && hwId) navigate(`/student/homework/${hwId}`);
                   }}
                   className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${ic.border} shadow-sm p-4 cursor-pointer transition-opacity ${n.read ? "opacity-70" : ""}`}
                 >

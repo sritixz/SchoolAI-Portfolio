@@ -90,12 +90,14 @@ export default function StudentHome() {
     return due <= today; // due today or in the past
   };
   const homeworkDue = homework.filter((h) => 
-    !["graded","completed","evaluated"].includes(h.submission_status || h.status) && isDueOrOverdue(h)
+    !["graded","completed","evaluated","submitted"].includes(h.submission_status) 
+    && !["completed","evaluated"].includes(h.status) 
+    && isDueOrOverdue(h)
   );
 
   // Build activity feed: prefer notifications, fall back to homework list
   const notifActivity = notifications
-    .filter((n) => n.type === "homework_new" || n.type === "homework_graded")
+    .filter((n) => n.type === "homework_new" || n.type === "homework_graded" || n.type === "homework_due")
     .map((n) => ({ _source: "notif", ...n }));
 
   // Synthesize activity items from homework list for any hw not already covered by a notification
@@ -266,17 +268,20 @@ export default function StudentHome() {
                     {activityFeed.map((notif) => {
                       const nid = notif._id || notif.id || notif.homework_id;
                       const isGraded = notif.type === "homework_graded";
+                      const isDue = notif.type === "homework_due";
+                      const borderColor = isGraded ? "border-l-green-400" : isDue ? "border-l-orange-400" : "border-l-[#695be6]";
+                      const iconBg = isGraded ? "bg-green-100" : isDue ? "bg-orange-100" : "bg-[#695be6]/10";
+                      const iconColor = isGraded ? "text-green-600" : isDue ? "text-orange-500" : "text-[#695be6]";
+                      const iconName = isGraded ? "task_alt" : isDue ? "schedule" : "menu_book";
                       return (
                         <div
                           key={nid}
                           onClick={() => handleActivityClick(notif)}
-                          className={`cursor-pointer bg-white rounded-xl border shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all ${
-                            isGraded ? "border-l-4 border-l-green-400" : "border-l-4 border-l-[#695be6]"
-                          } ${notif.read ? "opacity-75" : ""}`}
+                          className={`cursor-pointer bg-white rounded-xl border shadow-sm p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all border-l-4 ${borderColor} ${notif.read ? "opacity-75" : ""}`}
                         >
-                          <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${isGraded ? "bg-green-100" : "bg-[#695be6]/10"}`}>
-                            <span className={`material-symbols-outlined text-xl ${isGraded ? "text-green-600" : "text-[#695be6]"}`}>
-                              {isGraded ? "task_alt" : "menu_book"}
+                          <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>
+                            <span className={`material-symbols-outlined text-xl ${iconColor}`}>
+                              {iconName}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">

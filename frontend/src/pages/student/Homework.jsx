@@ -11,6 +11,7 @@ const STATUS_CONFIG = {
   in_progress: { label: "In Progress", bg: "bg-[#D4C5F9]",  text: "text-indigo-700", border: "border-l-[#D4C5F9]", badge: "bg-[#D4C5F9] text-indigo-700",  icon: "pending_actions" },
   overdue:     { label: "Overdue",     bg: "bg-[#FFB3BA]",  text: "text-red-800",    border: "border-l-red-500",   badge: "bg-[#FFB3BA] text-red-800",     icon: "history" },
   completed:   { label: "Completed",   bg: "bg-[#C8E6C9]",  text: "text-green-700",  border: "border-l-[#C8E6C9]", badge: "bg-[#C8E6C9] text-green-700",   icon: "check_circle" },
+  submitted:   { label: "Awaiting Evaluation", bg: "bg-[#FFF3CD]", text: "text-amber-700", border: "border-l-amber-400", badge: "bg-[#FFF3CD] text-amber-700", icon: "hourglass_top" },
 };
 
 // ── Subject accent colors ────────────────────────────────────
@@ -50,7 +51,9 @@ function formatDueDate(dateStr, status) {
 function HomeworkCard({ hw }) {
   const [expanded, setExpanded] = useState(false);
   const navigate = useNavigate();
-  const sc = STATUS_CONFIG[hw.status] ?? STATUS_CONFIG["pending"];
+  // Show "submitted" status badge when homework is submitted but not yet graded
+  const displayStatus = (hw.status === "completed" && hw.submission_status === "submitted" && !hw.grade) ? "submitted" : hw.status;
+  const sc = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG["pending"];
   const subjectCls = SUBJECT_COLORS[hw.subjectColor] || "bg-gray-100 text-gray-600";
   const dueInfo = formatDueDate(hw.dueDate, hw.status);
 
@@ -60,6 +63,12 @@ function HomeworkCard({ hw }) {
     overdue:     { label: "Complete Now",      cls: "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20" },
     completed:   { label: "View Feedback",     cls: "bg-gray-100 hover:bg-gray-200 text-gray-700" },
   })[hw.status] ?? { label: "Open", cls: "bg-gray-100 text-gray-700" };
+
+  // Override action button for submitted-awaiting-evaluation
+  if (displayStatus === "submitted") {
+    actionBtn.label = hw.allow_retries ? "Reattempt" : "View Submission";
+    actionBtn.cls = hw.allow_retries ? "bg-[#6B5CE7] hover:bg-[#5a4dd4] text-white shadow-lg shadow-[#6B5CE7]/20" : "bg-gray-100 hover:bg-gray-200 text-gray-700";
+  }
 
   return (
     <div className={`bg-white p-4 sm:p-8 rounded-xl shadow-sm border border-l-4 ${sc.border} hover:shadow-lg transition-shadow ${hw.status === "overdue" ? "opacity-90 hover:opacity-100" : ""}`}>
@@ -131,7 +140,7 @@ function HomeworkCard({ hw }) {
       </div>
 
       {/* Progress bar for in_progress */}
-      {hw.status === "in_progress" && (
+      {hw.status === "in_progress" && hw.progressPercent > 0 && (
         <div className="mb-6">
           <div className="flex justify-between text-xs font-bold mb-2">
             <span className="text-[#4F4F4F] uppercase tracking-wider">Progress</span>
@@ -140,6 +149,14 @@ function HomeworkCard({ hw }) {
           <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
             <div className="bg-[#6B5CE7] h-full rounded-full transition-all" style={{ width: `${hw.progressPercent}%` }}></div>
           </div>
+        </div>
+      )}
+
+      {/* Awaiting evaluation indicator */}
+      {displayStatus === "submitted" && (
+        <div className="mb-6 flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <span className="material-symbols-outlined text-amber-500">hourglass_top</span>
+          <span className="text-sm font-medium text-amber-700">Submitted — waiting for teacher evaluation</span>
         </div>
       )}
 
@@ -164,7 +181,10 @@ function HomeworkCard({ hw }) {
       <div className="flex gap-3">
         <button
           onClick={() => {
-            if (hw.status === "completed") {
+            if (displayStatus === "submitted" && hw.allow_retries) {
+              // Reattempt: navigate to the homework attempt page
+              navigate(`/student/homework/${hw.id}`);
+            } else if (hw.status === "completed") {
               import("../../api").then(({ default: api }) => {
                 // Fetch submission result + homework questions in parallel
                 Promise.all([
@@ -251,14 +271,23 @@ export default function StudentHomework() {
     pending:     allHomework.filter(h => h.status === "pending").length,
     overdue:     allHomework.filter(h => h.status === "overdue").length,
     in_progress: allHomework.filter(h => h.status === "in_progress").length,
-    completed:   allHomework.filter(h => h.status === "completed").length,
+    completed:   allHomework.filter(h => h.status === "completed" && (h.submission_status === "graded" || h.grade)).length,
+    submitted:   allHomework.filter(h => h.status === "completed" && h.submission_status === "submitted" && !h.grade).length,
   }), [allHomework]);
 
   const subjects = useMemo(() => [...new Set(allHomework.map(h => h.subject))], [allHomework]);
 
   const filtered = useMemo(() => {
     let list = [...allHomework];
-    if (activeStatus) list = list.filter(h => h.status === activeStatus);
+    if (activeStatus) {
+      if (activeStatus === "submitted") {
+        list = list.filter(h => h.status === "completed" && h.submission_status === "submitted" && !h.grade);
+      } else if (activeStatus === "completed") {
+        list = list.filter(h => h.status === "completed" && (h.submission_status === "graded" || h.grade));
+      } else {
+        list = list.filter(h => h.status === activeStatus);
+      }
+    }
     if (activeSubject) list = list.filter(h => h.subject === activeSubject);
     if (sortOrder === "latest") list.sort((a, b) => new Date(b.assignedDate) - new Date(a.assignedDate));
     if (sortOrder === "oldest") list.sort((a, b) => new Date(a.assignedDate) - new Date(b.assignedDate));
@@ -320,6 +349,7 @@ export default function StudentHomework() {
             { key: "pending",     label: "Pending",     count: counts.pending,     bg: "bg-[#FFE5E5]",  text: "text-red-700",    icon: "assignment_late" },
             { key: "overdue",     label: "Overdue",     count: counts.overdue,     bg: "bg-[#FFB3BA]",  text: "text-orange-800", icon: "history" },
             { key: "in_progress", label: "In Progress", count: counts.in_progress, bg: "bg-[#D4C5F9]",  text: "text-indigo-800", icon: "pending_actions" },
+            { key: "submitted",   label: "Awaiting Eval", count: counts.submitted, bg: "bg-[#FFF3CD]",  text: "text-amber-800",  icon: "hourglass_top" },
             { key: "completed",   label: "Completed",   count: counts.completed,   bg: "bg-[#C8E6C9]",  text: "text-green-800",  icon: "check_circle" },
           ].map(({ key, label, count, bg, text, icon }) => (
             <button
@@ -393,6 +423,7 @@ export default function StudentHomework() {
               { key: "pending",    label: "Pending",     bg: "bg-[#FFE5E5]",  text: "text-red-700" },
               { key: "overdue",    label: "Overdue",     bg: "bg-[#FFB3BA]",  text: "text-red-800" },
               { key: "in_progress",label: "In Progress", bg: "bg-[#D4C5F9]",  text: "text-indigo-800" },
+              { key: "submitted",  label: "Awaiting",    bg: "bg-[#FFF3CD]",  text: "text-amber-800" },
               { key: "completed",  label: "Completed",   bg: "bg-[#C8E6C9]",  text: "text-green-800" },
             ].map(({ key, label, bg, text }) => (
               <button key={label} onClick={() => setActiveStatus(key)}

@@ -88,10 +88,13 @@ function GapCard({ gap }) {
             <span className="material-symbols-outlined text-sm">description</span>
             <p className="text-xs font-semibold uppercase tracking-wide">Identified from</p>
           </div>
-          <p className="text-sm font-medium text-[#ec5b13] flex items-center gap-1 cursor-pointer hover:underline">
+          <Link
+            to={`/student/learning-gaps/gaps/${gapId}`}
+            className="text-sm font-medium text-[#ec5b13] flex items-center gap-1 cursor-pointer hover:underline"
+          >
             {typeof gap.identifiedFrom === "object" ? gap.identifiedFrom?.title : gap.identifiedFrom}
             <span className="material-symbols-outlined text-xs">open_in_new</span>
-          </p>
+          </Link>
         </div>
         {gap.impactAnalysis && (
           <div className="space-y-1.5">
@@ -139,12 +142,12 @@ function GapCard({ gap }) {
       <div className="pt-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {(gap.correctivePath || []).map((cp) => (
-            <button key={cp.type} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-bold">
+            <Link key={cp.type} to={`/student/learning-gaps/gaps/${gapId}?section=${cp.type}`} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-bold">
               <span className="material-symbols-outlined text-base">{cp.icon}</span>{cp.label}
-            </button>
+            </Link>
           ))}
           <Link
-            to="/student/vin-ai"
+            to={`/student/vin-ai?topic=${encodeURIComponent(gap.topic)}`}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#685ae7]/10 text-[#685ae7] hover:bg-[#685ae7]/20 transition-colors text-xs font-bold border border-[#685ae7]/20"
           >
             <span className="material-symbols-outlined text-base">smart_toy</span>Ask LumiTutor

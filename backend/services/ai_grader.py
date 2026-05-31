@@ -141,6 +141,82 @@ Return JSON:
         raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
         result = json.loads(raw)
 
+        # ── Deterministic MCQ re-scoring from actual submission answers ──
+        # The LLM sometimes hallucinates scores for MCQ questions.
+        # We can verify MCQ correctness directly by comparing the student's
+        # selected option against the option marked is_correct=true.
+        if answers and homework.get("questions"):
+            answer_map = {}
+            if isinstance(answers, list):
+                answer_map = {a.get("question_id"): a for a in answers}
+            elif isinstance(answers, dict):
+                answer_map = {k: (v if isinstance(v, dict) else {"answer": v}) for k, v in answers.items()}
+
+            total_pts_mcq = 0
+            earned_pts_mcq = 0
+            has_mcq = False
+
+            for qa in result.get("question_analysis", []):
+                q = questions.get(qa["question_id"])
+                if not q:
+                    continue
+                atype = q.get("answer_type", "typed")
+                max_pts = q.get("max_points", 1)
+
+                if atype == "mcq":
+                    has_mcq = True
+                    total_pts_mcq += max_pts
+                    student_ans_data = answer_map.get(qa["question_id"])
+                    student_choice = None
+                    if student_ans_data:
+                        student_choice = student_ans_data.get("answer") if isinstance(student_ans_data, dict) else student_ans_data
+
+                    # Find the correct option
+                    correct_opt = next((o for o in q.get("options", []) if o.get("is_correct")), None)
+                    # Find which option the student selected (by option id or index)
+                    selected_opt = None
+                    if student_choice is not None:
+                        # Try matching by option id
+                        selected_opt = next((o for o in q.get("options", []) if o.get("id") == student_choice), None)
+                        # Try matching by index
+                        if selected_opt is None and isinstance(student_choice, int) and 0 <= student_choice < len(q.get("options", [])):
+                            selected_opt = q["options"][student_choice]
+
+                    is_correct = (selected_opt is not None and selected_opt.get("is_correct", False))
+                    qa["is_correct"] = is_correct
+                    qa["ai_score"] = max_pts if is_correct else 0
+                    if selected_opt:
+                        qa["student_answer"] = selected_opt.get("text", str(student_choice))
+                    # Fix feedback to match deterministic result
+                    correct_text = correct_opt.get("text", "") if correct_opt else ""
+                    if is_correct:
+                        qa["feedback"] = f"Correct. Well done."
+                    else:
+                        selected_text = selected_opt.get("text", str(student_choice)) if selected_opt else str(student_choice)
+                        qa["feedback"] = f"Incorrect. You selected '{selected_text}'. The correct answer is: '{correct_text}'."
+
+                    earned_pts_mcq += qa.get("ai_score", 0)
+
+            # Recalculate overall estimated_score_pct using deterministic MCQ scores
+            if has_mcq:
+                total_pts_all = 0
+                earned_pts_all = 0
+                for qa in result.get("question_analysis", []):
+                    total_pts_all += qa.get("max_points", 1)
+                    earned_pts_all += qa.get("ai_score", 0)
+                if total_pts_all > 0:
+                    result["estimated_score_pct"] = round(earned_pts_all / total_pts_all * 100)
+
+                # Fix overall_summary if it contradicts the actual score
+                correct_count = sum(1 for qa in result.get("question_analysis", []) if qa.get("is_correct"))
+                total_count = len(result.get("question_analysis", []))
+                pct = result["estimated_score_pct"]
+                result["overall_summary"] = (
+                    f"The student answered {correct_count} out of {total_count} questions correctly "
+                    f"({pct}%). "
+                    + (result.get("overall_summary", "").split(". ", 1)[-1] if ". " in result.get("overall_summary", "") else "")
+                ).strip()
+
         # For file_upload submissions, deterministically re-score MCQ questions
         # by parsing "Answer: X" lines from the extracted text.
         # This is more reliable than substring matching or LLM grading.

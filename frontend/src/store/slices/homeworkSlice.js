@@ -29,6 +29,16 @@ export const fetchHomeworkResult = createAsyncThunk("homework/fetchResult", asyn
   catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
 });
 
+export const saveHomeworkProgress = createAsyncThunk("homework/saveProgress", async (payload, { rejectWithValue }) => {
+  try { return (await api.post("/homework/save-progress", payload)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
+export const fetchHomeworkProgress = createAsyncThunk("homework/fetchProgress", async (homeworkId, { rejectWithValue }) => {
+  try { return (await api.get(`/homework/${homeworkId}/progress`)).data; }
+  catch (err) { return rejectWithValue(err.response?.data ?? err.message); }
+});
+
 export const uploadSubmissionFile = createAsyncThunk("homework/uploadFile", async (file, { rejectWithValue }) => {
   try {
     const fd = new FormData();
