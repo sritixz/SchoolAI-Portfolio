@@ -2349,9 +2349,18 @@ async def parent_messages(user=Depends(require_role("teacher")), db=Depends(get_
     enriched = []
     for doc in docs:
         student = await db.users.find_one({"_id": ObjectId(doc["student_id"])}, {"name": 1}) if doc.get("student_id") else None
+        parent_name = None
+        if doc.get("parent_id"):
+            try:
+                parent = await db.users.find_one({"_id": ObjectId(doc["parent_id"])}, {"name": 1})
+                if parent:
+                    parent_name = parent.get("name")
+            except Exception:
+                pass
         enriched.append({
             **_ser(doc),
             "student_name": student.get("name", doc.get("student_id", "Student")) if student else doc.get("student_id", "Student"),
+            "parent_name": parent_name,
         })
     return enriched
 
