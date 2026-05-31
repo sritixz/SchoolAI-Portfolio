@@ -7,6 +7,7 @@ import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 import { 
   fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus,
   assignHomework, fetchHomeworkById, selectCurrentHomework, patchHomeworkQuestions, deleteHomework,
+  updateHomework,
 } from "../../store/slices/homeworkSlice";
 import { fetchStudentsByClass, selectStudentsByClass } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
@@ -57,6 +58,7 @@ export default function HomeworkLibrary() {
   // Edit questions modal state
   const [editModal, setEditModal] = useState(null); // { homeworkId, title }
   const [editQuestions, setEditQuestions] = useState([]);
+  const [editAllowRetries, setEditAllowRetries] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   // History panel open per card
@@ -90,6 +92,7 @@ export default function HomeworkLibrary() {
         assignedStudentCount: (hw.assigned_students || []).length,
         submissionsCount:     hw.submissions_count ?? 0,
         pendingReviewCount:   hw.pending_review_count ?? 0,
+        allow_retries:        hw.allow_retries || false,
       }));
       setLibrary(normalised);
     }
@@ -156,6 +159,7 @@ export default function HomeworkLibrary() {
   // ── Edit questions handlers ──────────────────────────────
   const openEditModal = async (hw) => {
     setEditModal({ homeworkId: hw.id, title: hw.title });
+    setEditAllowRetries(hw.allow_retries || false);
     setEditLoading(true);
     try {
       const res = await api.get(`/homework/${hw.id}/questions`);
@@ -180,7 +184,7 @@ export default function HomeworkLibrary() {
     }
   };
 
-  const closeEditModal = () => { setEditModal(null); setEditQuestions([]); };
+  const closeEditModal = () => { setEditModal(null); setEditQuestions([]); setEditAllowRetries(false); };
 
   const updateEditQuestion = (idx, field, value) => {
     setEditQuestions((prev) => prev.map((q, i) => i === idx ? { ...q, [field]: value } : q));
@@ -224,6 +228,8 @@ export default function HomeworkLibrary() {
         options:       q.options.map((o) => ({ id: o.id, text: o.text, is_correct: o.isCorrect })),
       }));
       await dispatch(patchHomeworkQuestions({ id: editModal.homeworkId, questions: payload })).unwrap();
+      // Also save allow_retries setting
+      await dispatch(updateHomework({ id: editModal.homeworkId, allow_retries: editAllowRetries })).unwrap();
       closeEditModal();
       dispatch(fetchHomeworkLibrary());
     } catch {
@@ -969,7 +975,22 @@ export default function HomeworkLibrary() {
               )}
             </div>
 
-            <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
+            <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-between gap-3 rounded-b-2xl">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <span className="relative inline-flex items-center">
+                    <input
+                      checked={editAllowRetries}
+                      onChange={() => setEditAllowRetries(!editAllowRetries)}
+                      className="sr-only peer"
+                      type="checkbox"
+                    />
+                    <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#695be6]"></div>
+                  </span>
+                  <span className="text-xs font-bold text-gray-600">Allow Retries</span>
+                </label>
+              </div>
+              <div className="flex items-center gap-3">
               <button onClick={closeEditModal} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold hover:bg-gray-50">
                 Cancel
               </button>
@@ -981,6 +1002,7 @@ export default function HomeworkLibrary() {
                 {editSaving && <span className="size-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
                 {editSaving ? "Saving..." : "Save Questions"}
               </button>
+              </div>
             </div>
           </div>
         </div>

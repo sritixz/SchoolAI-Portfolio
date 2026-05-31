@@ -512,12 +512,21 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
     ).to_list(None)
     sub_map = {s["homework_id"]: s for s in submissions}
 
+    # Fetch saved progress for in-progress items
+    progress_docs = await db.homework_progress.find(
+        {"student_id": user["id"], "homework_id": {"$in": hw_ids}}
+    ).to_list(None)
+    progress_map = {p["homework_id"]: p for p in progress_docs}
+
     now = datetime.utcnow().date()
     result = []
+    due_soon_hw = []  # collect homework due within 1 day for notifications
+
     for d in docs:
         d = _ser(d)
         hw_id = d["_id"]
         sub = sub_map.get(hw_id)
+        prog = progress_map.get(hw_id)
 
         # Derive frontend status
         due_str = d.get("due_date", "")
@@ -530,12 +539,38 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             sub_status = sub.get("status", "submitted")
             if sub_status == "graded":
                 frontend_status = "completed"
+            elif sub_status == "submitted":
+                frontend_status = "completed"  # submitted = awaiting evaluation
             else:
                 frontend_status = "in_progress"
+        elif prog:
+            # Has saved progress but no submission yet
+            frontend_status = "in_progress"
         elif due_date and due_date < now:
             frontend_status = "overdue"
         else:
             frontend_status = "pending"
+
+        # Calculate progress percent
+        total_q = len(d.get("questions", []))
+        if frontend_status == "completed":
+            progress_pct = 100
+        elif prog and total_q > 0:
+            answered = len([v for v in (prog.get("answers") or {}).values() if v is not None and v != ""])
+            progress_pct = round((answered / total_q) * 100)
+        elif sub and sub.get("progress_percent"):
+            progress_pct = sub.get("progress_percent", 0)
+        else:
+            progress_pct = 0
+
+        # Determine submission_status for frontend display
+        submission_status = sub.get("status") if sub else None
+
+        # Collect due-soon homework for notification generation
+        if due_date and frontend_status in ("pending", "in_progress"):
+            days_until = (due_date - now).days
+            if 0 <= days_until <= 1:
+                due_soon_hw.append({"hw_id": hw_id, "title": d.get("title", ""), "due_date": due_str, "days_until": days_until})
 
         # Normalize to camelCase for frontend
         result.append({
@@ -549,9 +584,10 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             "dueDate":                  due_str,
             "submittedDate":            sub.get("submitted_at") if sub else None,
             "status":                   frontend_status,
+            "submission_status":        submission_status,
             "difficultyLevel":          d.get("difficulty_level", d.get("difficultyLevel", "medium")),
             "estimatedDurationMinutes": d.get("estimated_duration_minutes", d.get("estimatedDurationMinutes", 30)),
-            "progressPercent":          sub.get("progress_percent", 0) if sub and frontend_status == "in_progress" else (100 if frontend_status == "completed" else 0),
+            "progressPercent":          progress_pct,
             "grade":                    sub.get("final_grade") if sub else None,
             "teacherFeedback":          sub.get("teacher_feedback") if sub else None,
             "attachments":              d.get("attachments", []),
@@ -561,6 +597,30 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             "allow_retries":            d.get("allow_retries", False),
             "ai_assistant_enabled":     d.get("ai_assistant_enabled", True),
         })
+
+    # Generate homework_due notifications for items due today/tomorrow
+    for hw_info in due_soon_hw:
+        existing_notif = await db.notifications.find_one({
+            "user_id": user["id"],
+            "type": "homework_due",
+            "homework_id": hw_info["hw_id"],
+            "due_date": hw_info["due_date"],
+        })
+        if not existing_notif:
+            due_label = "today" if hw_info["days_until"] == 0 else "tomorrow"
+            await db.notifications.insert_one({
+                "user_id": user["id"],
+                "student_id": user["id"],
+                "type": "homework_due",
+                "title": f"Homework due {due_label}: {hw_info['title']}",
+                "message": f"Your homework \"{hw_info['title']}\" is due {due_label}. Don't forget to submit!",
+                "desc": f"Due {due_label}",
+                "homework_id": hw_info["hw_id"],
+                "due_date": hw_info["due_date"],
+                "read": False,
+                "created_at": datetime.utcnow().isoformat(),
+            })
+
     return result
 
 @router.get("/{homework_id}")
@@ -614,6 +674,56 @@ async def get_questions(homework_id: str, user=Depends(get_current_user), db=Dep
         }
 
     return [normalise(q, i) for i in range(len(raw)) for q in [raw[i]]]
+
+class SaveProgressBody(BaseModel):
+    homework_id: str
+    answers: Any = {}
+    active_types: Any = {}
+    current_index: int = 0
+    skipped: List[str] = []
+
+@router.post("/save-progress")
+async def save_progress(body: SaveProgressBody, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Save in-progress homework answers so the student can resume later."""
+    doc = {
+        "homework_id": body.homework_id,
+        "student_id": user["id"],
+        "answers": body.answers,
+        "active_types": body.active_types,
+        "current_index": body.current_index,
+        "skipped": body.skipped,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    await db.homework_progress.update_one(
+        {"homework_id": body.homework_id, "student_id": user["id"]},
+        {"$set": doc}, upsert=True,
+    )
+    # Also update progress_percent on any existing submission doc (for list display)
+    total_q = 0
+    try:
+        hw = await db.homework.find_one({"_id": ObjectId(body.homework_id)})
+        if hw:
+            total_q = len(hw.get("questions", []))
+    except Exception:
+        pass
+    answered_count = len([v for v in (body.answers or {}).values() if v is not None and v != ""])
+    progress_pct = round((answered_count / total_q) * 100) if total_q > 0 else 0
+    await db.homework_submissions.update_one(
+        {"homework_id": body.homework_id, "student_id": user["id"]},
+        {"$set": {"progress_percent": progress_pct}},
+        upsert=False,
+    )
+    return {"status": "ok", "progress_percent": progress_pct}
+
+@router.get("/{homework_id}/progress")
+async def get_progress(homework_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Retrieve saved progress for a homework attempt."""
+    doc = await db.homework_progress.find_one(
+        {"homework_id": homework_id, "student_id": user["id"]}
+    )
+    if not doc:
+        return None
+    return _ser(doc)
 
 @router.post("/submit")
 async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
@@ -692,6 +802,11 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
     # Kick off AI analysis in background
     if hw:
         background.add_task(_run_analysis, db, sub, hw)
+
+    # Clear saved progress after successful submission
+    await db.homework_progress.delete_one(
+        {"homework_id": body.homework_id, "student_id": user["id"]}
+    )
 
     return {
         "submission_id":  str(sub["_id"]),

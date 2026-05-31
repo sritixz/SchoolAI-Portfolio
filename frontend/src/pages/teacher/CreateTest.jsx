@@ -249,6 +249,7 @@ export default function CreateTest() {
   const [aiConfig,     setAiConfig]     = useState({ topic:"", count:5, difficulty:"mixed", types:["mcq"] });
   const [selectedStu,  setSelectedStu]  = useState([]);  // student IDs for assignment
   const [dueDate,      setDueDate]      = useState("");
+  const [allowRetries, setAllowRetries] = useState(false);
   const [generating,   setGenerating]   = useState(false);
   const [savingShell,  setSavingShell]  = useState(false); // step 0 → 1
   const [patchingQs,   setPatchingQs]   = useState(false); // auto-patch after generate
@@ -311,6 +312,7 @@ export default function CreateTest() {
         instructions:               hw.instructions || p.instructions,
       }));
       setQuestions(hw.questions || []);
+      setAllowRetries(hw.allow_retries || false);
       
       if (editId) {
         // Edit mode: start at step 0 so teacher can modify details
@@ -359,6 +361,7 @@ export default function CreateTest() {
         tags:                        [],
         assigned_students:           [],
         total_marks:                 0,
+        allow_retries:               allowRetries,
       };
       
       if (isEditing && hwId) {
@@ -435,6 +438,7 @@ export default function CreateTest() {
           tags:                        [],
           assigned_students:           [],
           total_marks:                 0,
+          allow_retries:               allowRetries,
         };
         const data = await dispatch(createHomework(payload)).unwrap();
         if (!data?.id) throw new Error("No ID returned");
@@ -478,6 +482,7 @@ export default function CreateTest() {
           difficulty_level:            form.difficulty_level,
           estimated_duration_minutes:  +form.estimated_duration_minutes,
           instructions:                form.instructions,
+          allow_retries:               allowRetries,
         };
         await dispatch(updateHomework({ id: hwId, ...payload })).unwrap();
         await dispatch(patchHomeworkQuestions({ id: hwId, questions })).unwrap();
@@ -799,6 +804,23 @@ export default function CreateTest() {
                     className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
                 </div>
               )}
+
+              {/* Allow Retries toggle */}
+              <div className="flex items-center justify-between p-3 border border-gray-200 rounded-xl">
+                <div className="flex flex-col">
+                  <span className="font-bold text-sm">Allow Retries</span>
+                  <span className="text-xs text-gray-400">Let students attempt more than once</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 ml-2">
+                  <input
+                    checked={allowRetries}
+                    onChange={() => setAllowRetries(!allowRetries)}
+                    className="sr-only peer"
+                    type="checkbox"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#695be6]"></div>
+                </label>
+              </div>
 
               <div className="pt-2 border-t border-gray-100">
                 {!isEditing && (

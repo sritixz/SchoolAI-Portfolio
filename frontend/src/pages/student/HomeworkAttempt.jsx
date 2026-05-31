@@ -8,6 +8,7 @@ import {
   uploadSubmissionFile, submitHomework,
   selectCurrentHomework, selectHomeworkQuestions, selectUploadUrl, selectUploadStatus, selectSubmitResult, selectSubmitStatus,
   clearUpload, clearSubmitResult, clearCurrent,
+  saveHomeworkProgress, fetchHomeworkProgress,
 } from "../../store/slices/homeworkSlice";
 
 const ANSWER_TYPES = [
@@ -374,9 +375,11 @@ export default function HomeworkAttempt() {
 
     // If this is a file/handwritten submission that's already been evaluated,
     // redirect straight to the feedback view — no need to wait for questionSet.
+    // But skip redirect if allow_retries is enabled (student is reattempting).
     const isFileType = currentHw.submission_type === "file_upload" || currentHw.submission_type === "handwritten";
     const isDone     = currentHw.status === "completed" || currentHw.status === "evaluated";
-    if (isFileType && isDone) {
+    const isReattempt = locationState?.reattempt || currentHw.allow_retries;
+    if (isFileType && isDone && !isReattempt) {
       const hwData = locationState?.hwData || {};
       // If we already have grade/feedback from list navigation state, use it directly.
       // Otherwise fetch the submission result from the API.
@@ -487,6 +490,48 @@ export default function HomeworkAttempt() {
   const [vinPanelOpen, setVinPanelOpen] = useState(false);
   const [vinContext, setVinContext] = useState(null);
   const [aiAssistantEnabled, setAiAssistantEnabled] = useState(true); // Default to true
+  const [progressLoaded, setProgressLoaded] = useState(false);
+
+  // Restore saved progress when questions are loaded
+  useEffect(() => {
+    if (!questionSet || progressLoaded) return;
+    dispatch(fetchHomeworkProgress(homeworkId)).then((action) => {
+      const prog = action.payload;
+      if (prog && prog.answers) {
+        setAnswers(prog.answers || {});
+        setActiveType(prog.active_types || {});
+        setCurrentIdx(prog.current_index || 0);
+        setSkipped(new Set(prog.skipped || []));
+      }
+      setProgressLoaded(true);
+    });
+  }, [questionSet, homeworkId, dispatch, progressLoaded]);
+
+  // Auto-save progress when answers change (debounced)
+  const saveTimerRef = useRef(null);
+  useEffect(() => {
+    if (!questionSet || !progressLoaded) return;
+    // Don't save if no answers yet
+    const hasAnswers = Object.values(answers).some(v => v !== null && v !== undefined && v !== "");
+    if (!hasAnswers) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      // Filter out File objects from answers (can't serialize)
+      const serializableAnswers = {};
+      for (const [k, v] of Object.entries(answers)) {
+        if (v instanceof File) continue;
+        serializableAnswers[k] = v;
+      }
+      dispatch(saveHomeworkProgress({
+        homework_id: homeworkId,
+        answers: serializableAnswers,
+        active_types: activeType,
+        current_index: currentIdx,
+        skipped: [...skipped],
+      }));
+    }, 2000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [answers, activeType, currentIdx, skipped, questionSet, progressLoaded]);
 
   if (!questionSet) {
     return (
@@ -786,7 +831,22 @@ export default function HomeworkAttempt() {
               </button>
             )}
             <button
-              onClick={() => navigate("/student/homework")}
+              onClick={() => {
+                // Explicitly save progress before exiting
+                const serializableAnswers = {};
+                for (const [k, v] of Object.entries(answers)) {
+                  if (v instanceof File) continue;
+                  serializableAnswers[k] = v;
+                }
+                dispatch(saveHomeworkProgress({
+                  homework_id: homeworkId,
+                  answers: serializableAnswers,
+                  active_types: activeType,
+                  current_index: currentIdx,
+                  skipped: [...skipped],
+                }));
+                navigate("/student/homework");
+              }}
               className="bg-[#5b69e6]/10 hover:bg-[#5b69e6]/20 text-[#5b69e6] px-4 py-2 rounded-full text-sm font-semibold transition-colors"
             >
               Save & Exit

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchRemediation, selectCurrentGap, selectRemediation } from "../../store/slices/learningGapsSlice";
+import { fetchRemediation, fetchGapById, selectCurrentGap, selectCurrentGapStatus, selectRemediation, selectRemediationStatus } from "../../store/slices/learningGapsSlice";
 import { getGapById, SEVERITY_UI, SUBJECT_BADGE_UI } from "../../data/learningGapData";
 
 const STATUS_ICON = { mastered: "check_circle", weak: "warning", current: "target" };
@@ -13,20 +13,36 @@ export default function GapRemediation() {
   const navigate   = useNavigate();
   const dispatch   = useDispatch();
   const apiGap     = useSelector(selectCurrentGap);
+  const apiGapStatus = useSelector(selectCurrentGapStatus);
   const remediationData = useSelector(selectRemediation);
+  const remediationStatus = useSelector(selectRemediationStatus);
   const mockGap    = getGapById(gapId);
 
   const [answer,   setAnswer]   = useState("");
   const [submitted,setSubmitted]= useState(false);
 
   useEffect(() => {
+    dispatch(fetchGapById(gapId));
     dispatch(fetchRemediation(gapId));
   }, [gapId, dispatch]);
 
-  // Use API gap if available, fall back to mock
-  const gap = apiGap?.gap || mockGap;
+  // Use gap from remediation response, or fetchGapById response, or mock fallback
+  const gap = remediationData?.gap || apiGap || mockGap;
   // Use API remediation content if available
   const remContent = remediationData?.remediation || null;
+
+  const isLoading = (apiGapStatus === "loading" || apiGapStatus === "idle") && (remediationStatus === "loading" || remediationStatus === "idle");
+
+  if (isLoading && !gap) {
+    return (
+      <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center" style={{ fontFamily: "'Lexend', sans-serif" }}>
+        <div className="text-center">
+          <div className="animate-spin size-8 border-4 border-[#685ae7]/20 border-t-[#685ae7] rounded-full mx-auto mb-4"></div>
+          <p className="font-bold text-slate-600">Loading gap details...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!gap) {
     return (
@@ -39,7 +55,7 @@ export default function GapRemediation() {
     );
   }
 
-  const sev  = SEVERITY_UI[gap.severity];
+  const sev  = SEVERITY_UI[gap.severity] || SEVERITY_UI.minor;
   const subj = SUBJECT_BADGE_UI[gap.subject] || "bg-gray-100 text-gray-600";
 
   return (
@@ -81,20 +97,39 @@ export default function GapRemediation() {
                 <span className="material-symbols-outlined text-[#685ae7]">analytics</span>Gap Detection Context
               </h3>
               <div className="space-y-4">
-                <div className="p-4 bg-[#685ae7]/5 rounded-lg">
-                  <p className="text-[#100e1b] text-sm font-bold">{gap.identifiedFrom.title}</p>
-                  <p className="text-[#685ae7]/70 text-xs font-medium capitalize">{gap.identifiedFrom.type} • {gap.identifiedFrom.date}</p>
-                </div>
-                <p className="text-sm text-[#575095] leading-relaxed">
-                  <span className="font-bold text-[#100e1b]">Error Summary: </span>{gap.aiErrorSummary}
-                </p>
-                <button className="w-full py-2 bg-[#685ae7]/10 text-[#685ae7] rounded-lg text-sm font-bold hover:bg-[#685ae7]/20 transition-all">
+                {gap.identifiedFrom && (
+                  <div className="p-4 bg-[#685ae7]/5 rounded-lg">
+                    <p className="text-[#100e1b] text-sm font-bold">{typeof gap.identifiedFrom === "object" ? gap.identifiedFrom.title : gap.identifiedFrom}</p>
+                    {typeof gap.identifiedFrom === "object" && (
+                      <p className="text-[#685ae7]/70 text-xs font-medium capitalize">{gap.identifiedFrom.type} • {gap.identifiedFrom.date}</p>
+                    )}
+                  </div>
+                )}
+                {gap.aiErrorSummary && (
+                  <p className="text-sm text-[#575095] leading-relaxed">
+                    <span className="font-bold text-[#100e1b]">Error Summary: </span>{gap.aiErrorSummary}
+                  </p>
+                )}
+                <button
+                  onClick={() => {
+                    const source = gap.identifiedFrom;
+                    if (source?.type === "homework" && source?.id) {
+                      navigate(`/student/homework/${source.id}/result`);
+                    } else if (source?.type === "quiz" && source?.id) {
+                      navigate(`/student/learning-gaps/quizzes`);
+                    } else {
+                      navigate("/student/homework");
+                    }
+                  }}
+                  className="w-full py-2 bg-[#685ae7]/10 text-[#685ae7] rounded-lg text-sm font-bold hover:bg-[#685ae7]/20 transition-all"
+                >
                   View Original Attempt
                 </button>
               </div>
             </section>
 
             {/* Prerequisite map */}
+            {gap.prerequisites?.length > 0 && (
             <section className="bg-white rounded-xl p-6 shadow-sm border border-[#685ae7]/5">
               <h3 className="text-[#100e1b] text-lg font-bold mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#685ae7]">account_tree</span>Prerequisite Map
@@ -103,12 +138,12 @@ export default function GapRemediation() {
                 {gap.prerequisites.map((pre, i) => (
                   <div key={pre.topic}>
                     <div className="flex items-center gap-4">
-                      <div className={`size-10 rounded-full flex items-center justify-center shrink-0 ${STATUS_COLOR[pre.status]}`}>
-                        <span className="material-symbols-outlined text-lg">{STATUS_ICON[pre.status]}</span>
+                      <div className={`size-10 rounded-full flex items-center justify-center shrink-0 ${STATUS_COLOR[pre.status] || "bg-gray-100 text-gray-600"}`}>
+                        <span className="material-symbols-outlined text-lg">{STATUS_ICON[pre.status] || "help"}</span>
                       </div>
                       <div>
                         <p className="text-sm font-bold">{pre.topic}</p>
-                        <p className={`text-xs font-medium ${STATUS_TEXT[pre.status]}`}>
+                        <p className={`text-xs font-medium ${STATUS_TEXT[pre.status] || "text-gray-500"}`}>
                           {pre.status === "current" ? "Current Goal" : pre.status === "mastered" ? `Mastered (${pre.masteryPercent}%)` : `Weak (${pre.masteryPercent}%)`}
                         </p>
                       </div>
@@ -120,15 +155,29 @@ export default function GapRemediation() {
                 ))}
               </div>
             </section>
+            )}
 
             {/* Corrective path */}
+            {gap.correctivePath?.length > 0 && (
             <section className="bg-white rounded-xl p-6 shadow-sm border border-[#685ae7]/5">
               <h3 className="text-[#100e1b] text-lg font-bold mb-4 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#685ae7]">route</span>Corrective Path
               </h3>
               <div className="flex flex-col gap-3">
                 {gap.correctivePath.map((cp) => (
-                  <div key={cp.type} className="flex items-center gap-3 p-3 rounded-lg border border-[#685ae7]/10 hover:border-[#685ae7]/40 cursor-pointer transition-all group">
+                  <div
+                    key={cp.type}
+                    onClick={() => {
+                      if (cp.type === "practice") {
+                        const el = document.getElementById("remediation-practice");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      } else {
+                        const el = document.getElementById("remediation-reading");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-[#685ae7]/10 hover:border-[#685ae7]/40 cursor-pointer transition-all group"
+                  >
                     <div className="size-10 rounded bg-[#685ae7]/10 text-[#685ae7] flex items-center justify-center group-hover:bg-[#685ae7] group-hover:text-white transition-colors">
                       <span className="material-symbols-outlined">{cp.icon}</span>
                     </div>
@@ -141,11 +190,12 @@ export default function GapRemediation() {
                 ))}
               </div>
             </section>
+            )}
           </div>
 
           {/* ── Main workspace ── */}
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <section className="bg-white rounded-xl shadow-sm border border-[#685ae7]/5 flex flex-col overflow-hidden">
+            <section id="remediation-workspace" className="bg-white rounded-xl shadow-sm border border-[#685ae7]/5 flex flex-col overflow-hidden">
               {/* Workspace header */}
               <div className="p-6 border-b border-[#685ae7]/10 flex justify-between items-center bg-[#685ae7]/5">
                 <div>
@@ -160,7 +210,7 @@ export default function GapRemediation() {
               <div className="p-8 flex flex-col gap-8">
                 {/* AI Remediation Content from API */}
                 {remContent && (
-                  <div className="bg-[#685ae7]/5 border border-[#685ae7]/20 rounded-xl p-5">
+                  <div id="remediation-reading" className="bg-[#685ae7]/5 border border-[#685ae7]/20 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#685ae7]">auto_awesome</span>
                       <h4 className="font-bold text-[#685ae7]">AI Remediation Guide</h4>
@@ -190,7 +240,8 @@ export default function GapRemediation() {
                 )}
 
                 {/* Question */}
-                <div className="space-y-4">
+                {gap.retryQuestion?.text && (
+                <div id="remediation-practice" className="space-y-4">
                   <div className="flex items-center gap-2 text-[#685ae7] font-bold">
                     <span className="material-symbols-outlined">quiz</span>
                     <span>New but Similar Question</span>
@@ -206,6 +257,7 @@ export default function GapRemediation() {
                     </p>
                   </div>
                 </div>
+                )}
 
                 {/* Answer input */}
                 <div className="space-y-4">
@@ -243,6 +295,7 @@ export default function GapRemediation() {
 
                 {/* Improvement tracker + AI feedback */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {gap.attempts?.length > 0 && (
                   <div className="bg-[#f6f6f8] p-5 rounded-xl border border-[#685ae7]/5">
                     <h4 className="text-xs font-bold text-[#685ae7]/60 uppercase tracking-widest mb-4">Improvement Tracker</h4>
                     <div className="space-y-3">
@@ -269,7 +322,9 @@ export default function GapRemediation() {
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {gap.aiLastFeedback && (
                   <div className="bg-[#685ae7]/5 p-5 rounded-xl border border-[#685ae7]/20">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="material-symbols-outlined text-[#685ae7] text-lg">psychology</span>
@@ -277,13 +332,14 @@ export default function GapRemediation() {
                     </div>
                     <p className="text-xs text-[#575095] leading-relaxed italic">"{gap.aiLastFeedback}"</p>
                   </div>
+                  )}
                 </div>
               </div>
             </section>
 
             {/* Visual ref */}
             {gap.visualRef && (
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-[#685ae7]/5 flex items-center gap-6">
+              <div id="remediation-video" className="bg-white rounded-xl p-4 shadow-sm border border-[#685ae7]/5 flex items-center gap-6">
                 <div className="size-20 rounded-lg bg-[#685ae7]/10 flex items-center justify-center shrink-0">
                   <span className="material-symbols-outlined text-3xl text-[#685ae7]">functions</span>
                 </div>
