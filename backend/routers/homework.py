@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Body
 from bson import ObjectId
 from datetime import datetime
 from dependencies import require_role, get_current_user
@@ -92,6 +92,24 @@ async def update_homework(homework_id: str, body: HomeworkCreate,
         update["questions"] = [q.dict() for q in body.questions]
         update["total_marks"] = sum(q.max_points for q in body.questions)
     
+    await db.homework.update_one({"_id": ObjectId(homework_id)}, {"$set": update})
+    return {"id": homework_id, "updated": True}
+
+@router.patch("/{homework_id}/settings")
+async def patch_homework_settings(homework_id: str, body: dict = Body(...),
+                                   user=Depends(require_role("teacher")), db=Depends(get_db)):
+    """Patch individual homework settings (e.g. allow_retries, ai_assistant_enabled)."""
+    try:
+        hw = await db.homework.find_one({"_id": ObjectId(homework_id)})
+    except Exception:
+        raise HTTPException(400, "Invalid ID")
+    if not hw:
+        raise HTTPException(404, "Homework not found")
+    allowed_fields = {"allow_retries", "ai_assistant_enabled"}
+    update = {k: v for k, v in body.items() if k in allowed_fields}
+    if not update:
+        raise HTTPException(400, "No valid fields to update")
+    update["updated_at"] = datetime.utcnow().isoformat()
     await db.homework.update_one({"_id": ObjectId(homework_id)}, {"$set": update})
     return {"id": homework_id, "updated": True}
 
@@ -215,13 +233,38 @@ async def homework_library(user=Depends(require_role("teacher")), db=Depends(get
 
 @router.get("/{homework_id}/submissions")
 async def list_submissions(homework_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
-    """All student submissions for a homework, with AI analysis status."""
+    """All student submissions for a homework — only the selected attempt per student."""
     docs = await db.homework_submissions.find({"homework_id": homework_id}).to_list(None)
-    return [_ser(d) for d in docs]
+    # Group by student, pick selected_for_evaluation or latest
+    by_student = {}
+    for d in docs:
+        sid = d.get("student_id")
+        if d.get("selected_for_evaluation"):
+            by_student[sid] = d
+        elif sid not in by_student:
+            by_student[sid] = d
+        elif not by_student[sid].get("selected_for_evaluation"):
+            # Keep the one with highest attempt_number
+            if d.get("attempt_number", 1) > by_student[sid].get("attempt_number", 1):
+                by_student[sid] = d
+    result = list(by_student.values())
+    # Add attempt count info for teacher visibility
+    for r in result:
+        sid = r.get("student_id")
+        r["total_attempts"] = len([d for d in docs if d.get("student_id") == sid])
+    return [_ser(d) for d in result]
 
 @router.get("/{homework_id}/submissions/{student_id}")
 async def get_submission(homework_id: str, student_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
-    doc = await db.homework_submissions.find_one({"homework_id": homework_id, "student_id": student_id})
+    """Get the selected submission for a student (or latest if none selected)."""
+    doc = await db.homework_submissions.find_one(
+        {"homework_id": homework_id, "student_id": student_id, "selected_for_evaluation": True}
+    )
+    if not doc:
+        doc = await db.homework_submissions.find_one(
+            {"homework_id": homework_id, "student_id": student_id},
+            sort=[("attempt_number", -1)]
+        )
     if not doc:
         raise HTTPException(404, "Submission not found")
     return _ser(doc)
@@ -507,10 +550,22 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
 
     # Fetch all submissions for this student in one query
     hw_ids = [str(d["_id"]) for d in docs]
-    submissions = await db.homework_submissions.find(
+    all_submissions = await db.homework_submissions.find(
         {"student_id": user["id"], "homework_id": {"$in": hw_ids}}
     ).to_list(None)
-    sub_map = {s["homework_id"]: s for s in submissions}
+    # Group by homework_id: pick selected_for_evaluation or latest
+    sub_map = {}
+    attempt_counts = {}
+    for s in all_submissions:
+        hid = s["homework_id"]
+        attempt_counts[hid] = attempt_counts.get(hid, 0) + 1
+        if s.get("selected_for_evaluation"):
+            sub_map[hid] = s
+        elif hid not in sub_map:
+            sub_map[hid] = s
+        elif not sub_map[hid].get("selected_for_evaluation"):
+            if s.get("attempt_number", 1) > sub_map[hid].get("attempt_number", 1):
+                sub_map[hid] = s
 
     # Fetch saved progress for in-progress items
     progress_docs = await db.homework_progress.find(
@@ -596,6 +651,7 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             "submission_type":          d.get("submission_type", "online_quiz"),
             "allow_retries":            d.get("allow_retries", False),
             "ai_assistant_enabled":     d.get("ai_assistant_enabled", True),
+            "attempt_count":            attempt_counts.get(hw_id, 0),
         })
 
     # Generate homework_due notifications for items due today/tomorrow
@@ -698,7 +754,7 @@ async def save_progress(body: SaveProgressBody, user=Depends(require_role("stude
         {"homework_id": body.homework_id, "student_id": user["id"]},
         {"$set": doc}, upsert=True,
     )
-    # Also update progress_percent on any existing submission doc (for list display)
+    # Also update progress_percent on the latest submission doc (for list display)
     total_q = 0
     try:
         hw = await db.homework.find_one({"_id": ObjectId(body.homework_id)})
@@ -708,11 +764,16 @@ async def save_progress(body: SaveProgressBody, user=Depends(require_role("stude
         pass
     answered_count = len([v for v in (body.answers or {}).values() if v is not None and v != ""])
     progress_pct = round((answered_count / total_q) * 100) if total_q > 0 else 0
-    await db.homework_submissions.update_one(
+    # Update the latest attempt's progress if one exists
+    latest_sub = await db.homework_submissions.find_one(
         {"homework_id": body.homework_id, "student_id": user["id"]},
-        {"$set": {"progress_percent": progress_pct}},
-        upsert=False,
+        sort=[("attempt_number", -1)]
     )
+    if latest_sub:
+        await db.homework_submissions.update_one(
+            {"_id": latest_sub["_id"]},
+            {"$set": {"progress_percent": progress_pct}},
+        )
     return {"status": "ok", "progress_percent": progress_pct}
 
 @router.get("/{homework_id}/progress")
@@ -735,14 +796,17 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
     except Exception:
         raise HTTPException(400, "Invalid homework ID")
 
-    # Check if student already submitted and retries are not allowed
-    existing_sub = await db.homework_submissions.find_one(
+    # Count existing attempts
+    existing_attempts = await db.homework_submissions.find(
         {"homework_id": body.homework_id, "student_id": user["id"]}
-    )
-    if existing_sub and existing_sub.get("status") in ("submitted", "graded"):
+    ).sort("attempt_number", -1).to_list(None)
+
+    if existing_attempts:
         allow_retries = hw.get("allow_retries", False) if hw else False
         if not allow_retries:
             raise HTTPException(400, "Retries are not allowed for this homework")
+
+    attempt_number = (existing_attempts[0]["attempt_number"] if existing_attempts else 0) + 1
 
     questions = {q["id"]: q for q in (hw.get("questions", []) if hw else [])}
     scored_answers = []
@@ -769,9 +833,14 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
 
     auto_score_pct = round(mcq_earned / mcq_total * 100) if mcq_total > 0 else None
 
+    # First attempt is auto-selected for evaluation; subsequent ones are not
+    is_selected = attempt_number == 1
+
     doc = {
         "homework_id":        body.homework_id,
         "student_id":         user["id"],
+        "attempt_number":     attempt_number,
+        "selected_for_evaluation": is_selected,
         "submission_type":    hw.get("submission_type", "online_quiz") if hw else "online_quiz",
         "answers":            scored_answers,
         "submission_file_url": body.submission_file_url,
@@ -785,11 +854,23 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
         "teacher_feedback":   None,
     }
 
-    await db.homework_submissions.update_one(
-        {"homework_id": body.homework_id, "student_id": user["id"]},
-        {"$set": doc}, upsert=True,
-    )
-    sub = await db.homework_submissions.find_one({"homework_id": body.homework_id, "student_id": user["id"]})
+    result = await db.homework_submissions.insert_one(doc)
+    sub = await db.homework_submissions.find_one({"_id": result.inserted_id})
+
+    # If this is a better score than the currently selected attempt, auto-select it
+    if not is_selected and auto_score_pct is not None:
+        selected_sub = next((a for a in existing_attempts if a.get("selected_for_evaluation")), None)
+        if selected_sub:
+            prev_score = selected_sub.get("auto_score_pct")
+            if prev_score is None or auto_score_pct > prev_score:
+                # Deselect old, select new
+                await db.homework_submissions.update_one(
+                    {"_id": selected_sub["_id"]}, {"$set": {"selected_for_evaluation": False}}
+                )
+                await db.homework_submissions.update_one(
+                    {"_id": result.inserted_id}, {"$set": {"selected_for_evaluation": True}}
+                )
+                is_selected = True
 
     # Mark homework status
     if hw:
@@ -814,17 +895,62 @@ async def submit_homework(body: HomeworkSubmission, background: BackgroundTasks,
         "mcq_earned":     mcq_earned,
         "mcq_total":      mcq_total,
         "status":         "submitted",
+        "attempt_number": attempt_number,
+        "selected_for_evaluation": is_selected,
         "ai_analysis_pending": True,
     }
 
 @router.get("/{homework_id}/result")
 async def get_result(homework_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Return the selected attempt for this student (backward-compatible)."""
     doc = await db.homework_submissions.find_one(
-        {"homework_id": homework_id, "student_id": user["id"]}
+        {"homework_id": homework_id, "student_id": user["id"], "selected_for_evaluation": True}
     )
+    # Fallback: if no selected attempt, return the latest one
+    if not doc:
+        doc = await db.homework_submissions.find_one(
+            {"homework_id": homework_id, "student_id": user["id"]},
+            sort=[("attempt_number", -1)]
+        )
     if not doc:
         raise HTTPException(404, "No submission found")
     return _ser(doc)
+
+@router.get("/{homework_id}/attempts")
+async def get_attempts(homework_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Return all attempts for a homework by this student."""
+    docs = await db.homework_submissions.find(
+        {"homework_id": homework_id, "student_id": user["id"]}
+    ).sort("attempt_number", 1).to_list(None)
+    return [_ser(d) for d in docs]
+
+@router.post("/{homework_id}/select-attempt")
+async def select_attempt(homework_id: str, body: dict = Body(...),
+                         user=Depends(require_role("student")), db=Depends(get_db)):
+    """Student selects which attempt to send for teacher evaluation."""
+    attempt_id = body.get("attempt_id")
+    if not attempt_id:
+        raise HTTPException(400, "attempt_id is required")
+    # Verify the attempt belongs to this student
+    try:
+        attempt = await db.homework_submissions.find_one(
+            {"_id": ObjectId(attempt_id), "homework_id": homework_id, "student_id": user["id"]}
+        )
+    except Exception:
+        raise HTTPException(400, "Invalid attempt ID")
+    if not attempt:
+        raise HTTPException(404, "Attempt not found")
+    # Deselect all other attempts for this homework
+    await db.homework_submissions.update_many(
+        {"homework_id": homework_id, "student_id": user["id"]},
+        {"$set": {"selected_for_evaluation": False}}
+    )
+    # Select the chosen one
+    await db.homework_submissions.update_one(
+        {"_id": ObjectId(attempt_id)},
+        {"$set": {"selected_for_evaluation": True}}
+    )
+    return {"status": "ok", "selected_attempt_id": attempt_id}
 
 # ─────────────────────────────────────────────────────────────
 # FILE UPLOAD — for handwritten / file-upload type homework

@@ -298,6 +298,11 @@ function SubmissionCard({ sub, selected, onClick }) {
         <div className="flex items-center gap-2 mt-0.5">
           <StatusBadge status={sub.status} />
           {pct != null && <ScoreBadge pct={pct} />}
+          {sub.total_attempts > 1 && (
+            <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
+              {sub.total_attempts} attempts
+            </span>
+          )}
         </div>
       </div>
       {sub.ai_analysis && <span className="material-symbols-outlined text-[#695be6] text-base shrink-0" title="AI analysed">psychology</span>}

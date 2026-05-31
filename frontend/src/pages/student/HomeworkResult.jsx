@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../api";
 
 // ── Score helpers ────────────────────────────────────────────
 function getScoreColor(pct) {
@@ -132,6 +133,83 @@ function QuestionReview({ q, studentAnswer, index, gradedData }) {
   );
 }
 
+// ── Attempts Panel ───────────────────────────────────────────
+function AttemptsPanel({ homeworkId, currentAttemptNumber }) {
+  const [attempts, setAttempts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState(null);
+
+  useEffect(() => {
+    api.get(`/homework/${homeworkId}/attempts`)
+      .then((r) => setAttempts(r.data || []))
+      .catch(() => setAttempts([]))
+      .finally(() => setLoading(false));
+  }, [homeworkId]);
+
+  const handleSelect = async (attemptId) => {
+    setSelecting(attemptId);
+    try {
+      await api.post(`/homework/${homeworkId}/select-attempt`, { attempt_id: attemptId });
+      setAttempts((prev) => prev.map((a) => ({
+        ...a,
+        selected_for_evaluation: a._id === attemptId,
+      })));
+    } catch { /* silent */ }
+    finally { setSelecting(null); }
+  };
+
+  if (loading || attempts.length <= 1) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="material-symbols-outlined text-[#5b69e6]">history</span>
+        <h3 className="font-bold text-sm text-slate-800">Your Attempts ({attempts.length})</h3>
+      </div>
+      <p className="text-xs text-slate-400 mb-3">Select which attempt to send for teacher evaluation. The best score is auto-selected by default.</p>
+      <div className="flex flex-col gap-2">
+        {attempts.map((a) => {
+          const isSelected = a.selected_for_evaluation;
+          const isCurrent = a.attempt_number === currentAttemptNumber;
+          const score = a.auto_score_pct;
+          const col = score != null ? (score >= 80 ? "text-green-600" : score >= 50 ? "text-amber-600" : "text-red-600") : "text-slate-500";
+          return (
+            <div key={a._id}
+              className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                isSelected ? "border-[#5b69e6] bg-[#5b69e6]/5" : "border-slate-100 hover:border-slate-200"
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-700">Attempt {a.attempt_number}</span>
+                  {isCurrent && <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Current</span>}
+                  {isSelected && <span className="text-[10px] font-bold bg-[#5b69e6]/10 text-[#5b69e6] px-2 py-0.5 rounded-full">Selected for Evaluation</span>}
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                  {score != null && <span className={`font-bold ${col}`}>{score}%</span>}
+                  <span>{new Date(a.submitted_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              </div>
+              {!isSelected && (
+                <button
+                  onClick={() => handleSelect(a._id)}
+                  disabled={selecting === a._id}
+                  className="text-xs font-bold text-[#5b69e6] border border-[#5b69e6] px-3 py-1.5 rounded-lg hover:bg-[#5b69e6]/5 disabled:opacity-50 transition-colors"
+                >
+                  {selecting === a._id ? "..." : "Select"}
+                </button>
+              )}
+              {isSelected && (
+                <span className="material-symbols-outlined text-[#5b69e6]">check_circle</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main screen ──────────────────────────────────────────────
 export default function HomeworkResult() {
   const { homeworkId } = useParams();
@@ -147,12 +225,10 @@ export default function HomeworkResult() {
   useEffect(() => {
     if (!state && homeworkId) {
       setFetchingResult(true);
-      import("../../api").then(({ default: api }) => {
-        api.get(`/homework/${homeworkId}/result`)
-          .then((r) => setApiSubmission(r.data))
-          .catch(() => setApiSubmission(null))
-          .finally(() => setFetchingResult(false));
-      });
+      api.get(`/homework/${homeworkId}/result`)
+        .then((r) => setApiSubmission(r.data))
+        .catch(() => setApiSubmission(null))
+        .finally(() => setFetchingResult(false));
     }
   }, [homeworkId, state]);
 
@@ -454,8 +530,20 @@ export default function HomeworkResult() {
             );
           })()}
 
+          {/* Attempts Panel (multi-attempt) */}
+          {allowRetries && <AttemptsPanel homeworkId={homeworkId} currentAttemptNumber={apiResult?.attempt_number || doc?.attempt_number || 1} />}
+
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
+            {allowRetries && (
+              <button
+                onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
+                className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-full hover:bg-[#5b69e6]/5 transition-all"
+              >
+                <span className="material-symbols-outlined">replay</span>
+                Retry Homework
+              </button>
+            )}
             <button onClick={() => navigate("/student/homework")}
               className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#5b69e6] text-white font-bold rounded-full shadow-lg shadow-[#5b69e6]/20 hover:brightness-110 transition-all">
               <span className="material-symbols-outlined">arrow_back</span>
@@ -684,11 +772,14 @@ export default function HomeworkResult() {
         </div>
         )}
 
+        {/* Attempts Panel (multi-attempt) */}
+        {allowRetries && <AttemptsPanel homeworkId={homeworkId} currentAttemptNumber={apiResult?.attempt_number || 1} />}
+
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           {allowRetries && (
             <button
-              onClick={() => navigate(`/student/homework/${homeworkId}`)}
+              onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
               className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-full hover:bg-[#5b69e6]/5 transition-all"
             >
               <span className="material-symbols-outlined">replay</span>
