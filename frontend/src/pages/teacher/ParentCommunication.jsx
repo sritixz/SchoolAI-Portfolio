@@ -87,6 +87,7 @@ export default function ParentCommunication() {
   // New Message modal state
   const [newMsgModal, setNewMsgModal] = useState(false);
   const [newMsgStudent, setNewMsgStudent] = useState("");
+  const [newMsgParent, setNewMsgParent] = useState("");
   const [newMsgBody, setNewMsgBody] = useState("");
   const [newMsgSending, setNewMsgSending] = useState(false);
 
@@ -152,31 +153,43 @@ export default function ParentCommunication() {
   // ── Sync API meetings ────────────────────────────────────────
   useEffect(() => {
     if (!apiMeetings.length) return;
-    const mapped = apiMeetings.map((m) => ({
-      id: m._id || m.id,
-      studentName: m.student_name || m.child_name || "Student",
-      studentClass: m.student_class || "",
-      rollNo: m.roll_no || "",
-      reason: m.reason || "",
-      urgency: m.urgency || "normal",
-      status: m.status || "pending_response",
-      confirmedTime: m.confirmed_time || null,
-      initiatedBy: m.initiated_by || "teacher",
-      proposedTimes: (m.proposed_times || []).map((t, i) => ({
-        id: `t${i}`,
-        date: t.date || "",
-        time: t.time || "",
-        selected: i === 0,
-      })),
-      parentContact: {
-        name: m.parent_name || "Parent",
-        phone: m.parent_phone || "",
-        email: m.parent_email || "",
-      },
-    }));
+    const mapped = apiMeetings.map((m) => {
+      // Try to resolve parent name from parentsList if not provided by API
+      let resolvedParentName = m.parent_name;
+      if (!resolvedParentName && m.parent_id) {
+        const found = parentsList.find((p) => p.id === m.parent_id);
+        if (found && found.name !== "Unknown Parent") resolvedParentName = found.name;
+      }
+      if (!resolvedParentName && m.student_id) {
+        const found = parentsList.find((p) => p.children.some((c) => c.id === m.student_id));
+        if (found && found.name !== "Unknown Parent") resolvedParentName = found.name;
+      }
+      return {
+        id: m._id || m.id,
+        studentName: m.student_name || m.child_name || "Student",
+        studentClass: m.student_class || "",
+        rollNo: m.roll_no || "",
+        reason: m.reason || "",
+        urgency: m.urgency || "normal",
+        status: m.status || "pending_response",
+        confirmedTime: m.confirmed_time || null,
+        initiatedBy: m.initiated_by || "teacher",
+        proposedTimes: (m.proposed_times || []).map((t, i) => ({
+          id: `t${i}`,
+          date: t.date || "",
+          time: t.time || "",
+          selected: i === 0,
+        })),
+        parentContact: {
+          name: resolvedParentName || "Parent",
+          phone: m.parent_phone || "",
+          email: m.parent_email || "",
+        },
+      };
+    });
     setMeetingRequests(mapped);
     if (mapped.length > 0 && !selectedMeeting) setSelectedMeeting(mapped[0]);
-  }, [apiMeetings]);
+  }, [apiMeetings, parentsList]);
 
   // ── Filtering ────────────────────────────────────────────────
   const filteredParents = useMemo(() => {
@@ -325,11 +338,10 @@ export default function ParentCommunication() {
       const studentId = newMsgStudent;
       setNewMsgModal(false);
       setNewMsgStudent("");
+      setNewMsgParent("");
       setNewMsgBody("");
       // Find the thread key for this student after refresh
-      // We'll set selectedThread after messages reload via effect
       setSelectedThread((prev) => {
-        // Try to find existing thread key for this student
         const match = apiMessages.find((m) => m.student_id === studentId);
         if (match) return `${match.parent_id || "unknown"}__${studentId}`;
         return prev;
@@ -337,6 +349,12 @@ export default function ParentCommunication() {
     } catch { showToast("Failed to send message", "error"); }
     finally { setNewMsgSending(false); }
   };
+
+  // ── Parents for selected student in New Message modal ────────
+  const newMsgParentsForStudent = useMemo(() => {
+    if (!newMsgStudent) return [];
+    return parentsList.filter((p) => p.children.some((c) => c.id === newMsgStudent));
+  }, [newMsgStudent, parentsList]);
 
   // ── Auto-scroll chat to bottom ───────────────────────────────
   useEffect(() => {
@@ -353,6 +371,7 @@ export default function ParentCommunication() {
         map.set(key, {
           key,
           parentId: m.parent_id || null,
+          parentName: m.parent_name || null,
           studentId: m.student_id || "unknown",
           studentName: m.student_name || "Student",
           messages: [],
@@ -361,18 +380,31 @@ export default function ParentCommunication() {
         });
       }
       const t = map.get(key);
-      // Keep the most recent parent_id we've seen for this student
+      // Keep the most recent parent_id and parent_name we've seen for this student
       if (m.parent_id && !t.parentId) t.parentId = m.parent_id;
+      if (m.parent_name && !t.parentName) t.parentName = m.parent_name;
       t.messages.push(m);
       if (m.direction === "parent_to_teacher" && !m.read) t.unread++;
       if ((m.sent_at || "") > t.lastAt) t.lastAt = m.sent_at || "";
     });
-    map.forEach((t) => t.messages.sort((a, b) => (a.sent_at || "").localeCompare(b.sent_at || "")));
+    // Try to resolve parent names from parentsList if not available from messages
+    map.forEach((t) => {
+      if (!t.parentName && t.parentId) {
+        const found = parentsList.find((p) => p.id === t.parentId);
+        if (found && found.name !== "Unknown Parent") t.parentName = found.name;
+      }
+      if (!t.parentName) {
+        // Try to find parent by student
+        const found = parentsList.find((p) => p.children.some((c) => c.id === t.studentId));
+        if (found && found.name !== "Unknown Parent") t.parentName = found.name;
+      }
+      t.messages.sort((a, b) => (a.sent_at || "").localeCompare(b.sent_at || ""));
+    });
     return Array.from(map.values()).sort((a, b) => {
       if (b.unread !== a.unread) return b.unread - a.unread;
       return b.lastAt.localeCompare(a.lastAt);
     });
-  }, [apiMessages]);
+  }, [apiMessages, parentsList]);
 
   return (
     <div className="bg-[#faf9ff] min-h-screen" style={{ fontFamily: "'Lexend', sans-serif" }}>
@@ -390,7 +422,7 @@ export default function ParentCommunication() {
       {/* New Message Modal */}
       {newMsgModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
-          onClick={(e) => { if (e.target === e.currentTarget) { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgBody(""); } }}>
+          onClick={(e) => { if (e.target === e.currentTarget) { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); } }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
@@ -402,7 +434,7 @@ export default function ParentCommunication() {
                   <p className="text-xs text-gray-400">Send a message to a parent</p>
                 </div>
               </div>
-              <button onClick={() => { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgBody(""); }}
+              <button onClick={() => { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); }}
                 className="size-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-gray-400 text-lg">close</span>
               </button>
@@ -410,7 +442,7 @@ export default function ParentCommunication() {
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1.5 block uppercase tracking-wide">Student</label>
-                <select value={newMsgStudent} onChange={(e) => setNewMsgStudent(e.target.value)}
+                <select value={newMsgStudent} onChange={(e) => { setNewMsgStudent(e.target.value); setNewMsgParent(""); }}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
                   <option value="">— Select student —</option>
                   {(classFilter
@@ -421,6 +453,26 @@ export default function ParentCommunication() {
                   ))}
                 </select>
               </div>
+              {newMsgStudent && newMsgParentsForStudent.length > 0 && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1.5 block uppercase tracking-wide">Parent</label>
+                  {newMsgParentsForStudent.length === 1 ? (
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5">
+                      <Avatar name={newMsgParentsForStudent[0].name} size="size-7" bg="bg-[#695be6]/10" text="text-[#695be6] text-xs" />
+                      <span className="text-sm font-semibold">{newMsgParentsForStudent[0].name}</span>
+                      {newMsgParentsForStudent[0].phone && <span className="text-xs text-gray-400 ml-auto">{newMsgParentsForStudent[0].phone}</span>}
+                    </div>
+                  ) : (
+                    <select value={newMsgParent} onChange={(e) => setNewMsgParent(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
+                      <option value="">— Select parent —</option>
+                      {newMsgParentsForStudent.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}{p.email ? ` (${p.email})` : ""}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1.5 block uppercase tracking-wide">Message</label>
                 <textarea value={newMsgBody} onChange={(e) => setNewMsgBody(e.target.value)}
@@ -429,7 +481,7 @@ export default function ParentCommunication() {
               </div>
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-              <button onClick={() => { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgBody(""); }}
+              <button onClick={() => { setNewMsgModal(false); setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); }}
                 className="flex-1 border border-gray-200 text-sm font-bold py-2.5 rounded-xl hover:bg-gray-100 bg-white">Cancel</button>
               <button onClick={handleNewMsgSend} disabled={newMsgSending || !newMsgStudent || !newMsgBody.trim()}
                 className="flex-1 bg-[#695be6] text-white text-sm font-bold py-2.5 rounded-xl hover:bg-[#5a4dd4] flex items-center justify-center gap-2 disabled:opacity-70">
@@ -823,10 +875,13 @@ export default function ParentCommunication() {
                       selectedMeeting?.id === req.id ? "border-[#695be6]" : "border-gray-100 hover:border-gray-200"
                     }`}>
                     <div className="flex items-start gap-4">
-                      <Avatar name={req.studentName} size="size-12" bg="bg-gray-100" text="text-gray-500 font-bold" />
+                      <Avatar name={req.parentContact.name} size="size-12" bg="bg-gray-100" text="text-gray-500 font-bold" />
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <p className="font-black text-sm">{req.studentName} {req.studentClass && `(${req.studentClass})`}</p>
+                          <p className="font-black text-sm">{req.parentContact.name}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
+                            {req.studentName}{req.studentClass && ` · ${req.studentClass}`}
+                          </span>
                           <StatusBadge status={req.status} />
                           {req.urgency === "urgent" && (
                             <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
@@ -837,10 +892,6 @@ export default function ParentCommunication() {
                             <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Parent-initiated</span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 mb-1">
-                          <span className="font-semibold text-gray-700">{req.parentContact.name}</span>
-                          {req.parentContact.phone && <span className="ml-2 text-gray-400">{req.parentContact.phone}</span>}
-                        </p>
                         <p className="text-sm text-gray-500 mb-3">{req.reason}</p>
 
                         {req.status === "confirmed" && req.confirmedTime ? (
@@ -963,7 +1014,7 @@ export default function ParentCommunication() {
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Conversations</p>
                 <button
-                  onClick={() => { setNewMsgStudent(""); setNewMsgBody(""); setNewMsgModal(true); }}
+                  onClick={() => { setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); setNewMsgModal(true); }}
                   className="flex items-center gap-1 text-xs font-bold text-[#695be6] hover:underline">
                   <span className="material-symbols-outlined text-sm">add</span> New Message
                 </button>
@@ -975,7 +1026,7 @@ export default function ParentCommunication() {
                   <p className="text-sm">No messages yet</p>
                   <p className="text-xs mt-1">Messages from parents will appear here</p>
                   <button
-                    onClick={() => { setNewMsgStudent(""); setNewMsgBody(""); setNewMsgModal(true); }}
+                    onClick={() => { setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); setNewMsgModal(true); }}
                     className="mt-4 bg-[#695be6] text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-[#5a4dd4]">
                     New Message
                   </button>
@@ -996,7 +1047,7 @@ export default function ParentCommunication() {
                         selectedThread === t.key ? "bg-[#695be6]/5 border-r-2 border-[#695be6]" : ""
                       }`}>
                       <div className="relative">
-                        <Avatar name={t.studentName} size="size-11" />
+                        <Avatar name={t.parentName || t.studentName} size="size-11" />
                         {t.unread > 0 && (
                           <span className="absolute -top-1 -right-1 size-4 bg-[#695be6] rounded-full text-[9px] font-bold text-white flex items-center justify-center">
                             {t.unread}
@@ -1005,7 +1056,12 @@ export default function ParentCommunication() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
-                          <p className={`text-sm truncate ${t.unread > 0 ? "font-black" : "font-semibold"}`}>{t.studentName}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className={`text-sm truncate ${t.unread > 0 ? "font-black" : "font-semibold"}`}>{t.parentName || "Parent"}</p>
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-500 whitespace-nowrap flex-shrink-0">
+                              {t.studentName}
+                            </span>
+                          </div>
                           <p className="text-[10px] text-gray-400 shrink-0 ml-2">
                             {t.lastAt ? new Date(t.lastAt).toLocaleDateString([], { month: "short", day: "numeric" }) : ""}
                           </p>
@@ -1028,7 +1084,7 @@ export default function ParentCommunication() {
                   <p className="text-sm font-medium text-gray-500">Select a conversation</p>
                   <p className="text-xs text-gray-400 mt-1">or start a new one</p>
                   <button
-                    onClick={() => { setNewMsgStudent(""); setNewMsgBody(""); setNewMsgModal(true); }}
+                    onClick={() => { setNewMsgStudent(""); setNewMsgParent(""); setNewMsgBody(""); setNewMsgModal(true); }}
                     className="mt-4 bg-[#695be6] text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-[#5a4dd4] flex items-center gap-2">
                     <span className="material-symbols-outlined text-base">edit</span> New Message
                   </button>
@@ -1043,9 +1099,14 @@ export default function ParentCommunication() {
                       <button onClick={() => setSelectedThread(null)} className="size-8 rounded-lg hover:bg-gray-100 flex items-center justify-center md:hidden">
                         <span className="material-symbols-outlined text-gray-500 text-lg">arrow_back</span>
                       </button>
-                      <Avatar name={thread.studentName} size="size-9" />
+                      <Avatar name={thread.parentName || thread.studentName} size="size-9" />
                       <div className="flex-1">
-                        <p className="font-black text-sm">{thread.studentName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-sm">{thread.parentName || "Parent"}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-600">
+                            {thread.studentName}
+                          </span>
+                        </div>
                         <p className="text-xs text-gray-400">Parent conversation · {thread.messages.length} message{thread.messages.length !== 1 ? "s" : ""}</p>
                       </div>
                     </div>
