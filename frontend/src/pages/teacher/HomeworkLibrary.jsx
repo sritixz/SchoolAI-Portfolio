@@ -7,7 +7,6 @@ import { homeworkLibrary as mockLibrary } from "../../data/teacherData";
 import { 
   fetchHomeworkLibrary, selectHomeworkLibrary, selectLibraryStatus,
   assignHomework, fetchHomeworkById, selectCurrentHomework, patchHomeworkQuestions, deleteHomework,
-  updateHomework,
 } from "../../store/slices/homeworkSlice";
 import { fetchStudentsByClass, selectStudentsByClass } from "../../store/slices/teacherSlice";
 import SearchBar from "../../components/SearchBar";
@@ -228,8 +227,8 @@ export default function HomeworkLibrary() {
         options:       q.options.map((o) => ({ id: o.id, text: o.text, is_correct: o.isCorrect })),
       }));
       await dispatch(patchHomeworkQuestions({ id: editModal.homeworkId, questions: payload })).unwrap();
-      // Also save allow_retries setting
-      await dispatch(updateHomework({ id: editModal.homeworkId, allow_retries: editAllowRetries })).unwrap();
+      // Also save allow_retries setting via dedicated PATCH endpoint
+      await api.patch(`/homework/${editModal.homeworkId}/settings`, { allow_retries: editAllowRetries });
       closeEditModal();
       dispatch(fetchHomeworkLibrary());
     } catch {
