@@ -44,7 +44,7 @@ export default function TopicMastery() {
 
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedTopic,   setSelectedTopic]   = useState(0);
-  const [gradeFilter,     setGradeFilter]      = useState("Grade 9 - Section B");
+  const [selectedSection, setSelectedSection]  = useState(null);
   const [subjectFilter,   setSubjectFilter]    = useState("Math");
   const [search,          setSearch]           = useState("");
   const [reportOpen,      setReportOpen]       = useState(false);
@@ -55,11 +55,22 @@ export default function TopicMastery() {
     dispatch(fetchMySections());
   }, [dispatch]);
 
+  // Set initial selected section when sections load
   useEffect(() => {
-    if (sections.length > 0) {
-      dispatch(fetchTopicMastery(sections[0]._id || sections[0].class_name));
+    if (sections.length > 0 && !selectedSection) {
+      setSelectedSection(sections[0]);
     }
-  }, [sections, dispatch]);
+  }, [sections]);
+
+  // Re-fetch mastery data when selected section changes
+  useEffect(() => {
+    if (selectedSection) {
+      dispatch(fetchTopicMastery(selectedSection._id || selectedSection.class_name));
+      setSelectedStudent(null);
+    }
+  }, [selectedSection, dispatch]);
+
+  const gradeFilter = selectedSection?.class_name || "Grade 9 - Section B";
 
   // Use API mastery data if available, otherwise fall back to mock
   const displayStudents = apiMastery.length > 0
@@ -411,11 +422,18 @@ export default function TopicMastery() {
             <h1 className="font-black text-base hidden sm:block">Topic Mastery Heatmap</h1>
           </div>
           <div className="flex items-center gap-2">
-            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)}
+            <select value={selectedSection?._id || ""} onChange={(e) => {
+              const sec = sections.find(s => (s._id || s.class_name) === e.target.value);
+              if (sec) setSelectedSection(sec);
+            }}
               className="border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-white outline-none">
-              <option>Grade 9 - Section B</option>
-              <option>Grade 8 - Section A</option>
-              <option>Grade 10 - Section A</option>
+              {sections.length > 0 ? sections.map((sec) => (
+                <option key={sec._id || sec.class_name} value={sec._id || sec.class_name}>
+                  {sec.class_name}
+                </option>
+              )) : (
+                <option>No sections</option>
+              )}
             </select>
             <select value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)}
               className="border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-white outline-none">

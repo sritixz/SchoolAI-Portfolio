@@ -429,6 +429,29 @@ async def student_profile(student_id: str, user=Depends(require_role("teacher"))
         "recent_activity": recent_activity
     }
 
+@router.get("/students/{student_id}/learning-gaps")
+async def student_learning_gaps(
+    student_id: str,
+    user=Depends(require_role("teacher")),
+    db=Depends(get_db)
+):
+    """Return all learning gaps for a student (unresolved first, then resolved)."""
+    gaps = await db.learning_gaps.find({"student_id": student_id}).sort([("resolved", 1), ("severity", -1)]).to_list(None)
+    return [{
+        "id": str(gap["_id"]),
+        "topic": gap.get("topic"),
+        "subtopic": gap.get("subtopic"),
+        "subject": gap.get("subject"),
+        "severity": gap.get("severity", "medium"),
+        "resolved": gap.get("resolved", False),
+        "mastery_percent": gap.get("mastery_percent", gap.get("masteryPercent", 0)),
+        "identified_from": gap.get("identified_from", gap.get("identifiedFrom")),
+        "recommended_time": gap.get("recommended_time", gap.get("recommendedTimeMinutes")),
+        "impact_analysis": gap.get("impact_analysis", gap.get("impactAnalysis")),
+        "created_at": gap.get("created_at"),
+    } for gap in gaps]
+
+
 @router.get("/students/{student_id}/submissions")
 async def student_submissions(
     student_id: str,
@@ -711,17 +734,92 @@ async def class_analytics(class_id: str, user=Depends(require_role("teacher")), 
 
 @router.get("/topic-mastery")
 async def topic_mastery(class_id: str, user=Depends(require_role("teacher")), db=Depends(get_db)):
-    """Return mastery heatmap for a section. class_id can be section_id or class_name."""
-    # Try section_id first, then class_name
-    docs = await db.mastery_heatmap.find({"section_id": class_id}).to_list(None)
-    if not docs:
-        # Try finding section by class_name
+    """Dynamically compute mastery heatmap from real homework submissions.
+    
+    class_id can be a section ObjectId or a class_name string.
+    Returns per-student scores grouped by homework title (topic).
+    """
+    # Resolve section
+    section = None
+    try:
+        section = await db.sections.find_one({"_id": ObjectId(class_id)})
+    except Exception:
+        pass
+    if not section:
         section = await db.sections.find_one({"class_name": class_id})
-        if section:
-            docs = await db.mastery_heatmap.find({"section_id": str(section["_id"])}).to_list(None)
-    if not docs:
-        docs = await db.mastery_heatmap.find({"class_id": class_id}).to_list(None)
-    return [_ser(d) for d in docs]
+    
+    section_id = str(section["_id"]) if section else class_id
+
+    # Get students in this section
+    students = await db.users.find(
+        {"role": "student", "section_id": section_id},
+        {"_id": 1, "name": 1}
+    ).to_list(None)
+    if not students:
+        return []
+
+    student_ids = [str(s["_id"]) for s in students]
+    student_map = {str(s["_id"]): s.get("name", "Student") for s in students}
+
+    # Get all assigned homework created by this teacher for these students
+    hw_docs = await db.homework.find({
+        "created_by": user["id"],
+        "status": "assigned",
+        "assigned_students": {"$in": student_ids},
+    }, {"_id": 1, "title": 1, "subject": 1}).sort("created_at", 1).to_list(None)
+
+    if not hw_docs:
+        return []
+
+    # Use homework titles as topics (deduplicate, preserve order)
+    seen_titles = {}
+    topics = []
+    hw_id_to_topic_idx = {}
+    for hw in hw_docs:
+        title = hw.get("title", "Untitled")
+        hw_id = str(hw["_id"])
+        if title not in seen_titles:
+            seen_titles[title] = len(topics)
+            topics.append(title)
+        hw_id_to_topic_idx[hw_id] = seen_titles[title]
+
+    hw_ids = [str(hw["_id"]) for hw in hw_docs]
+
+    # Fetch graded/submitted submissions for these students & homework
+    submissions = await db.homework_submissions.find({
+        "homework_id": {"$in": hw_ids},
+        "student_id": {"$in": student_ids},
+        "status": {"$in": ["submitted", "graded"]},
+    }).to_list(None)
+
+    # Build score matrix: student -> topic_idx -> best score
+    score_matrix = {sid: [0] * len(topics) for sid in student_ids}
+    for sub in submissions:
+        sid = sub["student_id"]
+        hw_id = sub["homework_id"]
+        if hw_id not in hw_id_to_topic_idx:
+            continue
+        tidx = hw_id_to_topic_idx[hw_id]
+        score = sub.get("final_score_pct") or sub.get("auto_score_pct") or 0
+        # Keep the best score per student per topic
+        if score > score_matrix[sid][tidx]:
+            score_matrix[sid][tidx] = score
+
+    # Build response
+    result = []
+    for sid in student_ids:
+        scores = score_matrix[sid]
+        avg = round(sum(scores) / len(scores)) if scores else 0
+        result.append({
+            "_id": sid,
+            "student_id": sid,
+            "student_name": student_map[sid],
+            "avg_score": avg,
+            "topic_scores": scores,
+            "topics": topics,
+        })
+
+    return result
 
 # ─────────────────────────────────────────────────────────────
 # AI TOOLS
