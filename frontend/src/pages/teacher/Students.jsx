@@ -254,8 +254,7 @@ export default function Students() {
                       )}
                       <button
                         onClick={() => {
-                          // TODO: Implement learning gaps view
-                          alert("Learning gaps view coming soon");
+                          navigate(`/teacher/students/${student.id}/learning-gaps`);
                           setOpenDropdown(null);
                         }}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"

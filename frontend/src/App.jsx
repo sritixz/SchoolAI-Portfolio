@@ -48,6 +48,7 @@ import TeacherCreateTest from "./pages/teacher/CreateTest";
 import TeacherDiffHomework from "./pages/teacher/DifferentiatedHomework";
 import TeacherStudents from "./pages/teacher/Students";
 import TeacherStudentDetail from "./pages/teacher/StudentDetail";
+import TeacherStudentLearningGaps from "./pages/teacher/StudentLearningGaps";
 import TeacherSubmissions from "./pages/teacher/Submissions";
 import TeacherGradingAssistant from "./pages/teacher/GradingAssistant";
 import TeacherLessonPlan from "./pages/teacher/LessonPlanCreator";
@@ -121,6 +122,7 @@ export default function App() {
           <Route path="/teacher/homework/differentiated"  element={<S role="teacher"><TeacherDiffHomework /></S>} />
           <Route path="/teacher/students"                 element={<S role="teacher"><TeacherStudents /></S>} />
           <Route path="/teacher/students/:studentId"      element={<S role="teacher"><TeacherStudentDetail /></S>} />
+          <Route path="/teacher/students/:studentId/learning-gaps" element={<S role="teacher"><TeacherStudentLearningGaps /></S>} />
           <Route path="/teacher/submissions"              element={<S role="teacher"><TeacherSubmissions /></S>} />
           <Route path="/teacher/ai-assistant/grading"     element={<S role="teacher"><TeacherGradingAssistant /></S>} />
           <Route path="/teacher/ai-assistant/lesson-plan" element={<S role="teacher"><TeacherLessonPlan /></S>} />
