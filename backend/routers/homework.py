@@ -536,6 +536,126 @@ async def grade_homework(body: TeacherGradeRequest, user=Depends(require_role("t
             "created_at":   datetime.utcnow().isoformat(),
         })
 
+        # Re-run learning gap analysis with teacher-corrected data
+        try:
+            from routers.learning_gaps import _build_performance_context, GAP_ANALYSIS_SYSTEM
+            from services.llm import chat_completion
+            import json as _json
+
+            student_id = body.student_id
+            perf = await _build_performance_context(student_id, db)
+            if perf["submissions"] or perf["grades"]:
+                sub_summaries = []
+                for s in perf["submissions"][:20]:
+                    hid = s.get("homework_id", "")
+                    hw_doc = perf["homeworks"].get(hid, {})
+                    a = s.get("analysis") or s.get("ai_analysis") or {}
+                    sub_summaries.append({
+                        "homework_title":    hw_doc.get("title", s.get("title", "Homework")),
+                        "subject":           hw_doc.get("subject", s.get("subject", "General")),
+                        "score_pct":         s.get("score_pct") or s.get("ai_score") or a.get("estimated_score_pct", 0),
+                        "submitted_at":      s.get("submitted_at", ""),
+                        "weakness_areas":    a.get("weakness_areas", []),
+                        "strength_areas":    a.get("strength_areas", []),
+                        "error_patterns":    a.get("error_patterns", []),
+                        "overall_summary":   a.get("overall_summary", ""),
+                        "question_analysis": [
+                            {
+                                "question": qa.get("question_id"),
+                                "is_correct": qa.get("is_correct"),
+                                "feedback": qa.get("feedback", ""),
+                                "error_type": qa.get("error_type"),
+                            }
+                            for qa in a.get("question_analysis", []) if not qa.get("is_correct")
+                        ][:5],
+                    })
+
+                grade_summary = [
+                    {"subject": g.get("subject", ""), "marks": g.get("marks", 0), "semester": g.get("semester", "")}
+                    for g in perf["grades"]
+                ]
+
+                prompt = f"""Analyze this student's performance data and identify their learning gaps.
+
+HOMEWORK & ASSESSMENT SUBMISSIONS (most recent first):
+{_json.dumps(sub_summaries, indent=2)}
+
+GRADE RECORDS:
+{_json.dumps(grade_summary, indent=2)}
+
+Based on the actual errors, weak areas, and low scores above, identify 3-6 specific learning gaps.
+
+Return ONLY valid JSON (no markdown):
+{{
+  "gaps": [
+    {{
+      "subject": "Mathematics",
+      "topic": "Quadratic Equations",
+      "subtopic": "Discriminant & Nature of Roots",
+      "severity": "critical",
+      "masteryPercent": 35,
+      "identifiedFrom": {{"title": "Unit 3 Quiz", "type": "homework"}},
+      "impactAnalysis": "Affects performance in Calculus.",
+      "impactSubject": "Calculus",
+      "prerequisiteDependency": "Requires mastery of Basic Algebra.",
+      "prerequisiteSubject": "Basic Algebra",
+      "aiErrorSummary": "Specific mistakes from the data.",
+      "aiLastFeedback": "Personalized coaching note.",
+      "correctivePath": [
+        {{"type": "video", "label": "Watch Explanation", "icon": "play_circle"}},
+        {{"type": "practice", "label": "Practice Problems", "icon": "quiz"}}
+      ],
+      "retryQuestion": {{"text": "Practice question.", "equation": null}}
+    }}
+  ]
+}}"""
+
+                raw = await chat_completion([
+                    {"role": "system", "content": GAP_ANALYSIS_SYSTEM},
+                    {"role": "user",   "content": prompt},
+                ])
+                raw = raw.strip()
+                if raw.startswith("```"):
+                    raw = raw.split("```")[1]
+                    if raw.startswith("json"):
+                        raw = raw[4:]
+                    raw = raw.strip()
+                result = _json.loads(raw)
+
+                now = datetime.utcnow().isoformat()
+                for gap in result.get("gaps", []):
+                    doc = {
+                        "student_id":             student_id,
+                        "subject":                gap.get("subject", "General"),
+                        "topic":                  gap.get("topic", "Unknown"),
+                        "subtopic":               gap.get("subtopic", ""),
+                        "severity":               gap.get("severity", "minor"),
+                        "masteryPercent":         gap.get("masteryPercent", 50),
+                        "score":                  gap.get("masteryPercent", 50),
+                        "resolved":               False,
+                        "identifiedFrom":         gap.get("identifiedFrom", {"title": hw_title, "type": "homework"}),
+                        "impactAnalysis":         gap.get("impactAnalysis", ""),
+                        "impactSubject":          gap.get("impactSubject", gap.get("subject", "")),
+                        "prerequisiteDependency": gap.get("prerequisiteDependency", ""),
+                        "prerequisiteSubject":    gap.get("prerequisiteSubject", ""),
+                        "aiErrorSummary":         gap.get("aiErrorSummary", ""),
+                        "aiLastFeedback":         gap.get("aiLastFeedback", ""),
+                        "correctivePath":         gap.get("correctivePath", [
+                            {"type": "video",    "label": "Watch Explanation", "icon": "play_circle"},
+                            {"type": "practice", "label": "Practice Problems",  "icon": "quiz"},
+                        ]),
+                        "retryQuestion":          gap.get("retryQuestion", {}),
+                        "source":                 "teacher_evaluation",
+                        "analyzed_at":            now,
+                    }
+                    await db.learning_gaps.update_one(
+                        {"student_id": student_id, "topic": doc["topic"], "resolved": False},
+                        {"$set": doc},
+                        upsert=True,
+                    )
+        except Exception:
+            pass  # Gap analysis failure must never block grade publishing
+
     return {"status": update["status"]}
 
 # ─────────────────────────────────────────────────────────────

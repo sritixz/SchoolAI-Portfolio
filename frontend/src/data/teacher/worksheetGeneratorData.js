@@ -2,6 +2,50 @@
 // WORKSHEET GENERATOR DATA
 // ============================================================
 
+// Grade-specific defaults for personalization
+export const gradePresets = {
+  "Grade 6": {
+    totalQuestions: 8,
+    difficulty: "Easy",
+    difficultyStructure: "Easy",
+    learningObjective: "Concept Understanding",
+    questionTypes: { mcq: true, shortAnswer: true, longAnswer: false, matching: true },
+    hint: "Simple vocabulary, real-life examples, single-step questions",
+  },
+  "Grade 7": {
+    totalQuestions: 10,
+    difficulty: "Easy",
+    difficultyStructure: "Easy",
+    learningObjective: "Concept Understanding",
+    questionTypes: { mcq: true, shortAnswer: true, longAnswer: false, matching: true },
+    hint: "Mix of concrete and semi-abstract, 1-2 step problems",
+  },
+  "Grade 8": {
+    totalQuestions: 10,
+    difficulty: "Medium",
+    difficultyStructure: "Medium",
+    learningObjective: "Application",
+    questionTypes: { mcq: true, shortAnswer: true, longAnswer: true, matching: false },
+    hint: "Application-based, multi-step problems, daily-life connections",
+  },
+  "Grade 9": {
+    totalQuestions: 12,
+    difficulty: "Medium",
+    difficultyStructure: "Mixed",
+    learningObjective: "Problem Solving",
+    questionTypes: { mcq: true, shortAnswer: true, longAnswer: true, matching: false },
+    hint: "Analytical thinking, prove/derive questions, case-based",
+  },
+  "Grade 10": {
+    totalQuestions: 15,
+    difficulty: "Hard",
+    difficultyStructure: "Mixed",
+    learningObjective: "HOTS",
+    questionTypes: { mcq: true, shortAnswer: true, longAnswer: true, matching: false },
+    hint: "Board-exam level, HOTS questions, competency-based",
+  },
+};
+
 export const worksheetDefaults = {
   subject: "Math",
   classLevel: "Grade 8",
@@ -12,7 +56,7 @@ export const worksheetDefaults = {
   questionTypes: { mcq: true, shortAnswer: true, longAnswer: true, matching: false },
   board: "CBSE",
   chapter: "",
-  learningObjective: "Concept Understanding",
+  learningObjective: "Application",
   difficultyStructure: "Medium",
   specialInstructions: "",
 };

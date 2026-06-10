@@ -855,6 +855,25 @@ CRITICAL QUESTION TYPE RULES:
 - The "sections" array MUST contain ONLY sections whose type matches the allowed list
 - VIOLATION: generating a section type not in the allowed list will make the worksheet unusable
 
+GRADE-LEVEL PERSONALIZATION (CRITICAL — tailor ALL content to this grade):
+- Grade 6: Use simple vocabulary (age 11-12). Short sentences. Concrete, real-life examples (shopping, games, nature). Questions should be direct and single-step. Avoid abstract reasoning. Use visuals/diagrams where possible. Max question length: 2 lines. MCQ distractors should be clearly distinguishable. Marks per question: MCQ=1, Short=2, Long=3.
+- Grade 7: Slightly more complex vocabulary (age 12-13). Mix of concrete and semi-abstract. Questions can involve 1-2 steps. Introduce basic "why" and "how" questions. Include simple word problems. Use relatable scenarios (sports, school life, simple science). Marks per question: MCQ=1, Short=2-3, Long=4.
+- Grade 8: Intermediate vocabulary (age 13-14). Multi-step problems allowed. Include application-based questions connecting concepts to daily life. Abstract thinking can be introduced gently. Expect 3-4 sentence answers for short questions. Marks per question: MCQ=1, Short=2-3, Long=4-5.
+- Grade 9: Advanced vocabulary appropriate for age 14-15. Questions should test analytical thinking and application. Multi-step problems are standard. Include "prove", "derive", "explain with reasoning" type questions. Case-based and scenario questions expected. Marks per question: MCQ=1, Short=3, Long=5.
+- Grade 10: Board-exam level complexity (age 15-16). Questions must mirror actual board exam patterns and mark distribution. Include HOTS (Higher Order Thinking Skills) questions. Expect detailed step-by-step solutions. Use formal academic language. Include competency-based questions. Marks per question: MCQ=1, Short=3, Long=5.
+
+GRADE-APPROPRIATE LANGUAGE RULES:
+- For Grades 6-7: Use everyday words. Avoid jargon unless defining it. Instructions should be simple and explicit.
+- For Grades 8-9: Use subject-specific terminology with context. Questions can be more nuanced.
+- For Grade 10: Use formal academic register matching board exam papers. Technical terms used without simplification.
+
+GRADE-APPROPRIATE COGNITIVE LEVELS:
+- Grade 6: 60% Remember/Understand, 30% Apply, 10% Analyze
+- Grade 7: 50% Remember/Understand, 35% Apply, 15% Analyze
+- Grade 8: 40% Remember/Understand, 35% Apply, 20% Analyze, 5% Evaluate
+- Grade 9: 25% Remember/Understand, 35% Apply, 25% Analyze, 15% Evaluate/Create
+- Grade 10: 20% Remember/Understand, 30% Apply, 30% Analyze, 20% Evaluate/Create
+
 BOARD-SPECIFIC GUIDANCE:
 - CBSE: Follow NCERT curriculum, use standard CBSE question patterns, include VSA/SA/LA sections
 - ICSE: Follow ICSE syllabus, include application-based and analytical questions
