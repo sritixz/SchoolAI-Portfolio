@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getInitial } from "../../utils/nameUtils";
 import { selectAiToolResult, selectAiToolStatus, clearAiToolResult } from "../../store/slices/teacherSlice";
 import { saveWorksheetDraft, fetchWorksheetDrafts, updateWorksheetDraft, deleteWorksheetDraft, selectWorksheetDrafts } from "../../store/slices/teacherSlice";
-import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes, boardOptions, learningObjectiveOptions, difficultyStructureOptions } from "../../data/teacher/worksheetGeneratorData";
+import { worksheetDefaults, difficultyOptions, worksheetQuestionTypes, boardOptions, learningObjectiveOptions, difficultyStructureOptions, gradePresets } from "../../data/teacher/worksheetGeneratorData";
 import { subjectOptions as subjectOpts, classOptions as classOpts } from "../../data/teacher/quizGeneratorData";
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadWorksheetPdf } from "../../utils/aiPdfExport";
@@ -34,6 +34,23 @@ export default function WorksheetGenerator() {
 
   const toggleQType = (id) =>
     setForm((p) => ({ ...p, questionTypes: { ...p.questionTypes, [id]: !p.questionTypes[id] } }));
+
+  const handleGradeChange = (newGrade) => {
+    const preset = gradePresets[newGrade];
+    if (preset) {
+      setForm((p) => ({
+        ...p,
+        classLevel: newGrade,
+        totalQuestions: preset.totalQuestions,
+        difficulty: preset.difficulty,
+        difficultyStructure: preset.difficultyStructure,
+        learningObjective: preset.learningObjective,
+        questionTypes: { ...preset.questionTypes },
+      }));
+    } else {
+      setForm((p) => ({ ...p, classLevel: newGrade }));
+    }
+  };
 
   const updateResultField = (field, value) => {
     setEditedResult((prev) => ({ ...(prev ?? aiResult), [field]: value }));
@@ -172,7 +189,7 @@ export default function WorksheetGenerator() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 mb-1 block">Class</label>
-                <select value={form.classLevel} onChange={(e) => setForm({ ...form, classLevel: e.target.value })}
+                <select value={form.classLevel} onChange={(e) => handleGradeChange(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6] bg-white">
                   {classOpts.map((c) => <option key={c}>{c}</option>)}
                 </select>
@@ -198,6 +215,15 @@ export default function WorksheetGenerator() {
               <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value, title: e.target.value ? `${e.target.value} Practice Sheet` : "" })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-[#695be6]" />
             </div>
+            {gradePresets[form.classLevel] && (
+              <div className="mt-3 bg-[#695be6]/5 border border-[#695be6]/20 rounded-xl px-3 py-2.5 flex items-start gap-2">
+                <span className="material-symbols-outlined text-[#695be6] text-sm mt-0.5">school</span>
+                <div>
+                  <p className="text-[11px] font-bold text-[#695be6]">{form.classLevel} Personalization Active</p>
+                  <p className="text-[10px] text-gray-500 mt-0.5">{gradePresets[form.classLevel].hint}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Learning Objective */}
@@ -578,7 +604,7 @@ export default function WorksheetGenerator() {
                                   ))}
                                 </div>
                               )}
-                              {q.bloom_level && <span className="text-[9px] text-gray-400 mt-1 block">Bloom's: {q.bloom_level}</span>}
+
                               {(sec.type === "Short Answer" || sec.type === "Long Answer") && (
                                 <div className="mt-2 border-t border-dashed border-gray-200 pt-2">
                                   <div className="h-12 border border-gray-100 rounded bg-gray-50/50" />
