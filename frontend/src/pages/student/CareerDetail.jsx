@@ -278,10 +278,10 @@ export default function CareerDetail() {
               <div className="size-10 bg-white/20 rounded-full flex items-center justify-center mb-3">
                 <span className="material-symbols-outlined">smart_toy</span>
               </div>
-              <h4 className="font-bold mb-1">Ask Vin about this career</h4>
+              <h4 className="font-bold mb-1">Ask LumiTutor about this career</h4>
               <p className="text-white/80 text-sm mb-4">Get personalised advice based on your academic profile.</p>
               <Link to="/student/vin-ai" className="block w-full py-2.5 bg-white text-[#695be6] font-bold rounded-full text-sm text-center hover:bg-white/90 transition-colors">
-                Chat with Vin
+                Chat with LumiTutor
               </Link>
             </div>
           </div>
