@@ -76,7 +76,7 @@ function TypingDots() {
   return (
     <div className="flex gap-3 items-start">
       <div className="size-7 rounded-full bg-white border border-slate-200 shrink-0 overflow-hidden">
-        <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+        <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
       </div>
       <div className="bg-white border-l-4 border-[#D4C5F9] px-4 py-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (
@@ -248,8 +248,8 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
   }, [status, streamSSE]);
 
   const statusLabel =
-    status === "thinking" ? "Vin is thinking..." :
-    status === "streaming" ? "Vin is typing..." : "Vin is here to help";
+    status === "thinking" ? "LumiTutor is thinking..." :
+    status === "streaming" ? "LumiTutor is typing..." : "LumiTutor is here to help";
 
   if (!isOpen) return null;
 
@@ -286,7 +286,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
             {messages.length === 0 && (
               <div className="flex flex-col items-center text-center py-8 gap-3">
                 <div className="size-16 rounded-full bg-white border-2 border-[#695be6]/20 overflow-hidden shadow-lg">
-                  <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+                  <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-slate-800">Hi {getFirstName(user?.name) || "there"}!</h2>
@@ -315,7 +315,7 @@ export default function VinSidePanel({ isOpen, onClose, context = null, homework
                 ) : (
                   <div className="flex justify-start items-start gap-2">
                     <div className="size-7 rounded-full bg-white overflow-hidden mt-1 shrink-0 border border-slate-200">
-                      <img src={VIN_AVATAR} alt="Vin" className="w-full h-full object-cover" />
+                      <img src={VIN_AVATAR} alt="LumiTutor" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex flex-col gap-2 max-w-[85%]">
                       <p className="text-slate-500 text-xs font-medium ml-1">LumiTutor</p>

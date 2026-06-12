@@ -389,7 +389,7 @@ export default function LearningGaps() {
           </div>
           <div className="max-w-md">
             <h4 className="text-lg font-bold">Need a customized learning plan?</h4>
-            <p className="text-sm text-slate-500 mt-2">Vin can analyze all your current gaps and create a 7-day schedule to get you back on track.</p>
+            <p className="text-sm text-slate-500 mt-2">LumiTutor can analyze all your current gaps and create a 7-day schedule to get you back on track.</p>
           </div>
           <Link to="/student/vin-ai" className="mt-2 px-6 py-2 rounded-lg bg-white border border-[#ec5b13] text-[#ec5b13] font-bold hover:bg-[#ec5b13] hover:text-white transition-all">
             Talk to LumiTutor

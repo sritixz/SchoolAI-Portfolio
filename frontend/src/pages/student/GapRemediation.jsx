@@ -273,7 +273,7 @@ export default function GapRemediation() {
                     <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-start gap-3">
                       <span className="material-symbols-outlined text-green-600 text-2xl">check_circle</span>
                       <div>
-                        <p className="font-bold text-green-800">Submitted! Vin is reviewing your answer.</p>
+                        <p className="font-bold text-green-800">Submitted! LumiTutor is reviewing your answer.</p>
                         <p className="text-sm text-green-700 mt-1">{gap.aiLastFeedback}</p>
                       </div>
                     </div>

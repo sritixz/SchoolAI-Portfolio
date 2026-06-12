@@ -207,7 +207,7 @@ function TypedInput({ value, onChange }) {
           setHistoryIndex(historyIndex + 1);
         }}
         className="w-full min-h-[260px] p-6 text-base border-none focus:ring-0 bg-transparent placeholder:text-slate-300 resize-none"
-        placeholder="Let's work through this... Start typing your thoughts and Vin will help refine them."
+        placeholder="Let's work through this... Start typing your thoughts and LumiTutor will help refine them."
       />
     </div>
   );
@@ -846,7 +846,7 @@ export default function HomeworkAttempt() {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">smart_toy</span>
-                Ask Vin
+                Ask LumiTutor
               </button>
             )}
             <button

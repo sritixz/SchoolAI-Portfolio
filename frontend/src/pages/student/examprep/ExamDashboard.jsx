@@ -290,10 +290,10 @@ function TodayView({ profile, readiness, aiInsights, today, totalDailyMins, load
       <div className="bg-gradient-to-r from-[#695be6] to-[#8e82f3] rounded-xl p-5 text-white flex items-center justify-between gap-4">
         <div>
           <p className="font-bold text-sm">Need help with revision?</p>
-          <p className="text-white/80 text-xs mt-0.5">Ask Vin to quiz you or explain a concept.</p>
+          <p className="text-white/80 text-xs mt-0.5">Ask LumiTutor to quiz you or explain a concept.</p>
         </div>
         <Link to="/student/vin-ai" className="shrink-0 px-4 py-2 bg-white text-[#695be6] font-bold rounded-full text-xs hover:bg-white/90 transition-colors">
-          Ask Vin
+          Ask LumiTutor
         </Link>
       </div>
     </>
