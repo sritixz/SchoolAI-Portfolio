@@ -220,10 +220,18 @@ function QuestionGradeRow({ q, answer, aiQ, override, onOverride }) {
         <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Student Answer</p>
         {atype === "upload" || atype === "handwritten" ? (
           answer?.file_url
-            ? <a href={answer.file_url} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 text-[#695be6] text-sm font-medium hover:underline">
-                <span className="material-symbols-outlined text-base">open_in_new</span> View uploaded file
-              </a>
+            ? <div className="space-y-2">
+                <a href={answer.file_url} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2 text-[#695be6] text-sm font-medium hover:underline">
+                  <span className="material-symbols-outlined text-base">open_in_new</span> View uploaded file
+                </a>
+                {answer?.answer && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-2 mt-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">OCR Extracted Text</p>
+                    <p className="text-xs text-gray-600 whitespace-pre-wrap">{answer.answer}</p>
+                  </div>
+                )}
+              </div>
             : <p className="text-sm text-gray-400 italic">No file uploaded</p>
         ) : (
           <div>

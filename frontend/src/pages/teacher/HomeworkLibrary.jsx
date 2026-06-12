@@ -45,6 +45,7 @@ export default function HomeworkLibrary() {
   const [selectedType, setSelectedType] = useState(""); // "Online Quiz" | "File Upload" | ""
   const [viewMode, setViewMode] = useState("grid");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
   const [library, setLibrary] = useState(mockLibrary);
   
   // Assignment modal state
@@ -253,9 +254,8 @@ export default function HomeworkLibrary() {
     return matchSubject && matchClass && matchStatus && matchType && matchSearch;
   });
 
-  const PAGE_SIZE = 24;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   const pageNumbers = () => {
     if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -508,18 +508,95 @@ export default function HomeworkLibrary() {
                   <span className="material-symbols-outlined text-base">list</span>
                 </button>
               </div>
-              <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white outline-none">
-                <option>Show: 24</option>
-                <option>Show: 12</option>
-                <option>Show: 48</option>
+              <select
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white outline-none"
+              >
+                <option value={12}>Show: 12</option>
+                <option value={24}>Show: 24</option>
+                <option value={48}>Show: 48</option>
               </select>
             </div>
           </div>
 
-          {/* Grid */}
-          <div className={`grid gap-5 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}>
+          {/* Grid / List */}
+          <div className={viewMode === "grid" ? "grid gap-5 grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "flex flex-col gap-3"}>
             {paginated.map((hw) => (
-              <div key={hw.id} className={`group bg-white rounded-2xl border p-5 flex flex-col gap-4 shadow-sm hover:shadow-lg transition-all duration-300 ${hw.status === "draft" ? "border-amber-200 hover:border-amber-400" : "border-[#e8e3f5] hover:border-[#695be6]/30"}`}>
+              <div key={hw.id} className={`group bg-white rounded-2xl border shadow-sm hover:shadow-lg transition-all duration-300 ${hw.status === "draft" ? "border-amber-200 hover:border-amber-400" : "border-[#e8e3f5] hover:border-[#695be6]/30"} ${viewMode === "list" ? "p-4 flex items-center gap-5" : "p-5 flex flex-col gap-4"}`}>
+                {/* List view: compact horizontal row */}
+                {viewMode === "list" ? (<>
+                  {/* Left: title + chapter */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm leading-snug group-hover:text-[#695be6] transition-colors truncate">{hw.title}</h3>
+                      {hw.status === "draft" && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 shrink-0">DRAFT</span>
+                      )}
+                      {hw.status === "assigned" && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">ASSIGNED</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{hw.chapter}</p>
+                  </div>
+                  {/* Middle: tags */}
+                  <div className="flex gap-1.5 flex-wrap items-center shrink-0">
+                    {hw.tags.slice(0, 2).map((tag) => (
+                      <span key={tag} className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                        SUBJECT_TAG_STYLES[tag?.toUpperCase()] || STATUS_STYLES[tag?.toLowerCase()] || "bg-gray-100 text-gray-500"
+                      }`}>{tag}</span>
+                    ))}
+                  </div>
+                  {/* Middle: stats */}
+                  <div className="flex items-center gap-4 text-xs text-gray-400 shrink-0">
+                    {hw.questions > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">quiz</span> {hw.questions}
+                      </span>
+                    )}
+                    {hw.marks && (
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">grade</span> {hw.marks}
+                      </span>
+                    )}
+                    {hw.submissionsCount > 0 && (
+                      <span className="flex items-center gap-1 text-[#695be6]">
+                        <span className="material-symbols-outlined text-sm">assignment_turned_in</span> {hw.submissionsCount}
+                      </span>
+                    )}
+                  </div>
+                  {/* Right: actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => navigate(`/teacher/homework/preview/${hw.id}`)}
+                      className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">visibility</span>
+                    </button>
+                    <button
+                      onClick={() => openEditModal(hw)}
+                      className="flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[#695be6] transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    {hw.status === "assigned" ? (
+                      <button
+                        onClick={() => navigate(`/teacher/homework/evaluate/${hw.id}`)}
+                        className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#5a4dd4] transition-colors whitespace-nowrap"
+                      >
+                        Evaluate
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => openAssignModal(hw)}
+                        className="bg-[#695be6] text-white text-[10px] font-bold py-1.5 px-3 rounded-lg hover:bg-[#5a4dd4] transition-colors"
+                      >
+                        Assign
+                      </button>
+                    )}
+                  </div>
+                </>) : (<>
+                {/* Grid view: original vertical card layout */}
                 <div className="flex items-start justify-between">
                   <div className="flex gap-1.5 flex-wrap items-center">
                     {hw.tags.map((tag) => (
@@ -717,10 +794,12 @@ export default function HomeworkLibrary() {
                     )}
                   </div>
                 )}
+                </>)}
               </div>
             ))}
 
             {/* Add New Content card */}
+            {viewMode === "grid" && (
             <button
               onClick={() => navigate("/teacher/homework/create")}
               className="bg-white rounded-2xl border-2 border-dashed border-[#e8e3f5] p-5 flex flex-col items-center justify-center gap-3 hover:border-[#695be6]/50 hover:bg-[#695be6]/5 transition-all min-h-[200px] group"
@@ -733,6 +812,7 @@ export default function HomeworkLibrary() {
                 <p className="text-xs text-gray-400 text-center mt-0.5">Start building a new assignment from scratch</p>
               </div>
             </button>
+            )}
           </div>
 
           {/* Pagination */}

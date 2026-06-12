@@ -1282,6 +1282,14 @@ PRESENTATION DETAILS:
 - Include Mini Quiz: {extra.get('include_mini_quiz', False)}
 - Special Instructions: {extra.get('special_instructions', 'None')}
 
+GRADE-LEVEL ENFORCEMENT (HIGHEST PRIORITY):
+- ALL content MUST be strictly within the {body.grade or extra.get('classLevel', '')} {extra.get('board', 'CBSE')} curriculum scope.
+- Use ONLY vocabulary and concepts that a {body.grade or extra.get('classLevel', '')} student has been taught in their textbook.
+- Do NOT introduce terminology, processes, or diagrams from higher grades.
+- Explanations must match the cognitive level of {body.grade or extra.get('classLevel', '')} — simple analogies, everyday language, relatable examples.
+- If a concept has a simplified version for this grade and an advanced version for higher grades, ALWAYS use the simplified version.
+- Visual prompts must describe SIMPLE, clearly-labeled diagrams appropriate for {body.grade or extra.get('classLevel', '')} — no complex scientific pathways or university-level illustrations.
+
 USER MODELING CONSTRAINTS:
 1. Adjust vocabulary and complexity for the grade level and target audience specified above.
 2. Content Depth rules:
@@ -1299,7 +1307,7 @@ PEDAGOGICAL INSTRUCTIONS:
 - Tone "Formal": Professional, structured, academic language.
 - Tone "Reflection": Reflective prompts and deeper thinking questions.
 - If Include Mini Quiz is true: the final 2 slides MUST be type "assessment" containing MCQ questions with 4 options each.
-- Visuals: Provide a unique, vibrant, modern visual_prompt for EVERY slide describing an image for an AI image generator.
+- Visuals: Provide a unique, vibrant, modern visual_prompt for EVERY slide describing a SIMPLE, grade-appropriate image for an AI image generator. Avoid complex diagrams above the grade level.
 
 Return ONLY valid JSON (no markdown):
 {{
@@ -1699,6 +1707,7 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
         slide_type = "assessment"
 
     assessment_extra = ""
+    assessment_instruction = ""
     if slide_type == "assessment":
         assessment_extra = """,
     "questions": [
@@ -1708,6 +1717,14 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
         "correct": "A"
       }
     ]"""
+        assessment_instruction = f"""
+ASSESSMENT SLIDE RULES (THIS IS A QUIZ SLIDE):
+- This slide MUST contain 2-3 multiple-choice questions (MCQs) testing knowledge from previous slides.
+- Each question must have exactly 4 options (A, B, C, D) and one correct answer.
+- Questions must be grade-appropriate for {grade} and test comprehension of {topic}.
+- The "bullets" field should contain brief quiz instructions (e.g., "Test your understanding!").
+- The "questions" array is REQUIRED and must contain well-formed MCQ objects.
+"""
 
     system_prompt = (
         f"You are a Senior Instructional Designer for {board} {subject}, {grade}. "
@@ -1718,6 +1735,14 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
         f"Tone: {tone_rule} "
         f"Content depth: {depth_rule} "
         f"Target audience: {target_audience}. "
+        f"GRADE-LEVEL ENFORCEMENT (HIGHEST PRIORITY): "
+        f"You are writing EXCLUSIVELY for {grade} students. "
+        f"(a) Use ONLY vocabulary and concepts that a {grade} student has been taught. "
+        f"(b) Do NOT introduce terminology, processes, or diagrams from higher grades. "
+        f"(c) Explanations must match the cognitive level of {grade} — use simple analogies, everyday language, and relatable examples from a child's world. "
+        f"(d) If a concept has a simplified version for {grade} and an advanced version for higher grades, ALWAYS use the simplified version. "
+        f"(e) Visual descriptions must depict SIMPLE, clearly-labeled diagrams suitable for {grade} — no complex biochemical pathways, no university-level illustrations. "
+        f"(f) All content must align with what the {board} textbook for {grade} actually teaches. "
         f"CRITICAL RULES: "
         f"(1) Output ONLY the JSON object — no markdown fences, no prose before or after. "
         f"(2) Start your response with {{ and end with }}. "
@@ -1725,7 +1750,7 @@ async def _llm_single_slide(slide_number: int, total: int, params: dict, slide_o
         f"(4) Bullets must be SUBSTANTIVE — each bullet is a complete, informative sentence (not a 3-word fragment). "
         f"(5) The explanation paragraph must be 3-5 sentences, rich with context, examples, and a 'Did you know?' fact. "
         f"(6) Include formulas in 'formula' field whenever the subject involves math, physics, chemistry, or any quantitative concept. "
-        f"(7) The 'detailed_visual_description' MUST be a rich, specific AI image prompt (not generic)."
+        f"(7) The 'detailed_visual_description' MUST be a rich, specific AI image prompt (not generic) but MUST be simple and grade-appropriate."
     )
 
     formula_example = (
@@ -1749,25 +1774,34 @@ COMPLETE CONTEXT:
 - Purpose: {purpose}
 - Duration budget: {duration_minutes} min total
 - {special_context}{outline_context}
+{assessment_instruction}
+GRADE-LEVEL RULE — HIGHEST PRIORITY:
+- You are writing for {grade} students ONLY. Every single bullet, term, explanation, and visual MUST be within the {grade} {board} curriculum.
+- Do NOT use advanced terminology that {grade} students have not been introduced to yet.
+- Keep sentence structure simple and age-appropriate. Use everyday analogies a {grade} child can relate to.
+- If a topic has advanced sub-concepts (e.g. Calvin cycle for photosynthesis, electron transport for respiration), OMIT them entirely — they belong to higher grades.
+- Diagrams should be SIMPLE labeled illustrations, NOT complex scientific diagrams from higher-level textbooks.
 
 CONTENT QUALITY RULES — MANDATORY:
-1. "bullets": Write 5-7 bullets. Each bullet MUST be a complete, informative sentence (15-25 words). Include specific facts, numbers, or examples. NO vague fragments.
-   BAD: "Carbon fixation happens"
-   GOOD: "Carbon fixation in the Calvin cycle converts CO₂ into glucose using ATP and NADPH produced in the light reactions."
-2. "explanation": Write a 3-5 sentence paragraph that explains the slide's concept in depth. Include a real-world analogy, a 'Did you know?' fact, and connect to prior knowledge.
-3. "formula": If this subject involves any equation, formula, or quantitative relationship, include it here. Use plain text with Unicode symbols (e.g. "PV = nRT", "F = ma", "a² + b² = c²"). Leave empty string if not applicable.
-4. "key_terms": Provide 2-3 key vocabulary terms with clear, grade-appropriate definitions.
-5. "steps": If the slide covers a process or procedure, list 4-6 numbered steps. Otherwise leave as empty array.
+1. "bullets": Write 5-7 bullets. Each bullet MUST be a complete, informative sentence (15-25 words) using vocabulary appropriate for {grade}. Include specific facts, numbers, or examples that a {grade} student can understand.
+   BAD (too advanced): "Carbon fixation in the Calvin cycle converts CO₂ into glucose using ATP and NADPH produced in the light reactions."
+   GOOD (grade-appropriate): "Plants use sunlight, water from roots, and carbon dioxide from air to make their own food called glucose."
+2. "explanation": Write a 3-5 sentence paragraph that explains the slide's concept at {grade} level. Include a real-world analogy a child can relate to, a 'Did you know?' fact, and connect to prior knowledge. Keep language simple.
+3. "formula": If this subject involves any equation or formula taught at {grade} level, include it. Use plain text with Unicode symbols. Leave empty string if not applicable or if the formula is above {grade} level.
+4. "key_terms": Provide 2-3 key vocabulary terms with clear, simple definitions a {grade} student can understand.
+5. "steps": If the slide covers a process or procedure, list 4-6 numbered steps in simple language. Otherwise leave as empty array.
 
 VISUAL DESCRIPTION RULE — CRITICAL:
-The "detailed_visual_description" MUST be a UNIQUE, SPECIFIC, RICH AI image prompt for THIS slide's sub-topic.
+The "detailed_visual_description" MUST be a UNIQUE, SPECIFIC AI image prompt for THIS slide's sub-topic.
+It MUST depict a SIMPLE, grade-appropriate visual suitable for {grade} students — think textbook illustrations for that grade, NOT university-level diagrams.
 DO NOT use generic descriptions like "educational illustration of {topic}".
 DO NOT repeat the same description for multiple slides.
+DO NOT describe complex scientific diagrams (e.g. electron transport chain, detailed molecular structures) — keep it simple and labeled.
 
-Examples of GOOD prompts:
-  Slide 1 (intro): "A coordinate plane with a straight line y=2x+1 drawn in vibrant blue, grid lines visible, educational poster style, high quality"
-  Slide 2 (balance): "A balance scale with 'x + 5' on the left pan and '10' on the right pan, 3D render, bright classroom colors, realistic"
-  Slide 3 (solving): "Step-by-step algebra working on a whiteboard showing 2x+3=7 being solved, chalk style, high contrast, educational"
+Examples of GOOD prompts for younger grades:
+  Slide 1 (intro): "A bright colorful cartoon of a green leaf with arrows showing sunlight coming in and oxygen going out, simple labeled diagram for kids, educational poster"
+  Slide 2 (process): "A simple flowchart showing water + sunlight + CO2 = food + oxygen, drawn in a fun cartoon style with large labels, children's textbook illustration"
+  Slide 3 (parts): "A simple cross-section of a leaf with large clear labels pointing to chloroplast and stomata, colorful children's science book style"
 
 Return ONLY this JSON (start with {{, end with }}, no other text):
 {{
@@ -1844,18 +1878,39 @@ async def process_pptx_pipeline(job_id: str, params: dict, db):
 
     await _db_update({"total_slides": total, "current_slide": 0, "status": "processing"})
 
+    include_mini_quiz = params.get("include_mini_quiz", False)
+
     # ── Phase 0: Planner ─────────────────────────────────────────────────────
-    planner_prompt = f"""You are a curriculum planner. Create a structured outline for a {total}-slide {board} {subject} presentation on "{topic}" for {grade}.
+    quiz_instruction = ""
+    if include_mini_quiz:
+        quiz_instruction = f"""
+MINI QUIZ REQUIREMENT:
+- The LAST 2 slides (slides {total - 1} and {total}) MUST be assessment/quiz slides.
+- Set their "slide_type" to "assessment".
+- Their "key_points" should describe the MCQ questions to include (topics to assess).
+- Their "visual_keyword" can be something like "quiz time classroom assessment".
+- These slides will contain multiple-choice questions testing the content from earlier slides.
+"""
+
+    planner_prompt = f"""You are a curriculum planner specialized in {board} {grade} {subject}. Create a structured outline for a {total}-slide presentation on "{topic}" strictly for {grade} students.
 {f"Chapter: {chapter}." if chapter else ""}
 Learning objective: {lo}.
+{quiz_instruction}
+GRADE-LEVEL CONSTRAINTS — MANDATORY:
+- ALL content MUST be strictly within the {grade} {board} curriculum scope for {subject}.
+- Do NOT include concepts, terminology, or processes that are taught in higher grades.
+- Use vocabulary and sentence complexity appropriate for {grade} students (ages corresponding to that grade level).
+- Diagrams and visuals must be simple, labeled, and grade-appropriate — no advanced college-level diagrams.
+- For example, if this is Grade 6 Photosynthesis: cover the basic equation, sunlight/water/CO₂ → glucose/O₂, leaf structure at a simple level, and importance of photosynthesis. Do NOT cover Calvin cycle, light-dependent vs light-independent reactions, electron transport chain, or detailed biochemistry.
+- Stick to what the {board} textbook for {grade} actually covers for this topic.
 
 Return ONLY a JSON array of exactly {total} objects. Each object must have:
 - "slide_number": integer
 - "title": specific slide title (NOT generic like "Slide 1")
-- "sub_topic": the specific aspect of {topic} this slide covers
-- "key_points": array of 3 specific facts or concepts for this slide
-- "visual_keyword": a short 3-5 word search phrase for finding a diagram (e.g. "mitochondria cell diagram")
-- "visual_hint": a specific visual description unique to this slide's sub-topic
+- "sub_topic": the specific aspect of {topic} this slide covers (must be within {grade} curriculum)
+- "key_points": array of 3 specific facts or concepts for this slide (grade-appropriate)
+- "visual_keyword": a short 3-5 word search phrase for finding a SIMPLE, grade-appropriate diagram (e.g. "simple leaf photosynthesis diagram for kids")
+- "visual_hint": a specific visual description unique to this slide's sub-topic (simple and grade-appropriate)
 - "slide_type": one of title|hook|content|example|activity|summary|assessment
 
 Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
@@ -1915,11 +1970,13 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
             pass
 
         keyword = visual_keyword or content.get("visual_prompt") or slide.get("title", topic)
-        query   = f"{keyword} {grade} {board} educational diagram"
+        # Build a grade-appropriate image search query
+        grade_qualifier = f"simple {grade}" if grade else ""
+        query   = f"{keyword} {grade_qualifier} {board} educational diagram for children".strip()
 
         async with img_sem:
             try:
-                results = await _wiki_search_images(keyword, grade, board, 3)
+                results = await _wiki_search_images(query, grade, board, 3)
                 if results:
                     content["image_url"]        = results[0]["url"]
                     content["image_source_url"] = results[0]["source"]
@@ -1928,12 +1985,14 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
             except Exception as exc:
                 log.warning("[PPTX] Wikipedia image failed for slide %s: %s", slide.get("number"), exc)
 
-        # Pollinations fallback
+        # Pollinations fallback — inject grade-level constraint into the prompt
         desc = content.get("detailed_visual_description") or content.get("visual_prompt", "")
         if desc:
+            grade_hint = f", simple and suitable for {grade} students, children's textbook style" if grade else ""
+            desc_with_grade = f"{desc}{grade_hint}"
             job_seed  = abs(hash(job_id)) % 100000
             slide_num = slide.get("number", 1)
-            content["image_url"] = _pollinations_url(desc, job_seed + slide_num)
+            content["image_url"] = _pollinations_url(desc_with_grade, job_seed + slide_num)
 
     await asyncio.gather(*[_fetch_slide_image(s) for s in slides_data])
 

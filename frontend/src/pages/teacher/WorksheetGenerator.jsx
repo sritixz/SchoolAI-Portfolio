@@ -456,7 +456,27 @@ export default function WorksheetGenerator() {
                       </span>
                     )}
                   </button>
-                  <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(displayResult, null, 2))}
+                  <button onClick={() => {
+                    const r = displayResult;
+                    let text = `${r.title || "Worksheet"}\n`;
+                    text += `Subject: ${r.subject || ""}  |  Grade: ${r.grade || ""}  |  Total Marks: ${r.total_marks || ""}  |  Time: ${r.estimated_time_minutes || ""} min\n`;
+                    if (r.instructions) text += `${r.instructions}\n`;
+                    text += "\n";
+                    (r.sections || []).forEach((sec) => {
+                      text += `── ${sec.title || sec.type} ──\n`;
+                      if (sec.instructions) text += `${sec.instructions}\n`;
+                      (sec.questions || []).forEach((q) => {
+                        text += `\nQ${q.number}. ${q.text || ""}  [${q.marks || 1} mark${(q.marks || 1) > 1 ? "s" : ""}]\n`;
+                        if (q.options) q.options.forEach((opt) => { text += `   ${opt}\n`; });
+                      });
+                      text += "\n";
+                    });
+                    if (r.answer_key?.length) {
+                      text += "── Answer Key ──\n";
+                      r.answer_key.forEach((a) => { text += `Q${a.number}. ${a.answer || ""}${a.notes ? ` (${a.notes})` : ""}\n`; });
+                    }
+                    navigator.clipboard?.writeText(text);
+                  }}
                     className="flex items-center gap-1 border border-gray-200 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-50">
                     <span className="material-symbols-outlined text-sm">content_copy</span> Copy
                   </button>
