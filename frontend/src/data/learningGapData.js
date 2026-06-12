@@ -16,8 +16,53 @@ export const GAP_HEALTH = {
   severity: { critical: 3, moderate: 5, minor: 4 },
 };
 
-// ── Subject filter list ──────────────────────────────────────
-export const GAP_SUBJECTS = ["All", "Math", "Physics", "Chemistry", "Biology", "History"];
+// ── Subject filter list (broad Indian-curriculum categories) ──
+export const GAP_SUBJECTS = ["All", "Mathematics", "Science", "English", "Social Science", "Languages", "Computer Science"];
+
+// ── Normalize any subject string into a broad category ────────
+const SUBJECT_MAP = {
+  // Mathematics
+  mathematics: "Mathematics", math: "Mathematics", maths: "Mathematics", algebra: "Mathematics",
+  geometry: "Mathematics", trigonometry: "Mathematics", calculus: "Mathematics", arithmetic: "Mathematics",
+  statistics: "Mathematics", "number theory": "Mathematics",
+
+  // Science (Physics, Chemistry, Biology, Earth Science, etc.)
+  science: "Science", physics: "Science", chemistry: "Science", biology: "Science",
+  "earth science": "Science", "environmental science": "Science", "life science": "Science",
+  "physical science": "Science", "natural science": "Science", botany: "Science", zoology: "Science",
+
+  // English
+  english: "English", "language arts": "English", "english language": "English",
+  "english literature": "English", literature: "English", grammar: "English",
+  writing: "English", "creative writing": "English", comprehension: "English",
+
+  // Social Science (History, Geography, Civics, Economics, SST)
+  "social science": "Social Science", "social studies": "Social Science", sst: "Social Science",
+  history: "Social Science", geography: "Social Science", civics: "Social Science",
+  economics: "Social Science", "political science": "Social Science",
+
+  // Languages (Hindi, Sanskrit, regional languages)
+  hindi: "Languages", sanskrit: "Languages", french: "Languages", spanish: "Languages",
+  german: "Languages", urdu: "Languages", tamil: "Languages", telugu: "Languages",
+  kannada: "Languages", marathi: "Languages", bengali: "Languages", "second language": "Languages",
+  "third language": "Languages", languages: "Languages",
+
+  // Computer Science
+  "computer science": "Computer Science", "computer studies": "Computer Science",
+  computers: "Computer Science", it: "Computer Science", "information technology": "Computer Science",
+  programming: "Computer Science", coding: "Computer Science",
+};
+
+export function normalizeSubject(subject) {
+  if (!subject) return "Science";
+  const key = subject.trim().toLowerCase();
+  if (SUBJECT_MAP[key]) return SUBJECT_MAP[key];
+  // Partial keyword match fallback
+  for (const [keyword, category] of Object.entries(SUBJECT_MAP)) {
+    if (key.includes(keyword) || keyword.includes(key)) return category;
+  }
+  return "Science"; // default fallback
+}
 
 // ── Severity config (UI) ─────────────────────────────────────
 export const SEVERITY_UI = {
@@ -48,12 +93,12 @@ export const SEVERITY_UI = {
 };
 
 export const SUBJECT_BADGE_UI = {
-  Math:      "bg-purple-100 text-purple-700",
-  Physics:   "bg-blue-100 text-blue-700",
-  Chemistry: "bg-emerald-100 text-emerald-700",
-  Biology:   "bg-teal-100 text-teal-700",
-  History:   "bg-amber-100 text-amber-700",
-  English:   "bg-pink-100 text-pink-700",
+  Mathematics:       "bg-purple-100 text-purple-700",
+  Science:           "bg-blue-100 text-blue-700",
+  English:           "bg-pink-100 text-pink-700",
+  "Social Science":  "bg-amber-100 text-amber-700",
+  Languages:         "bg-teal-100 text-teal-700",
+  "Computer Science":"bg-emerald-100 text-emerald-700",
 };
 
 // ── Learning gaps ────────────────────────────────────────────
@@ -342,4 +387,4 @@ export const QUIZ_BANK = [
 export const getGapById    = (id) => LEARNING_GAPS.find((g) => g.id === id);
 export const getQuizById   = (id) => QUIZ_BANK.find((q) => q.id === id);
 export const getGapsBySubject = (subject) =>
-  subject === "All" ? LEARNING_GAPS : LEARNING_GAPS.filter((g) => g.subject === subject);
+  subject === "All" ? LEARNING_GAPS : LEARNING_GAPS.filter((g) => normalizeSubject(g.subject) === subject);

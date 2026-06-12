@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from bson import ObjectId
 from dependencies import require_role
 from database import get_db
+from services.llm import chat_completion
+import json as _json
 
 router = APIRouter(prefix="/parent", tags=["parent"])
 
@@ -317,3 +319,107 @@ async def get_child_submission(homework_id: str, child_id: str,
         "submission": _ser(doc),
         "homework": _ser(hw) if hw else {},
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# CURIOSITY PROMPTS (AI-generated, personalized to child)
+# ─────────────────────────────────────────────────────────────
+
+@router.get("/curiosity-prompts")
+async def curiosity_prompts(child_id: str, user=Depends(require_role("parent")), db=Depends(get_db)):
+    """Generate personalized curiosity prompts based on child's subjects and recent homework topics."""
+    # Verify child belongs to parent
+    parent = await db.users.find_one({"_id": ObjectId(user["id"])}, {"children": 1})
+    if not parent or child_id not in [str(c) for c in parent.get("children", [])]:
+        raise HTTPException(403, "Not your child")
+
+    child = await db.users.find_one({"_id": ObjectId(child_id)}, {"name": 1, "class_name": 1, "subjects": 1})
+    if not child:
+        raise HTTPException(404, "Child not found")
+
+    child_name = child.get("name", "your child")
+    grade = child.get("class_name", "")
+    subjects = child.get("subjects", [])
+
+    # Pull recent homework topics for richer context
+    recent_hw = await db.homework.find(
+        {"$or": [{"assigned_students": child_id}, {"assigned_to_class": grade}]}
+    ).sort("_id", -1).limit(10).to_list(None)
+    recent_topics = list({hw.get("topic", "") for hw in recent_hw if hw.get("topic")})[:6]
+
+    # Build context string
+    subject_str = ", ".join(subjects) if subjects else "general subjects"
+    topic_str = ", ".join(recent_topics) if recent_topics else "general topics"
+
+    prompt = f"""You are a helpful education assistant. Generate personalized curiosity prompts for a parent to use with their child.
+
+Child info:
+- Name: {child_name}
+- Grade: {grade}
+- Subjects: {subject_str}
+- Recent homework topics: {topic_str}
+
+Generate exactly this JSON structure (no markdown, no extra text):
+{{
+  "conversations": [
+    {{"id": "c1", "text": "question prompt in quotes", "time": "3 min", "tag": "skill category"}},
+    {{"id": "c2", "text": "question prompt in quotes", "time": "5 min", "tag": "skill category"}},
+    {{"id": "c3", "text": "question prompt in quotes", "time": "5 min", "tag": "skill category"}}
+  ],
+  "realWorld": [
+    {{"id": "r1", "type": "OBSERVATION", "title": "short title", "desc": "brief real-world connection activity description"}},
+    {{"id": "r2", "type": "KITCHEN SCIENCE", "title": "short title", "desc": "brief hands-on activity description"}},
+    {{"id": "r3", "type": "DAILY LIFE", "title": "short title", "desc": "brief everyday connection description"}}
+  ],
+  "activity": {{
+    "title": "hands-on activity title",
+    "time": "15 min",
+    "difficulty": "Easy",
+    "items": 3,
+    "materials": ["item1", "item2", "item3"],
+    "learning_goal": "what the child will learn",
+    "connection": "how it connects to their current studies"
+  }}
+}}
+
+Rules:
+- Make prompts specific to the child's current subjects and topics
+- Conversation starters should spark critical thinking and curiosity
+- Real-world connections should relate abstract concepts to everyday life
+- The activity should be doable at home with simple materials
+- Keep language warm, parent-friendly, not academic
+- Tag categories: Critical Thinking, Imagination, Problem Solving, Observation, Connection"""
+
+    try:
+        raw = await chat_completion([{"role": "user", "content": prompt}])
+        # Strip markdown fences if present
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+        data = _json.loads(cleaned)
+        return data
+    except Exception as e:
+        # Fallback: return basic prompts so page never breaks
+        return {
+            "conversations": [
+                {"id": "c1", "text": f'"What did you learn about {recent_topics[0] if recent_topics else subject_str} today that surprised you?"', "time": "3 min", "tag": "Critical Thinking"},
+                {"id": "c2", "text": f'"If you could teach {recent_topics[1] if len(recent_topics) > 1 else "your favorite topic"} to a younger student, how would you explain it?"', "time": "5 min", "tag": "Connection"},
+                {"id": "c3", "text": '"What question do you wish your teacher had asked in class today?"', "time": "3 min", "tag": "Imagination"},
+            ],
+            "realWorld": [
+                {"id": "r1", "type": "OBSERVATION", "title": "Spot it in the world", "desc": f"Look for examples of {recent_topics[0] if recent_topics else 'what you studied'} around you today."},
+                {"id": "r2", "type": "KITCHEN SCIENCE", "title": "Kitchen experiment", "desc": "Find something in the kitchen that connects to what you're learning in class."},
+            ],
+            "activity": {
+                "title": "Teach-Back Challenge",
+                "time": "10 min",
+                "difficulty": "Easy",
+                "items": 1,
+                "materials": ["Whiteboard or paper"],
+                "learning_goal": "Reinforce understanding through explanation",
+                "connection": f"Connects to {subject_str}",
+            },
+        }

@@ -772,10 +772,29 @@ export default function HomeworkAttempt() {
       setCurrentIdx((i) => i + 1);
     } else {
       setSubmitting(true);
+      // Upload any per-question files that haven't been uploaded yet
+      const fileUploadPromises = [];
+      for (const qq of questions) {
+        const ans = answers[qq.id];
+        if (ans instanceof File) {
+          fileUploadPromises.push(
+            dispatch(uploadSubmissionFile(ans)).unwrap()
+              .then((res) => ({ questionId: qq.id, url: res.url }))
+              .catch(() => ({ questionId: qq.id, url: null }))
+          );
+        }
+      }
+      const uploadedFiles = await Promise.all(fileUploadPromises);
+      const fileUrlMap = {};
+      for (const { questionId, url } of uploadedFiles) {
+        if (url) fileUrlMap[questionId] = url;
+      }
+
       // Build answers array for API — skipped questions get null answer
       const answersPayload = questions.map((qq) => ({
         question_id: qq.id,
         answer: answers[qq.id] instanceof File ? null : (answers[qq.id] ?? null),
+        file_url: fileUrlMap[qq.id] || null,
         answer_type: activeType[qq.id] || qq.answerType,
         skipped: skipped.has(qq.id),
       }));

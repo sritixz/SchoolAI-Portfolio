@@ -372,6 +372,15 @@ async def exam_prep_setup(body: ExamPrepSetupRequest, user=Depends(require_role(
         for s in body.subjects
     ])
 
+    # Build explicit custom topics constraint for subjects in custom mode
+    custom_topics_constraints = []
+    for s in body.subjects:
+        if s.syllabusMode == "custom" and s.topics:
+            custom_topics_constraints.append(f"- {s.name}: ONLY use these topics in sessions → {', '.join(s.topics)}")
+    custom_topics_section = ""
+    if custom_topics_constraints:
+        custom_topics_section = "\n\nCUSTOM SYLLABUS RESTRICTIONS (MANDATORY — do NOT generate sessions on topics outside this list for these subjects):\n" + "\n".join(custom_topics_constraints)
+
     # Determine nearest exam date for plan length
     min_days = min((s.daysLeft for s in body.subjects if s.daysLeft > 0), default=14)
     plan_days = max(min_days, 1)
@@ -443,6 +452,8 @@ SMART RULES:
 - readiness: calibrate using self-assessment scores first, then past grades, confidence, days left, and weak topics
 - aiInsights: 2-3 specific messages referencing actual data (scores, weak topics, days left)
 - weakTopics: list 2-3 weak topics per subject based on past data, self-assessment results, or confidence
+- CRITICAL: If a subject has "custom topics" syllabus mode, ALL study sessions for that subject MUST use ONLY the listed custom topics. Never generate sessions on topics outside the student's custom selection.
+{custom_topics_section}
 """
     try:
         raw = await chat_completion([
@@ -547,13 +558,52 @@ class SelfAssessmentRequest(BaseModel):
 
 @router.post("/exam-prep/self-assessment-quiz")
 async def generate_self_assessment_quiz(body: SelfAssessmentRequest, user=Depends(require_role("student")), db=Depends(get_db)):
-    """Generate a quick 5-question self-assessment quiz to gauge readiness."""
+    """Generate a personalized 5-question self-assessment quiz based on the student's weak topics."""
     class_label = body.class_val or "8"
-    topics_str = ", ".join(body.topics) if body.topics else "key topics across the syllabus"
+
+    # ── Pull student-specific weak topics from learning_gaps and homework submissions ──
+    weak_topics = []
+    low_score_topics = []
+    try:
+        # Unresolved learning gaps for this subject
+        gap_docs = await db.learning_gaps.find({
+            "student_id": user["id"],
+            "resolved": False,
+            "subject": {"$regex": body.subject, "$options": "i"},
+        }).sort("severity", -1).to_list(10)
+        weak_topics = [g.get("topic", "") for g in gap_docs if g.get("topic")]
+
+        # Topics from recent low-scoring homework submissions
+        hw_docs = await db.homework_submissions.find({
+            "student_id": user["id"],
+            "subject": {"$regex": body.subject, "$options": "i"},
+            "auto_score_pct": {"$lt": 60},
+        }).sort("_id", -1).to_list(10)
+        low_score_topics = [h.get("topic", "") for h in hw_docs if h.get("topic")]
+    except Exception:
+        pass
+
+    # Combine and deduplicate weak areas
+    all_weak = list(dict.fromkeys([t for t in (weak_topics + low_score_topics) if t]))
+
+    # Determine topics for the quiz
+    if body.topics:
+        # User specified custom topics — still prioritize weak ones among them
+        topics_str = ", ".join(body.topics)
+        weak_hint = f"\nThe student struggles with these topics (prioritize questions on them): {', '.join(all_weak[:5])}" if all_weak else ""
+    elif all_weak:
+        # No explicit topics but we have weak areas — focus quiz on those
+        topics_str = ", ".join(all_weak[:6])
+        weak_hint = f"\nThese are the student's ACTUAL weak topics from their learning gap data and low homework scores. Generate at least 3 out of 5 questions targeting these weak areas specifically."
+    else:
+        topics_str = "key topics across the syllabus"
+        weak_hint = ""
+
     prompt = f"""Generate a quick 5-question self-assessment quiz for a Class {class_label} {body.subject} student ({body.board} board).
 Topics to cover: {topics_str}
+{weak_hint}
 
-This quiz helps gauge the student's current readiness level. Make questions representative of the full syllabus.
+This quiz helps gauge the student's current readiness level. Questions should be PERSONALIZED to expose gaps in the student's understanding of their weak areas.
 
 Return ONLY valid JSON (no markdown):
 {{
@@ -569,20 +619,26 @@ Return ONLY valid JSON (no markdown):
         {{"id": "D", "text": "Option D", "is_correct": false}}
       ],
       "explanation": "Why the correct answer is right",
-      "topic": "Which topic this tests"
+      "topic": "Which topic this tests",
+      "isWeakTopic": true
     }}
   ]
 }}
 
 RULES:
 - Exactly 5 MCQ questions, 4 options each, exactly one correct
-- Cover different topics/chapters for breadth
-- Mix easy (2), medium (2), hard (1) difficulty
+- If weak topics are provided, at least 3 questions MUST target those specific weak areas
+- Remaining questions cover other topics for breadth
+- Mix easy (1), medium (2), hard (2) difficulty — lean harder on weak topics to truly assess gaps
+- Set "isWeakTopic": true for questions that target the student's weak areas
 - Questions must be Class {class_label} {body.board} syllabus appropriate
 """
     try:
+        system_msg = f"You are an expert {body.subject} teacher for Class {class_label} {body.board} students. Generate accurate, curriculum-aligned MCQ questions that are personalized to the student's weak areas. Return only valid JSON."
+        if all_weak:
+            system_msg += f" The student has known weaknesses in: {', '.join(all_weak[:5])}. Prioritize testing these areas."
         raw = await chat_completion([
-            {"role": "system", "content": f"You are an expert {body.subject} teacher for Class {class_label} {body.board} students. Generate accurate, curriculum-aligned MCQ questions. Return only valid JSON."},
+            {"role": "system", "content": system_msg},
             {"role": "user", "content": prompt}
         ])
         clean = raw.strip()

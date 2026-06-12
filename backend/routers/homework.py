@@ -298,6 +298,26 @@ async def _run_analysis(db, sub, hw):
             )
             sub["extracted_text"] = extracted_text
 
+    # 1b. Run OCR on per-question file_url fields (mixed homework: MCQ + upload)
+    answers = sub.get("answers", [])
+    per_q_ocr_updated = False
+    for ans in answers:
+        furl = ans.get("file_url")
+        if furl and not ans.get("answer"):
+            try:
+                q_text = await extract_text_from_url(furl)
+                if q_text:
+                    ans["answer"] = q_text
+                    per_q_ocr_updated = True
+            except Exception:
+                pass
+    if per_q_ocr_updated:
+        await db.homework_submissions.update_one(
+            {"_id": sub["_id"]},
+            {"$set": {"answers": answers}}
+        )
+        sub["answers"] = answers
+
     # 2. Run AI grading
     analysis = await analyse_submission(hw or {}, sub)
 
