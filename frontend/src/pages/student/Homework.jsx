@@ -66,8 +66,8 @@ function HomeworkCard({ hw }) {
 
   // Override action button for submitted-awaiting-evaluation
   if (displayStatus === "submitted") {
-    actionBtn.label = hw.allow_retries ? "Reattempt" : "View Submission";
-    actionBtn.cls = hw.allow_retries ? "bg-[#6B5CE7] hover:bg-[#5a4dd4] text-white shadow-lg shadow-[#6B5CE7]/20" : "bg-gray-100 hover:bg-gray-200 text-gray-700";
+    actionBtn.label = "View Submission";
+    actionBtn.cls = "bg-gray-100 hover:bg-gray-200 text-gray-700";
   }
 
   return (
@@ -181,10 +181,7 @@ function HomeworkCard({ hw }) {
       <div className="flex gap-3">
         <button
           onClick={() => {
-            if (displayStatus === "submitted" && hw.allow_retries) {
-              // Reattempt: navigate to the homework attempt page
-              navigate(`/student/homework/${hw.id}`);
-            } else if (hw.status === "completed") {
+            if (displayStatus === "submitted" || hw.status === "completed") {
               import("../../api").then(({ default: api }) => {
                 // Fetch submission result + homework questions in parallel
                 Promise.all([
@@ -238,6 +235,16 @@ function HomeworkCard({ hw }) {
         >
           {actionBtn.label}
         </button>
+        {/* Show separate Retry button when submitted + retries allowed */}
+        {displayStatus === "submitted" && hw.allow_retries && (
+          <button
+            onClick={() => navigate(`/student/homework/${hw.id}`, { state: { reattempt: true } })}
+            className="px-5 py-3 sm:py-4 font-bold rounded-full transition-all text-base bg-[#6B5CE7] hover:bg-[#5a4dd4] text-white shadow-lg shadow-[#6B5CE7]/20"
+            title="Reattempt this homework"
+          >
+            <span className="material-symbols-outlined text-lg align-middle">replay</span>
+          </button>
+        )}
         <button
           onClick={() => setExpanded(!expanded)}
           className="px-4 py-4 border border-gray-200 rounded-full text-gray-400 hover:bg-gray-50 transition-colors"
