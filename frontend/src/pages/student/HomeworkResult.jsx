@@ -105,12 +105,21 @@ function QuestionReview({ q, studentAnswer, index, gradedData }) {
                 )}
               </>
             )}
-            {isUpload && (
-              <p className="text-xs text-blue-500 font-medium mt-0.5">
-                <span className="material-symbols-outlined text-xs align-middle mr-1">attach_file</span>
-                {studentAnswer?.name || "File uploaded"}
-              </p>
-            )}
+            {isUpload && (() => {
+              const fileUrl = gradedData?.file_url || (typeof studentAnswer === "string" && studentAnswer.startsWith("http") ? studentAnswer : null);
+              return fileUrl ? (
+                <a href={fileUrl} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-[#5b69e6] font-medium mt-0.5 hover:underline">
+                  <span className="material-symbols-outlined text-xs align-middle">open_in_new</span>
+                  View uploaded file
+                </a>
+              ) : (
+                <p className="text-xs text-blue-500 font-medium mt-0.5">
+                  <span className="material-symbols-outlined text-xs align-middle mr-1">attach_file</span>
+                  {studentAnswer?.name || "File uploaded"}
+                </p>
+              );
+            })()}
             {aiFeedback && (
               <div className="flex items-start gap-1 bg-[#5b69e6]/5 rounded-lg px-2 py-1 mt-1">
                 <span className="material-symbols-outlined text-[#5b69e6] text-xs shrink-0 mt-0.5">psychology</span>
@@ -219,18 +228,51 @@ export default function HomeworkResult() {
   const [apiSubmission, setApiSubmission] = useState(null);
   const [fetchingResult, setFetchingResult] = useState(false);
 
-  const { answers: rawAnswers = {}, questionSet, apiResult, fileSubmission, submissionDoc, allowRetries } = state || {};
+  const { answers: rawAnswers = {}, questionSet: stateQuestionSet, apiResult, fileSubmission, submissionDoc: stateSubmissionDoc, allowRetries: stateAllowRetries } = state || {};
+
+  const [homeworkMeta, setHomeworkMeta] = useState(null);
+  const [fetchedSubmissionDoc, setFetchedSubmissionDoc] = useState(null);
 
   // If no state (direct navigation), fetch from API
   useEffect(() => {
     if (!state && homeworkId) {
       setFetchingResult(true);
-      api.get(`/homework/${homeworkId}/result`)
-        .then((r) => setApiSubmission(r.data))
+      Promise.all([
+        api.get(`/homework/${homeworkId}/result`),
+        api.get(`/homework/${homeworkId}`).catch(() => ({ data: null })),
+      ])
+        .then(([resultRes, hwRes]) => {
+          setApiSubmission(resultRes.data);
+          setFetchedSubmissionDoc(resultRes.data);
+          if (hwRes.data) setHomeworkMeta(hwRes.data);
+        })
         .catch(() => setApiSubmission(null))
         .finally(() => setFetchingResult(false));
     }
   }, [homeworkId, state]);
+
+  // Also fetch homework metadata and submission doc when navigating with state
+  useEffect(() => {
+    if (state && homeworkId) {
+      if (!homeworkMeta) {
+        api.get(`/homework/${homeworkId}`).then((r) => setHomeworkMeta(r.data)).catch(() => {});
+      }
+      // Fetch submission doc if not provided in state (needed for file URLs)
+      if (!stateSubmissionDoc) {
+        api.get(`/homework/${homeworkId}/result`).then((r) => setFetchedSubmissionDoc(r.data)).catch(() => {});
+      }
+    }
+  }, [homeworkId, state]);
+
+  const submissionDoc = stateSubmissionDoc || fetchedSubmissionDoc;
+
+  // Use homework metadata title as the authoritative source
+  const questionSet = stateQuestionSet ? {
+    ...stateQuestionSet,
+    unitTitle: homeworkMeta?.title || stateQuestionSet.unitTitle,
+  } : stateQuestionSet;
+
+  const allowRetries = stateAllowRetries || homeworkMeta?.allow_retries || false;
 
   // Merge submissionDoc.answers into the answers map so the review shows
   // student responses even when navigating back after evaluation.
@@ -573,6 +615,9 @@ export default function HomeworkResult() {
       return (
         <div className="min-h-screen bg-[#f6f6f8] flex flex-col items-center justify-center px-6" style={{ fontFamily: "'Lexend', sans-serif" }}>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
+            {homeworkMeta?.title && (
+              <p className="text-sm font-bold text-slate-600 mb-4">{homeworkMeta.title}</p>
+            )}
             <div className={`size-20 rounded-full flex items-center justify-center mx-auto mb-6 ${isGraded ? "bg-green-100" : "bg-amber-100"}`}>
               <span className={`material-symbols-outlined text-4xl ${isGraded ? "text-green-600" : "text-amber-600"}`}>
                 {isGraded ? "task_alt" : "pending"}
@@ -596,10 +641,26 @@ export default function HomeworkResult() {
             ) : (
               <p className="text-slate-500 mb-4">Your submission is being reviewed by your teacher. You'll be notified when your grade is ready.</p>
             )}
-            <button onClick={() => navigate("/student/homework")}
-              className="w-full py-3 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 transition-all">
-              Back to Homework
-            </button>
+            {allowRetries && (
+              <div className="flex items-center justify-center gap-1 mb-4">
+                <span className="material-symbols-outlined text-green-600 text-sm">replay</span>
+                <span className="text-xs font-bold text-green-700">Retries Allowed</span>
+              </div>
+            )}
+            <div className="flex flex-col gap-3">
+              {allowRetries && (
+                <button
+                  onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
+                  className="w-full py-3 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-xl hover:bg-[#5b69e6]/5 transition-all"
+                >
+                  Retry Homework
+                </button>
+              )}
+              <button onClick={() => navigate("/student/homework")}
+                className="w-full py-3 bg-[#5b69e6] text-white font-bold rounded-xl hover:bg-[#5b69e6]/90 transition-all">
+                Back to Homework
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -646,7 +707,7 @@ export default function HomeworkResult() {
 
   const stats = [
     { label: "Questions",      value: `${answeredCount}/${questions.length}`, icon: "quiz",         color: "text-[#5b69e6]" },
-    { label: "MCQ Score",      value: `${finalMcqCorrect}/${finalMcqTotal}`,  icon: "check_circle", color: "text-green-600" },
+    { label: "MCQ Score",      value: `${finalMcqCorrect}/${questions.length}`,  icon: "check_circle", color: "text-green-600" },
     { label: "Pending Review", value: `${nonMcqAnswered.length} answers`,     icon: "pending",      color: "text-amber-600" },
     { label: "Est. Score",     value: `${estimatedScore}/${totalPoints}`,     icon: "stars",        color: "text-purple-600" },
   ];
@@ -698,6 +759,12 @@ export default function HomeworkResult() {
                   {tag}
                 </span>
               ))}
+              {allowRetries && (
+                <span className="bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1">
+                  <span className="material-symbols-outlined text-xs">replay</span>
+                  Retries Allowed
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -722,10 +789,10 @@ export default function HomeworkResult() {
             <p className="font-bold text-slate-800 mb-1">LumiTutor Feedback</p>
             <p className="text-sm text-slate-600 leading-relaxed">
               {scorePct >= 80
-                ? `Great work on the MCQ section! You correctly answered ${finalMcqCorrect} out of ${finalMcqTotal} objective questions. Your typed explanations show strong conceptual understanding — keep it up!`
+                ? `Great work on the MCQ section! You correctly answered ${finalMcqCorrect} out of ${questions.length} objective questions. Your typed explanations show strong conceptual understanding — keep it up!`
                 : scorePct >= 50
-                ? `You're on the right track! You got ${finalMcqCorrect}/${finalMcqTotal} MCQs correct. Review the questions you missed and revisit the concept — it'll help with the typed questions too.`
-                : `Don't worry — this topic takes practice. You answered ${finalMcqCorrect}/${finalMcqTotal} MCQs correctly. I recommend revisiting the key concepts before your next attempt.`
+                ? `You're on the right track! You got ${finalMcqCorrect}/${questions.length} MCQs correct. Review the questions you missed and revisit the concept — it'll help with the typed questions too.`
+                : `Don't worry — this topic takes practice. You answered ${finalMcqCorrect}/${questions.length} MCQs correctly. I recommend revisiting the key concepts before your next attempt.`
               }
             </p>
             <button
