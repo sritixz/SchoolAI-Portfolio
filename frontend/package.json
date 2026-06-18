@@ -17,6 +17,7 @@
     "katex": "0.16.22",
     "mermaid": "^11.14.0",
     "nanoid": "^5.1.6",
+    "pdfjs-dist": "^6.0.227",
     "pptxgenjs": "^4.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

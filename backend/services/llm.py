@@ -4,12 +4,14 @@ OpenRouter LLM client — used by Vin AI and teacher AI tools.
 import httpx
 from config import settings
 
-HEADERS = {
-    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://bawan.app",
-    "X-Title": "Bawan AI",
-}
+def _headers():
+    """Build headers fresh each call so the API key is never stale."""
+    return {
+        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://bawan.app",
+        "X-Title": "Bawan AI",
+    }
 
 async def chat_completion(messages: list[dict], model: str = None, stream: bool = False, timeout: int = 120) -> str:
     """Send a chat completion request to OpenRouter. Returns full text."""
@@ -18,12 +20,20 @@ async def chat_completion(messages: list[dict], model: str = None, stream: bool 
         "messages": messages,
         "stream": stream,
     }
+    hdrs = _headers()
+    # Debug: log key prefix to verify it's loaded
+    key_val = settings.OPENROUTER_API_KEY
+    print(f"[LLM DEBUG] Key length={len(key_val)}, starts='{key_val[:12]}...', model={payload['model']}")
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(
             f"{settings.OPENROUTER_BASE_URL}/chat/completions",
-            headers=HEADERS,
+            headers=hdrs,
             json=payload,
         )
+        if resp.status_code == 401:
+            body = resp.text
+            print(f"[LLM DEBUG] 401 response body: {body}")
+            raise Exception(f"OpenRouter auth failed (401). Response: {body}")
         resp.raise_for_status()
         data = resp.json()
         return data["choices"][0]["message"]["content"]
@@ -37,7 +47,7 @@ async def stream_completion(messages: list[dict], model: str = None):
     }
     async with httpx.AsyncClient(timeout=120) as client:
         async with client.stream("POST", f"{settings.OPENROUTER_BASE_URL}/chat/completions",
-                                 headers=HEADERS, json=payload) as resp:
+                                 headers=_headers(), json=payload) as resp:
             resp.raise_for_status()
             async for line in resp.aiter_lines():
                 if line.startswith("data: ") and line != "data: [DONE]":
@@ -69,7 +79,7 @@ async def stream_vin_chat(messages: list[dict], model: str = None):
         async with client.stream(
             "POST",
             f"{settings.OPENROUTER_BASE_URL}/chat/completions",
-            headers=HEADERS,
+            headers=_headers(),
             json=payload,
         ) as resp:
             resp.raise_for_status()

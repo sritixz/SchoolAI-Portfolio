@@ -18,6 +18,10 @@ import {
 import { useAiToolWithHistory } from "../../hooks/useAiToolWithHistory";
 import { downloadLessonPlanPdf } from "../../utils/aiPdfExport";
 import MathText from "../../components/MathText";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export default function LessonPlanCreator() {
   const navigate = useNavigate();
@@ -105,16 +109,58 @@ export default function LessonPlanCreator() {
       objectives: p.objectives.map((o) => o.id === id ? { ...o, tag } : o),
     }));
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setForm((p) => ({ ...p, referenceDocument: { name: file.name, content: ev.target.result } }));
-    };
-    reader.readAsText(file);
-  };
+const handleFileUpload = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
+  try {
+    if (file.type === "application/pdf") {
+      const arrayBuffer = await file.arrayBuffer();
+
+      const pdf = await pdfjsLib.getDocument({
+        data: arrayBuffer,
+      }).promise;
+
+      let text = "";
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+
+        const textContent = await page.getTextContent();
+
+        text +=
+          textContent.items
+            .map((item) => item.str)
+            .join(" ") + "\n";
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        referenceDocument: {
+          name: file.name,
+          content: text,
+        },
+      }));
+    } else {
+      const reader = new FileReader();
+
+      reader.onload = (ev) => {
+        setForm((prev) => ({
+          ...prev,
+          referenceDocument: {
+            name: file.name,
+            content: ev.target.result,
+          },
+        }));
+      };
+
+      reader.readAsText(file);
+    }
+  } catch (error) {
+    console.error("Error reading file:", error);
+    alert("Failed to read document");
+  }
+};
   const { runTool } = useAiToolWithHistory();
   const handleGenerate = () => {
     if (!form.subject.trim() || !form.topic.trim()) {
@@ -646,8 +692,8 @@ export default function LessonPlanCreator() {
               <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl p-6 cursor-pointer hover:border-[#695be6] transition-colors">
                 <span className="material-symbols-outlined text-gray-400 text-3xl">upload_file</span>
                 <span className="text-sm text-gray-500">Click to upload a document</span>
-                <span className="text-xs text-gray-400">.txt, .md, .csv files supported</span>
-                <input type="file" accept=".txt,.md,.csv" className="hidden" onChange={handleFileUpload} />
+                <span className="text-xs text-gray-400">.txt, .md, .csv, .pdf files supported</span>
+                <input type="file" accept=".txt,.md,.csv,.pdf" className="hidden" onChange={handleFileUpload} />
               </label>
             )}
           </div>
