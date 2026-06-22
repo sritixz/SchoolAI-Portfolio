@@ -8,6 +8,15 @@ import { downloadWorksheetPdf, downloadQuizPdf, downloadConceptPdf, downloadPres
 
 const TOOLS = [
   {
+    id: "askmeanything",
+    icon: "forum",
+    label: "Ask me Anything",
+    desc: "Chat with your AI teaching assistant for lesson planning, grading advice, or pedagogy.",
+    btnLabel: "Start Chatting",
+    route: "/teacher/ask-me-anything",
+    isNew: true,
+  },
+  {
     id: "worksheet",
     icon: "edit_document",
     label: "Worksheet Generator",
@@ -76,15 +85,18 @@ export default function AIAssistant() {
   const TOOL_ICONS = {
     worksheet: "edit_document", lessonplan: "menu_book", concept: "lightbulb",
     presentation: "present_to_all", quiz: "quiz", grading: "grading",
+    askmeanything: "forum",
   };
   const TOOL_LABELS = {
     worksheet: "Worksheet", lessonplan: "Lesson Plan", concept: "Concept Explainer",
     presentation: "Presentation", quiz: "Quiz", grading: "Grading Report",
+    askmeanything: "Ask me Anything",
   };
   const TOOL_ROUTES = {
     worksheet: "/teacher/ai-assistant/worksheet", lessonplan: "/teacher/ai-assistant/lesson-plan",
     concept: "/teacher/ai-assistant/concept", presentation: "/teacher/ai-assistant/presentation",
     quiz: "/teacher/ai-assistant/quiz", grading: "/teacher/ai-assistant/grading",
+    askmeanything: "/teacher/ask-me-anything",
   };
 
   function handleRedownload(item) {

@@ -71,6 +71,7 @@ export default function TeacherHome() {
     { label: "Create Homework",  icon: "add_circle",   color: "from-[#695be6] to-[#8e82f3]", to: "/teacher/homework/create" },
     { label: "Homework Library", icon: "menu_book",    color: "from-blue-400 to-indigo-500",  to: "/teacher/homework" },
     { label: "AI Assistant",     icon: "auto_awesome", color: "from-purple-400 to-pink-500",  to: "/teacher/ai-assistant" },
+    { label: "Ask me Anything",  icon: "forum",        color: "from-indigo-500 to-purple-600", to: "/teacher/ask-me-anything" },
     { label: "Interventions",    icon: "warning",      color: "from-orange-400 to-amber-500", to: "/teacher/interventions" },
     { label: "Analytics",        icon: "bar_chart",    color: "from-emerald-400 to-teal-500", to: "/teacher/analytics" },
     { label: "Communication",    icon: "chat",         color: "from-rose-400 to-pink-500",    to: "/teacher/communication" },
@@ -282,21 +283,38 @@ export default function TeacherHome() {
 
       {/* Bottom Nav — mobile only */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 z-50 lg:hidden">
-        <div className="flex items-center justify-around h-14">
+        <div className="flex items-end justify-around h-16">
           {[
-            { icon: "home",       label: "Home",     to: "/teacher" },
+            { icon: "home",       label: "Home",     to: "/teacher", active: true },
             { icon: "group",      label: "Students", to: "/teacher/students" },
+            { icon: "forum",      label: "Ask me",   to: "/teacher/ask-me-anything", fab: true },
             { icon: "assignment", label: "Homework", to: "/teacher/homework" },
-            { icon: "warning",    label: "Alerts",   to: "/teacher/interventions" },
             { icon: "chat",       label: "Messages", to: "/teacher/communication" },
-          ].map((item) => (
-            <Link key={item.label} to={item.to} className="flex flex-col items-center gap-1 text-gray-400 flex-1">
-              <span className="material-symbols-outlined text-xl">{item.icon}</span>
-              <span className="text-[9px] font-bold">{item.label}</span>
-            </Link>
-          ))}
+          ].map((item) =>
+            item.fab ? (
+              <Link
+                key={item.label}
+                to={item.to}
+                className="flex flex-col items-center -mt-6 bg-[#695be6] text-white size-12 rounded-full shadow-lg shadow-[#695be6]/40 justify-center hover:shadow-xl transition-shadow"
+              >
+                <span className="material-symbols-outlined text-xl">{item.icon}</span>
+              </Link>
+            ) : (
+              <Link key={item.label} to={item.to} className={`flex flex-col items-center gap-1 text-center flex-1 ${item.active ? "text-[#695be6]" : "text-gray-400"}`}>
+                <span className="material-symbols-outlined text-xl">{item.icon}</span>
+                <span className="text-[9px] font-bold">{item.label}</span>
+              </Link>
+            )
+          )}
         </div>
       </nav>
+
+      {/* Floating Action Button — Desktop only */}
+      <Link to="/teacher/ask-me-anything"
+        className="hidden lg:flex fixed bottom-6 right-6 z-50 items-center justify-center size-14 rounded-full bg-gradient-to-tr from-[#695be6] to-pink-500 text-white shadow-xl shadow-[#695be6]/30 hover:scale-105 hover:shadow-2xl transition-all group duration-300"
+        title="Ask me Anything">
+        <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">forum</span>
+      </Link>
     </div>
   );
 }

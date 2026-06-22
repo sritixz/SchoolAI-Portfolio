@@ -4,6 +4,7 @@ import studentReducer      from "./slices/studentSlice";
 import homeworkReducer     from "./slices/homeworkSlice";
 import learningGapsReducer from "./slices/learningGapsSlice";
 import vinAiReducer        from "./slices/vinAiSlice";
+import teacherChatReducer  from "./slices/teacherChatSlice";
 import teacherReducer      from "./slices/teacherSlice";
 import parentReducer       from "./slices/parentSlice";
 import schoolAdminReducer  from "./slices/schoolAdminSlice";
@@ -18,6 +19,7 @@ export const store = configureStore({
     homework:    homeworkReducer,
     learningGaps:learningGapsReducer,
     vinAi:       vinAiReducer,
+    teacherChat: teacherChatReducer,
     teacher:     teacherReducer,
     parent:      parentReducer,
     schoolAdmin: schoolAdminReducer,

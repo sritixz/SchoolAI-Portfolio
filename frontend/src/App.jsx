@@ -33,6 +33,7 @@ import ParentLearningProfile from "./pages/parents/LearningProfile";
 import ParentRequestMeeting from "./pages/parents/RequestMeeting";
 import ParentMessages from "./pages/parents/Messages";
 import TeacherHome from "./pages/teacher/Home";
+import TeacherAskMeAnything from "./pages/teacher/AskMeAnything";
 import TeacherAIAssistant from "./pages/teacher/AIAssistant";
 import TeacherInterventions from "./pages/teacher/InterventionAlerts";
 import TeacherHomeworkLibrary from "./pages/teacher/HomeworkLibrary";
@@ -111,6 +112,7 @@ export default function App() {
 
           {/* Teacher */}
           <Route path="/teacher"                          element={<S role="teacher"><TeacherHome /></S>} />
+          <Route path="/teacher/ask-me-anything"          element={<S role="teacher"><TeacherAskMeAnything /></S>} />
           <Route path="/teacher/ai-assistant"             element={<S role="teacher"><TeacherAIAssistant /></S>} />
           <Route path="/teacher/ai-assistant/worksheet"   element={<S role="teacher"><TeacherWorksheetGenerator /></S>} />
           <Route path="/teacher/ai-assistant/presentation" element={<S role="teacher"><TeacherPresentationCreator /></S>} />
