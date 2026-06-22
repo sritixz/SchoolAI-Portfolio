@@ -308,13 +308,6 @@ export default function TeacherHome() {
           )}
         </div>
       </nav>
-
-      {/* Floating Action Button — Desktop only */}
-      <Link to="/teacher/ask-me-anything"
-        className="hidden lg:flex fixed bottom-6 right-6 z-50 items-center justify-center size-14 rounded-full bg-gradient-to-tr from-[#695be6] to-pink-500 text-white shadow-xl shadow-[#695be6]/30 hover:scale-105 hover:shadow-2xl transition-all group duration-300"
-        title="Ask me Anything">
-        <span className="material-symbols-outlined text-2xl group-hover:rotate-12 transition-transform">forum</span>
-      </Link>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import TeacherChatLauncher from "./components/TeacherChatLauncher";
 import GlobalLoader from "./components/GlobalLoader";
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
@@ -65,7 +66,10 @@ import SchoolAdminTeacherSupport from "./pages/schooladmin/TeacherSupport";
 import SchoolAdminOnboarding from "./pages/schooladmin/Onboarding";
 
 const S = ({ children, role = "student" }) => (
-  <ProtectedRoute allowedRole={role}>{children}</ProtectedRoute>
+  <ProtectedRoute allowedRole={role}>
+    {children}
+    {role === "teacher" && <TeacherChatLauncher />}
+  </ProtectedRoute>
 );
 
 export default function App() {
