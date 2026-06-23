@@ -202,11 +202,67 @@ async def portfolio_summary(user=Depends(require_role("student")), db=Depends(ge
     if not student:
         raise HTTPException(404, "Student not found")
 
-    grade_docs = await db.grades.find({"student_id": user["id"]}).to_list(None)
-    academic_progress = [
-        {"subject": g.get("subject", ""), "percent": g.get("marks", 0), "semester": g.get("semester", "")}
-        for g in grade_docs
-    ]
+    # Fetch student submissions
+    submissions = await db.homework_submissions.find({
+        "student_id": user["id"],
+        "status": {"$in": ["submitted", "graded"]}
+    }).to_list(None)
+
+    # Group by homework_id to pick the graded/selected one or latest
+    by_hw = {}
+    for sub in submissions:
+        hid = sub.get("homework_id")
+        if not hid:
+            continue
+        if sub.get("selected_for_evaluation"):
+            by_hw[hid] = sub
+        elif hid not in by_hw:
+            by_hw[hid] = sub
+        elif not by_hw[hid].get("selected_for_evaluation"):
+            if sub.get("attempt_number", 1) > by_hw[hid].get("attempt_number", 1):
+                by_hw[hid] = sub
+
+    # Fetch homework details
+    hw_ids = list(by_hw.keys())
+    homework_map = {}
+    if hw_ids:
+        hws = await db.homework.find({"_id": {"$in": [ObjectId(hid) for hid in hw_ids]}}).to_list(None)
+        homework_map = {str(hw["_id"]): hw for hw in hws}
+
+    # Group scores by subject
+    subject_scores = {}
+    for hid, sub in by_hw.items():
+        hw = homework_map.get(hid)
+        if not hw:
+            continue
+        subject = hw.get("subject", "General")
+        
+        # Get the score percentage
+        score = sub.get("final_score_pct")
+        if score is None:
+            score = sub.get("auto_score_pct")
+        if score is None:
+            final_score = sub.get("final_score")
+            total_marks = hw.get("total_marks")
+            if final_score is not None and total_marks:
+                score = round((final_score / total_marks) * 100)
+            else:
+                score = 0
+                
+        subject_scores.setdefault(subject, []).append(score)
+
+    academic_progress = []
+    from datetime import date
+    current_year = date.today().year
+    semester_label = f"Semester 2 • {current_year}"
+    
+    for subject, scores in subject_scores.items():
+        avg_score = round(sum(scores) / len(scores)) if scores else 0
+        academic_progress.append({
+            "subject": subject,
+            "percent": avg_score,
+            "semester": semester_label
+        })
 
     att = await db.attendance.find_one({"student_id": user["id"]})
     att_pct = f"{att.get('percentage', 0)}%" if att else None
