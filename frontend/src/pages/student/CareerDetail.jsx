@@ -25,14 +25,20 @@ export default function CareerDetail() {
   const { domainId, careerId } = useParams();
   const navigate = useNavigate();
   const mockCareer = getCareerDetail(careerId);
-  const domain     = getDomainById(domainId);
   const [career, setCareer] = useState(mockCareer);
+  const [dbDomain, setDbDomain] = useState(null);
 
   useEffect(() => {
     api.get(`/career/${domainId}/${careerId}`).then((r) => {
       if (r.data) setCareer(r.data);
     }).catch(() => {});
+
+    api.get(`/career/domains/${domainId}`).then((r) => {
+      if (r.data) setDbDomain(r.data);
+    }).catch(() => {});
   }, [domainId, careerId]);
+
+  const domain = dbDomain || getDomainById(domainId);
 
   if (!career) {
     return (
@@ -95,7 +101,7 @@ export default function CareerDetail() {
             </div>
             <h1 className="text-5xl font-bold mb-4">{career.title}</h1>
             <p className="text-lg text-white/80 leading-relaxed">
-              Turning complex data into actionable stories for the world's leading organizations.
+              {career.subtitle || "Build your future in this exciting career field."}
             </p>
           </div>
           {/* Stats overlay */}

@@ -15,6 +15,11 @@ async def list_domains(user=Depends(require_role("student")), db=Depends(get_db)
     docs = await db.career_domains.find({}).to_list(None)
     return [_ser(d) for d in docs]
 
+@router.get("/domains/{domain_id}")
+async def get_domain(domain_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    doc = await db.career_domains.find_one({"id": domain_id})
+    return _ser(doc) if doc else None
+
 @router.get("/{domain_id}")
 async def domain_careers(domain_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
     docs = await db.careers.find({"domain_id": domain_id}).to_list(None)

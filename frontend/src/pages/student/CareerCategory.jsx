@@ -44,20 +44,38 @@ function CareerCard({ career, domainId, index }) {
 export default function CareerCategory() {
   const { domainId } = useParams();
   const navigate     = useNavigate();
-  const domain       = getDomainById(domainId);
-  const mockRows     = getDomainRows(domainId);
+  const [dbDomain, setDbDomain] = useState(null);
   const [apiCareers, setApiCareers] = useState([]);
 
   useEffect(() => {
+    api.get(`/career/domains/${domainId}`).then((r) => {
+      if (r.data) setDbDomain(r.data);
+    }).catch(() => {});
+
     api.get(`/career/${domainId}`).then((r) => {
       if (r.data?.length) setApiCareers(r.data);
     }).catch(() => {});
   }, [domainId]);
 
-  // Build rows from API data or fall back to mock
-  const rows = apiCareers.length > 0
-    ? [{ id: "api_row", rowTitle: "Careers in this field", careers: apiCareers }]
-    : mockRows;
+  const domain = dbDomain || getDomainById(domainId);
+  const mockRows = getDomainRows(domainId);
+
+  // Build rows dynamically grouped by subcategory
+  let rows = mockRows;
+  if (apiCareers.length > 0) {
+    const grouped = apiCareers.reduce((acc, career) => {
+      const subcat = career.subcategory || "Careers in this field";
+      if (!acc[subcat]) acc[subcat] = [];
+      acc[subcat].push(career);
+      return acc;
+    }, {});
+
+    rows = Object.keys(grouped).map((subcat, index) => ({
+      id: `api_row_${index}`,
+      rowTitle: subcat,
+      careers: grouped[subcat]
+    }));
+  }
 
   if (!domain) {
     return (
