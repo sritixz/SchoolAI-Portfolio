@@ -241,6 +241,9 @@ async def chat(
     async def event_gen():
         try:
             async for token in stream_vin_chat(messages):
+                if token.startswith("[FALLBACK_REASON]:"):
+                    yield f"data: {token}\n\n"
+                    continue
                 full_response.append(token)
                 safe = token.replace("\n", "\\n")
                 yield f"data: {safe}\n\n"
@@ -309,6 +312,9 @@ async def answer_question(
     async def event_gen():
         try:
             async for token in stream_vin_chat(messages):
+                if token.startswith("[FALLBACK_REASON]:"):
+                    yield f"data: {token}\n\n"
+                    continue
                 full_response.append(token)
                 safe = token.replace("\n", "\\n")
                 yield f"data: {safe}\n\n"

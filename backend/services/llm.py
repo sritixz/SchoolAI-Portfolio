@@ -973,7 +973,9 @@ async def stream_vin_chat(messages: list[dict], model: str = None):
                         except Exception:
                             continue
     except Exception as e:
-        print(f"[FALLBACK] OpenRouter streaming failed ({e}). Attempting mock streaming for: '{user_msg}'")
+        reason = str(e)
+        print(f"[FALLBACK] OpenRouter streaming failed ({reason}). Attempting mock streaming for: '{user_msg}'")
+        yield f"[FALLBACK_REASON]: {reason}"
         
         # Determine the best mock response content based on query keywords
         if "integer" in user_msg:

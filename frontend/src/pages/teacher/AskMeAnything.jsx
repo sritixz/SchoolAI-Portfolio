@@ -333,6 +333,12 @@ export default function TeacherChat() {
   const [showMobileHistory, setShowMobileHistory] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   // Audio recording refs
   const mediaRecorderRef = useRef(null);
@@ -400,6 +406,11 @@ export default function TeacherChat() {
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const data = line.slice(6);
+        if (data.startsWith("[FALLBACK_REASON]:")) {
+          const reason = data.replace("[FALLBACK_REASON]:", "").trim();
+          showToast(`LLM failed with reason: "${reason}". Switching to fallback.`, "error");
+          continue;
+        }
         if (data === "[DONE]") {
           setMessages((p) => p.map((m) => m.id === assistantId ? { ...m, done: true } : m));
           dispatch(fetchSessions());
@@ -411,7 +422,7 @@ export default function TeacherChat() {
       }
     }
     return xmlBuf;
-  }, [dispatch]);
+  }, [dispatch, showToast]);
 
   const sendMessage = useCallback(async (text) => {
     const trimmed = text.trim();
@@ -667,6 +678,15 @@ export default function TeacherChat() {
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f6f6f8]" style={{ fontFamily: "'Lexend', sans-serif" }}>
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold ${
+          toast.type === "error" ? "bg-red-600 text-white" : "bg-green-600 text-white"
+        }`}>
+          <span className="material-symbols-outlined text-base">{toast.type === "error" ? "error" : "check_circle"}</span>
+          {toast.msg}
+        </div>
+      )}
       {/* ── Chat column ── */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         <header className="h-16 shrink-0 flex items-center justify-between px-6 shadow-md z-10 animate-fade-in"
