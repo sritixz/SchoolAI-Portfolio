@@ -286,8 +286,52 @@ async def get_gap(gap_id: str, user=Depends(require_role("student")), db=Depends
         raise HTTPException(404, "Gap not found")
     return _ser(doc)
 
+def _search_youtube_video_id(subject: str, topic: str, subtopic: str) -> str:
+    import urllib.request
+    import urllib.parse
+    import re
+
+    query = f"{subject} {topic} {subtopic} lesson".strip()
+    encoded_query = urllib.parse.quote_plus(query)
+    url = f"https://www.youtube.com/results?search_query={encoded_query}"
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            html = response.read().decode('utf-8')
+        matches = re.findall(r'"videoId":"([^"]+)"', html)
+        if matches:
+            for match in matches:
+                if len(match) == 11 and match != "undefined":
+                    return match
+    except Exception:
+        pass
+
+    # Keyword fallbacks if scraping fails
+    t = (topic or "").lower()
+    s = (subject or "").lower()
+    if "quadratic" in t or "discriminant" in t or "root" in t:
+        return "kYJqD9W2S6c"
+    if "stoichiometry" in t or "mole" in t or "balance" in t or "balancing" in t:
+        return "RnGu3xO2h74"
+    if "newton" in t or "force" in t or "third law" in t:
+        return "A32w-7e3h_4"
+    if "trigonometry" in t or "sine" in t or "cosine" in t or "trig" in t:
+        return "141C34R7L8w"
+    if "chemistry" in s or "chemical" in t:
+        return "RnGu3xO2h74"
+    if "biology" in s or "cell" in t or "mitosis" in t:
+        return "LqN684jYt8U"
+    if "physics" in s or "forces" in t:
+        return "A32w-7e3h_4"
+    return "RnGu3xO2h74"
+
 @router.get("/{gap_id}/remediation")
 async def get_remediation(gap_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    import asyncio
     try:
         gap = await db.learning_gaps.find_one({"_id": ObjectId(gap_id), "student_id": user["id"]})
     except Exception:
@@ -298,7 +342,16 @@ async def get_remediation(gap_id: str, user=Depends(require_role("student")), db
     # Check cache first
     cached = await db.remediation_cache.find_one({"gap_id": gap_id})
     if cached:
-        return {"gap": _ser(gap), "remediation": cached["content"]}
+        video_id = cached.get("video_id")
+        if not video_id:
+            video_id = await asyncio.to_thread(
+                _search_youtube_video_id,
+                gap.get("subject", ""),
+                gap.get("topic", ""),
+                gap.get("subtopic", "")
+            )
+            await db.remediation_cache.update_one({"gap_id": gap_id}, {"$set": {"video_id": video_id}})
+        return {"gap": _ser(gap), "remediation": cached["content"], "video_id": video_id}
 
     from services.llm import chat_completion
 
@@ -333,8 +386,16 @@ Return ONLY valid JSON (no markdown):
     except Exception:
         content = {"explanation": f"Review {gap['topic']} in {gap['subject']}.", "examples": [], "key_points": [], "practice_tip": ""}
 
-    await db.remediation_cache.insert_one({"gap_id": gap_id, "content": content})
-    return {"gap": _ser(gap), "remediation": content}
+    # Resolve video ID dynamically on generation
+    video_id = await asyncio.to_thread(
+        _search_youtube_video_id,
+        gap.get("subject", ""),
+        gap.get("topic", ""),
+        gap.get("subtopic", "")
+    )
+    await db.remediation_cache.insert_one({"gap_id": gap_id, "content": content, "video_id": video_id})
+    return {"gap": _ser(gap), "remediation": content, "video_id": video_id}
+
 
 @router.get("/quizzes")
 async def list_quizzes(user=Depends(require_role("student")), db=Depends(get_db)):

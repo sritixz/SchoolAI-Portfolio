@@ -48,33 +48,33 @@ export default function GapRemediation() {
     const s = (subject || "").toLowerCase();
     
     if (t.includes("quadratic") || t.includes("discriminant") || t.includes("root")) {
-      return "Kp2bYWRQ8k8"; // Quadratic Equations - Nature of Roots
+      return "kYJqD9W2S6c"; // Quadratic Equations - Nature of Roots
     }
     if (t.includes("stoichiometry") || t.includes("mole") || t.includes("balance") || t.includes("balancing")) {
-      return "2Juem0lc5YM"; // Balancing Chemical Equations
+      return "RnGu3xO2h74"; // Balancing Chemical Equations
     }
     if (t.includes("newton") || t.includes("force") || t.includes("action-reaction") || t.includes("third law")) {
-      return "y8Xv4T1S0aM"; // Newton's Third Law
+      return "A32w-7e3h_4"; // Newton's Third Law
     }
     if (t.includes("trigonometry") || t.includes("sine") || t.includes("cosine") || t.includes("trig")) {
-      return "JzS9a2F4Q1E"; // Trigonometry - Sine & Cosine Rules
+      return "141C34R7L8w"; // Trigonometry - Sine & Cosine Rules
     }
     if (s.includes("chemistry") || t.includes("chemical") || t.includes("reaction")) {
-      return "rcKilE9CyiA"; // Chemistry basics
+      return "RnGu3xO2h74"; // Chemistry basics
     }
     if (s.includes("biology") || t.includes("cell") || t.includes("mitosis")) {
-      return "QTCzBhBQ_54"; // Mitosis cell division
+      return "LqN684jYt8U"; // Mitosis cell division
     }
     if (s.includes("physics") || t.includes("thermodynamics") || t.includes("dynamics")) {
-      return "4i1T5IQ1Npo"; // Physics laws
+      return "A32w-7e3h_4"; // Physics laws
     }
     if (s.includes("computer") || t.includes("sorting") || t.includes("algorithm")) {
       return "RfXt_qHDEP8"; // Sorting Algorithms
     }
     if (s.includes("math") || s.includes("algebra")) {
-      return "Kp2bYWRQ8k8"; // Math fallback
+      return "kYJqD9W2S6c"; // Math fallback
     }
-    return "rcKilE9CyiA"; // General fallback
+    return "RnGu3xO2h74"; // General fallback
   };
 
   useEffect(() => {
@@ -421,7 +421,7 @@ export default function GapRemediation() {
                     <div className="aspect-video w-full rounded-xl overflow-hidden bg-slate-900 shadow-inner border border-slate-200">
                       <iframe
                         title="Video explanation"
-                        src={`https://www.youtube.com/embed/${getYouTubeVideoId(gap.subject, gap.topic, gap.subtopic)}`}
+                        src={`https://www.youtube.com/embed/${remediationData?.video_id || getYouTubeVideoId(gap.subject, gap.topic, gap.subtopic)}`}
                         className="w-full h-full border-0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
