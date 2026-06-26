@@ -56,9 +56,11 @@ function ScoreRing({ pct, grade }) {
 
 // ── Question review row ──────────────────────────────────────
 function QuestionReview({ q, studentAnswer, index, gradedData }) {
-  const answered = studentAnswer !== null && studentAnswer !== undefined && studentAnswer !== "";
-  const isUpload = q.answerType === "upload";
-  const isMcq = q.answerType === "mcq";
+  const actualAnswerType = gradedData?.answer_type || (studentAnswer instanceof File ? "upload" : (typeof studentAnswer === "string" && studentAnswer.startsWith("http") ? "upload" : q.answerType));
+  
+  const answered = (studentAnswer !== null && studentAnswer !== undefined && studentAnswer !== "") || !!gradedData?.file_url;
+  const isUpload = actualAnswerType === "upload";
+  const isMcq = actualAnswerType === "mcq";
 
   // For MCQ, check correctness
   const correctOption = isMcq ? q.options.find((o) => o.isCorrect) : null;
@@ -80,7 +82,7 @@ function QuestionReview({ q, studentAnswer, index, gradedData }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-bold text-[#5b69e6] uppercase tracking-wider">Q{index + 1}</span>
-          <span className="text-xs text-slate-400 capitalize">{q.answerType}</span>
+          <span className="text-xs text-slate-400 capitalize">{actualAnswerType}</span>
           <span className="ml-auto text-xs font-bold text-slate-500">
             {pointsAwarded != null ? `${pointsAwarded}/` : ""}{q.maxPoints} pt{q.maxPoints > 1 ? "s" : ""}
           </span>
@@ -97,9 +99,9 @@ function QuestionReview({ q, studentAnswer, index, gradedData }) {
                 )}
               </p>
             )}
-            {q.answerType === "typed" && (
+            {actualAnswerType === "typed" && (
               <>
-                <p className="text-xs text-slate-500 italic line-clamp-2">"{studentAnswer}"</p>
+                <p className="text-xs text-slate-500 italic line-clamp-2">"{typeof studentAnswer === "string" ? studentAnswer : ""}"</p>
                 {isCorrect === false && (q.sampleAnswer) && (
                   <p className="text-xs text-green-700 font-medium">Expected: {q.sampleAnswer}</p>
                 )}
