@@ -411,9 +411,79 @@ async def get_quiz(quiz_id: str, user=Depends(require_role("student")), db=Depen
             doc = await db.gap_quizzes.find_one({"_id": ObjectId(quiz_id)})
         except Exception:
             pass
-    if not doc:
-        raise HTTPException(404, "Quiz not found")
-    return _ser(doc)
+            
+    if doc:
+        return _ser(doc)
+
+    # If quiz not found directly, check if the ID is a gap_id
+    try:
+        gap = await db.learning_gaps.find_one({"_id": ObjectId(quiz_id), "student_id": user["id"]})
+    except Exception:
+        gap = None
+
+    if gap:
+        # Check if we already generated a quiz for this gap_id
+        doc = await db.gap_quizzes.find_one({"gap_id": str(gap["_id"])})
+        if doc:
+            return _ser(doc)
+            
+        # Generate new quiz via LLM
+        from services.llm import chat_completion
+        import json
+        from datetime import datetime
+        
+        prompt = f"""Generate a 5-question multiple choice quiz to test the student's understanding of "{gap.get('topic')}" in {gap.get('subject')}.
+        
+        Subtopic: {gap.get('subtopic', '')}
+        Specific weakness to address: {gap.get('aiErrorSummary', 'General understanding')}
+        
+        Each question should have 4 options, only 1 correct option, and a helpful explanation for the correct answer and a hint.
+        Return ONLY valid JSON (no markdown):
+        {{
+            "title": "{gap.get('topic')} Assessment",
+            "questions": [
+                {{
+                    "id": "q1",
+                    "number": 1,
+                    "difficulty": "medium",
+                    "prompt": "Question text here",
+                    "equation": "Optional equation here or empty string",
+                    "options": [
+                        {{"id": "A", "text": "Option A text", "isCorrect": true}},
+                        {{"id": "B", "text": "Option B text", "isCorrect": false}},
+                        {{"id": "C", "text": "Option C text", "isCorrect": false}},
+                        {{"id": "D", "text": "Option D text", "isCorrect": false}}
+                    ],
+                    "correct_option_id": "A",
+                    "explanation": "Why A is correct",
+                    "hint": "Hint to help"
+                }}
+            ]
+        }}"""
+        try:
+            raw = await chat_completion([
+                {"role": "system", "content": f"You are an expert {gap.get('subject', 'educator')} teacher creating targeted assessment questions. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ])
+            raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+            quiz_data = json.loads(raw)
+            
+            # Save it
+            quiz_doc = {
+                "gap_id": str(gap["_id"]),
+                "student_id": user["id"],
+                "title": quiz_data.get("title", f"{gap.get('topic')} Quiz"),
+                "questions": quiz_data.get("questions", []),
+                "created_at": datetime.utcnow().isoformat()
+            }
+            res = await db.gap_quizzes.insert_one(quiz_doc)
+            quiz_doc["_id"] = res.inserted_id
+            return _ser(quiz_doc)
+            
+        except Exception as e:
+            raise HTTPException(500, f"Failed to generate quiz: {str(e)}")
+
+    raise HTTPException(404, "Quiz or Gap not found")
 
 @router.post("/quiz/submit")
 async def submit_quiz(body: GapQuizSubmission, user=Depends(require_role("student")), db=Depends(get_db)):
@@ -422,6 +492,12 @@ async def submit_quiz(body: GapQuizSubmission, user=Depends(require_role("studen
     if not quiz:
         try:
             quiz = await db.gap_quizzes.find_one({"_id": ObjectId(body.quiz_id)})
+        except Exception:
+            pass
+    if not quiz:
+        # the client might send the gap_id as the quiz_id since they navigated via /quiz/{gap_id}
+        try:
+            quiz = await db.gap_quizzes.find_one({"gap_id": body.quiz_id})
         except Exception:
             pass
     if not quiz:

@@ -3,12 +3,12 @@ import { useNavigate, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useAuth } from "../../context/AuthContext";
 import { getInitial } from "../../utils/nameUtils";
-import { fetchQuizList, selectQuizList, selectQuizListStatus } from "../../store/slices/learningGapsSlice";
+import { fetchLearningGaps, selectGaps, selectGapsStatus } from "../../store/slices/learningGapsSlice";
 
-const DIFFICULTY_COLORS = {
-  easy:   "bg-green-100 text-green-700",
-  medium: "bg-amber-100 text-amber-700",
-  hard:   "bg-red-100 text-red-700",
+const SEVERITY_COLORS = {
+  minor: "bg-green-100 text-green-700",
+  moderate: "bg-amber-100 text-amber-700",
+  critical: "bg-red-100 text-red-700",
 };
 
 const SUBJECT_COLORS = {
@@ -17,29 +17,27 @@ const SUBJECT_COLORS = {
   Chemistry: "bg-emerald-100 text-emerald-700",
   Biology:   "bg-teal-100 text-teal-700",
   History:   "bg-amber-100 text-amber-700",
+  Mathematics: "bg-purple-100 text-purple-700",
 };
 
 export default function QuizSelector() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const apiQuizzes = useSelector(selectQuizList);
-  const status = useSelector(selectQuizListStatus);
+  const apiGaps = useSelector(selectGaps);
+  const status = useSelector(selectGapsStatus);
 
   const [subjectFilter, setSubjectFilter] = useState("All");
-  const [diffFilter, setDiffFilter] = useState("All");
 
-  useEffect(() => { dispatch(fetchQuizList()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchLearningGaps()); }, [dispatch]);
 
-  const quizzes = apiQuizzes.length ? apiQuizzes : [];
+  const gaps = apiGaps.length ? apiGaps : [];
 
-  const subjects = ["All", ...new Set(quizzes.map((q) => q.subject))];
-  const difficulties = ["All", "easy", "medium", "hard"];
+  const subjects = ["All", ...new Set(gaps.map((g) => g.subject))];
 
-  const filtered = quizzes.filter((q) => {
-    const matchSub  = subjectFilter === "All" || q.subject === subjectFilter;
-    const matchDiff = diffFilter === "All" || q.difficulty === diffFilter;
-    return matchSub && matchDiff;
+  const filtered = gaps.filter((g) => {
+    const matchSub  = subjectFilter === "All" || g.subject === subjectFilter;
+    return matchSub;
   });
 
   return (
@@ -81,34 +79,18 @@ export default function QuizSelector() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Difficulty:</span>
-            {difficulties.map((d) => (
-              <button
-                key={d}
-                onClick={() => setDiffFilter(d)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all ${
-                  diffFilter === d
-                    ? "bg-[#685ae7] text-white shadow-md shadow-[#685ae7]/20"
-                    : "bg-white text-slate-600 border border-slate-200 hover:border-[#685ae7]/40"
-                }`}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Quiz grid */}
-        {status === "loading" && !quizzes.length ? (
+        {status === "loading" && !gaps.length ? (
           <div className="flex justify-center py-20">
             <span className="material-symbols-outlined animate-spin text-[#685ae7] text-4xl">progress_activity</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
             <span className="material-symbols-outlined text-5xl mb-3 block">search_off</span>
-            <p className="font-semibold mb-1">No quizzes available yet.</p>
-            <p className="text-sm mb-6">Quizzes are generated based on your learning gaps. Complete some homework and run an analysis first.</p>
+            <p className="font-semibold mb-1">No topics need fixing right now.</p>
+            <p className="text-sm mb-6">Complete more homework to analyze your performance.</p>
             <Link
               to="/student/learning-gaps/gaps"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#685ae7] text-white text-sm font-bold hover:bg-[#685ae7]/90 transition-all"
@@ -119,42 +101,40 @@ export default function QuizSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filtered.map((quiz) => {
-              const quizId = quiz.id ?? quiz._id;
+            {filtered.map((gap) => {
+              const gapId = gap._id;
               return (
                 <Link
-                  key={quizId}
-                  to={`/student/learning-gaps/quiz/${quizId}`}
+                  key={gapId}
+                  to={`/student/learning-gaps/quiz/${gapId}`}
                   className="group flex flex-col justify-between bg-white rounded-xl border border-[#685ae7]/10 hover:border-[#685ae7]/40 shadow-sm hover:shadow-lg hover:shadow-[#685ae7]/5 p-6 transition-all duration-200"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${SUBJECT_COLORS[quiz.subject] ?? "bg-slate-100 text-slate-600"}`}>
-                        {quiz.subject}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${SUBJECT_COLORS[gap.subject] ?? "bg-slate-100 text-slate-600"}`}>
+                        {gap.subject}
                       </span>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${DIFFICULTY_COLORS[quiz.difficulty] ?? "bg-slate-100 text-slate-600"}`}>
-                        {quiz.difficulty}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${SEVERITY_COLORS[gap.severity] ?? "bg-slate-100 text-slate-600"}`}>
+                        {gap.severity} Gap
                       </span>
                     </div>
                     <h3 className="text-base font-bold text-[#100e1b] mb-1 group-hover:text-[#685ae7] transition-colors">
-                      {quiz.title}
+                      {gap.topic} Assessment
                     </h3>
-                    {quiz.topic && (
-                      <p className="text-xs text-slate-400 mb-4">{quiz.topic}</p>
+                    {gap.subtopic && (
+                      <p className="text-xs text-slate-400 mb-4">{gap.subtopic}</p>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
                     <div className="flex items-center gap-3 text-xs text-slate-500">
                       <span className="flex items-center gap-1">
                         <span className="material-symbols-outlined text-sm">quiz</span>
-                        {quiz.totalQuestions ?? quiz.questions?.length ?? "?"} Qs
+                        5 Qs
                       </span>
-                      {quiz.estimatedMinutes && (
-                        <span className="flex items-center gap-1">
-                          <span className="material-symbols-outlined text-sm">schedule</span>
-                          {quiz.estimatedMinutes}m
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">schedule</span>
+                        5m
+                      </span>
                     </div>
                     <span className="material-symbols-outlined text-[#685ae7] group-hover:translate-x-1 transition-transform">
                       arrow_forward
