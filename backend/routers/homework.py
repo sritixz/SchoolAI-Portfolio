@@ -792,6 +792,7 @@ async def list_student_homework(user=Depends(require_role("student")), db=Depend
             "allow_retries":            d.get("allow_retries", False),
             "ai_assistant_enabled":     d.get("ai_assistant_enabled", True),
             "attempt_count":            attempt_counts.get(hw_id, 0),
+            "solutions_unlocked":       sub.get("solutions_unlocked", False) if sub else False,
         })
 
     # Generate homework_due notifications for items due today/tomorrow
@@ -1091,6 +1092,15 @@ async def select_attempt(homework_id: str, body: dict = Body(...),
         {"$set": {"selected_for_evaluation": True}}
     )
     return {"status": "ok", "selected_attempt_id": attempt_id}
+
+@router.post("/{homework_id}/unlock-solutions")
+async def unlock_solutions(homework_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    """Student unlocks solutions, disabling further retries."""
+    await db.homework_submissions.update_many(
+        {"homework_id": homework_id, "student_id": user["id"]},
+        {"$set": {"solutions_unlocked": True}}
+    )
+    return {"status": "ok", "solutions_unlocked": True}
 
 # ─────────────────────────────────────────────────────────────
 # FILE UPLOAD — for handwritten / file-upload type homework

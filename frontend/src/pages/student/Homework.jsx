@@ -236,7 +236,7 @@ function HomeworkCard({ hw }) {
           {actionBtn.label}
         </button>
         {/* Show separate Retry button when submitted + retries allowed */}
-        {displayStatus === "submitted" && hw.allow_retries && (
+        {displayStatus === "submitted" && hw.allow_retries && !hw.solutions_unlocked && (
           <button
             onClick={() => navigate(`/student/homework/${hw.id}`, { state: { reattempt: true } })}
             className="px-5 py-3 sm:py-4 font-bold rounded-full transition-all text-base bg-[#6B5CE7] hover:bg-[#5a4dd4] text-white shadow-lg shadow-[#6B5CE7]/20"

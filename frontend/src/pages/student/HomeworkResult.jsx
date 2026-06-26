@@ -234,6 +234,22 @@ export default function HomeworkResult() {
 
   const [homeworkMeta, setHomeworkMeta] = useState(null);
   const [fetchedSubmissionDoc, setFetchedSubmissionDoc] = useState(null);
+  const [localSolutionsUnlocked, setLocalSolutionsUnlocked] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+
+  const handleUnlockSolutions = async () => {
+    if (window.confirm("Are you sure you want to reveal the solutions and feedback? This will lock this attempt and you won't be able to retry this homework anymore.")) {
+      setUnlocking(true);
+      try {
+        await api.post(`/homework/${homeworkId}/unlock-solutions`);
+        setLocalSolutionsUnlocked(true);
+      } catch (err) {
+        console.error("Failed to unlock solutions:", err);
+      } finally {
+        setUnlocking(false);
+      }
+    }
+  };
 
   // If no state (direct navigation), fetch from API
   useEffect(() => {
@@ -303,10 +319,100 @@ export default function HomeworkResult() {
     return map;
   })();
 
+  const doc = submissionDoc || {};
+  const isGraded = ["graded", "completed", "evaluated"].includes(apiResult?.status || doc.status);
+  const evaluatedByTeacher = isGraded || !!submissionDoc?.final_grade;
+  const showSolutions = evaluatedByTeacher || submissionDoc?.solutions_unlocked || localSolutionsUnlocked;
+
+  // ── Reattempt and locked solutions view ──
+  if (allowRetries && !evaluatedByTeacher && !showSolutions) {
+    if (fetchingResult && !submissionDoc) {
+      return (
+        <div className="min-h-screen bg-[#f6f6f8] flex items-center justify-center">
+          <span className="size-8 border-2 border-[#5b69e6]/30 border-t-[#5b69e6] rounded-full animate-spin" />
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-[#f6f6f8] text-slate-900 pb-16 flex flex-col" style={{ fontFamily: "'Lexend', sans-serif" }}>
+        {/* Header */}
+        <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#5b69e6]/10">
+          <div className="max-w-xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-[#5b69e6]/10 p-2 rounded-full">
+                <span className="material-symbols-outlined text-[#5b69e6]">task_alt</span>
+              </div>
+              <div>
+                <h1 className="font-bold text-base leading-tight">{questionSet?.unitTitle || homeworkMeta?.title || "Homework"}</h1>
+                <p className="text-xs text-[#5b69e6]/70 font-medium uppercase tracking-wider">Submitted</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center w-full">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-150 p-8 text-center space-y-6">
+            <div className="size-20 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-4xl text-[#5b69e6]">cloud_done</span>
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-slate-800">Homework Submitted!</h2>
+              <p className="text-slate-500 text-sm leading-relaxed">
+                Your attempt has been submitted successfully and is pending teacher review.
+              </p>
+            </div>
+
+            {submissionDoc?.attempt_number && (
+              <div className="inline-block bg-slate-100 px-4 py-1.5 rounded-full text-xs font-bold text-slate-600">
+                Attempt {submissionDoc.attempt_number}
+              </div>
+            )}
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left flex gap-3">
+              <span className="material-symbols-outlined text-amber-500 shrink-0">info</span>
+              <div className="space-y-1 text-left">
+                <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">Retries Allowed</p>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Your teacher has allowed multiple attempts for this homework. You can try again to improve your score, or reveal the answers now if you're done.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <button
+                onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
+                className="w-full py-4 bg-[#5b69e6] hover:bg-[#5b69e6]/90 text-white font-bold rounded-xl transition-all shadow-lg shadow-[#5b69e6]/20 flex items-center justify-center gap-2 text-base font-bold"
+              >
+                <span className="material-symbols-outlined text-xl">replay</span>
+                Retry Homework
+              </button>
+
+              <button
+                onClick={handleUnlockSolutions}
+                disabled={unlocking}
+                className="w-full py-3.5 border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+              >
+                {unlocking ? (
+                  <span className="size-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-base">visibility</span>
+                )}
+                Show Solutions & Feedback
+              </button>
+
+              <p className="text-[10px] text-slate-400 italic">
+                * Note: Clicking "Show Solutions" will reveal the answers and lock this attempt, preventing any further retries.
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // ── File / handwritten submission result ──────────────────
   if (fileSubmission) {
-    const doc = submissionDoc || {};
-    const isGraded = ["graded", "completed", "evaluated"].includes(apiResult?.status || doc.status);
     const grade    = apiResult?.grade || doc.final_grade;
     const feedback = apiResult?.feedback || apiResult?.teacher_feedback || doc.teacher_feedback;
     const submittedAt = doc.submitted_at;
@@ -579,7 +685,7 @@ export default function HomeworkResult() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3">
-            {allowRetries && (
+            {allowRetries && !showSolutions && (
               <button
                 onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
                 className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-full hover:bg-[#5b69e6]/5 transition-all"
@@ -643,14 +749,14 @@ export default function HomeworkResult() {
             ) : (
               <p className="text-slate-500 mb-4">Your submission is being reviewed by your teacher. You'll be notified when your grade is ready.</p>
             )}
-            {allowRetries && (
+            {allowRetries && !showSolutions && (
               <div className="flex items-center justify-center gap-1 mb-4">
                 <span className="material-symbols-outlined text-green-600 text-sm">replay</span>
                 <span className="text-xs font-bold text-green-700">Retries Allowed</span>
               </div>
             )}
             <div className="flex flex-col gap-3">
-              {allowRetries && (
+              {allowRetries && !showSolutions && (
                 <button
                   onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
                   className="w-full py-3 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-xl hover:bg-[#5b69e6]/5 transition-all"
@@ -761,7 +867,7 @@ export default function HomeworkResult() {
                   {tag}
                 </span>
               ))}
-              {allowRetries && (
+              {allowRetries && !showSolutions && (
                 <span className="bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full flex items-center gap-1">
                   <span className="material-symbols-outlined text-xs">replay</span>
                   Retries Allowed
@@ -846,7 +952,7 @@ export default function HomeworkResult() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
-          {allowRetries && (
+          {allowRetries && !showSolutions && (
             <button
               onClick={() => navigate(`/student/homework/${homeworkId}`, { state: { reattempt: true } })}
               className="flex-1 flex items-center justify-center gap-2 py-4 border-2 border-[#5b69e6]/20 text-[#5b69e6] font-bold rounded-full hover:bg-[#5b69e6]/5 transition-all"
