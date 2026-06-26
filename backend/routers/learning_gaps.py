@@ -84,6 +84,7 @@ async def analyze_gaps(user=Depends(require_role("student")), db=Depends(get_db)
         hw   = homeworks.get(hid, {})
         analysis = sub.get("analysis") or sub.get("ai_analysis") or {}
         sub_summaries.append({
+            "homework_id":      str(hid),
             "homework_title":   hw.get("title", sub.get("title", "Homework")),
             "subject":          hw.get("subject", sub.get("subject", "General")),
             "score_pct":        sub.get("score_pct") or sub.get("ai_score") or analysis.get("estimated_score_pct", 0),
@@ -129,7 +130,8 @@ Return ONLY valid JSON (no markdown):
       "masteryPercent": 35,
       "identifiedFrom": {{
         "title": "Unit 3 Quiz: Algebra Foundations",
-        "type": "homework"
+        "type": "homework",
+        "id": "homework_id_here"
       }},
       "impactAnalysis": "Affects performance in Calculus and advanced algebra topics.",
       "impactSubject": "Calculus",
@@ -150,6 +152,7 @@ Return ONLY valid JSON (no markdown):
 }}
 
 IMPORTANT:
+- identifiedFrom.id must match the homework_id of the corresponding homework/assessment from the submissions list
 - masteryPercent must reflect the actual score data (not a guess)
 - severity: critical if masteryPercent < 45, moderate if 45-65, minor if 65-75
 - aiErrorSummary must reference SPECIFIC mistakes from the submission data above
@@ -176,6 +179,42 @@ IMPORTANT:
     gaps_created = 0
     now = datetime.utcnow().isoformat()
     for gap in result.get("gaps", []):
+        identified_from = gap.get("identifiedFrom", {"title": "Performance Analysis", "type": "homework"})
+        if isinstance(identified_from, dict):
+            g_type = identified_from.get("type", "homework")
+            g_id = identified_from.get("id")
+            title = identified_from.get("title", "")
+            
+            # As a fallback: if the LLM outputted a placeholder or no ID, resolve it by searching submissions
+            if (not g_id or g_id == "homework_id_here") and g_type == "homework" and title:
+                for sub in submissions:
+                    hid = sub.get("homework_id")
+                    if hid:
+                        hw = homeworks.get(hid, {})
+                        if hw.get("title") == title or sub.get("title") == title:
+                            g_id = str(hid)
+                            break
+            
+            # Clean up placeholder values
+            if g_id == "homework_id_here":
+                g_id = None
+
+            if g_id:
+                identified_from["id"] = str(g_id)
+            else:
+                # Substring case-insensitive match fallback
+                if len(submissions) == 1 and g_type == "homework":
+                    identified_from["id"] = str(submissions[0].get("homework_id", ""))
+                elif len(submissions) > 0 and g_type == "homework" and title:
+                    for sub in submissions:
+                        hid = sub.get("homework_id")
+                        if hid:
+                            hw = homeworks.get(hid, {})
+                            h_title = hw.get("title", sub.get("title", "")).lower()
+                            if title.lower() in h_title or h_title in title.lower():
+                                identified_from["id"] = str(hid)
+                                break
+
         doc = {
             "student_id":             user["id"],
             "subject":                gap.get("subject", "General"),
@@ -185,7 +224,7 @@ IMPORTANT:
             "masteryPercent":         gap.get("masteryPercent", 50),
             "score":                  gap.get("masteryPercent", 50),
             "resolved":               False,
-            "identifiedFrom":         gap.get("identifiedFrom", {"title": "Performance Analysis", "type": "homework"}),
+            "identifiedFrom":         identified_from,
             "impactAnalysis":         gap.get("impactAnalysis", ""),
             "impactSubject":          gap.get("impactSubject", gap.get("subject", "")),
             "prerequisiteDependency": gap.get("prerequisiteDependency", ""),

@@ -89,13 +89,25 @@ function GapCard({ gap }) {
             <span className="material-symbols-outlined text-sm">description</span>
             <p className="text-xs font-semibold uppercase tracking-wide">Identified from</p>
           </div>
-          <Link
-            to={`/student/learning-gaps/gaps/${gapId}`}
-            className="text-sm font-medium text-[#ec5b13] flex items-center gap-1 cursor-pointer hover:underline"
-          >
-            {typeof gap.identifiedFrom === "object" ? gap.identifiedFrom?.title : gap.identifiedFrom}
-            <span className="material-symbols-outlined text-xs">open_in_new</span>
-          </Link>
+          {(() => {
+            const isObj = typeof gap.identifiedFrom === "object";
+            const source = isObj ? gap.identifiedFrom : null;
+            let dest = `/student/learning-gaps/gaps/${gapId}`; // fallback
+            if (source?.type === "homework" && source?.id) {
+              dest = `/student/homework/${source.id}/result`;
+            } else if (source?.type === "quiz" && source?.id) {
+              dest = `/student/learning-gaps/quizzes`;
+            }
+            return (
+              <Link
+                to={dest}
+                className="text-sm font-medium text-[#ec5b13] flex items-center gap-1 cursor-pointer hover:underline"
+              >
+                {isObj ? source?.title : gap.identifiedFrom}
+                <span className="material-symbols-outlined text-xs">open_in_new</span>
+              </Link>
+            );
+          })()}
         </div>
         {gap.impactAnalysis && (
           <div className="space-y-1.5">
