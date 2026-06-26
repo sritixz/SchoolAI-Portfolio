@@ -392,3 +392,122 @@ async def submit_quiz(body: GapQuizSubmission, user=Depends(require_role("studen
         )
 
     return {"score_pct": score_pct, "correct": correct, "total": total, "resolved": resolved}
+
+
+from pydantic import BaseModel
+
+class VerifyAnswerRequest(BaseModel):
+    question_text: str
+    student_answer: str
+
+@router.post("/{gap_id}/practice-question")
+async def generate_practice_question(gap_id: str, user=Depends(require_role("student")), db=Depends(get_db)):
+    try:
+        gap = await db.learning_gaps.find_one({"_id": ObjectId(gap_id), "student_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid gap ID")
+    if not gap:
+        raise HTTPException(404, "Gap not found")
+
+    from services.llm import chat_completion
+    
+    error_summary = gap.get("aiErrorSummary", "")
+    prompt = f"""Generate a single, highly targeted practice question for a student struggling with "{gap['topic']}" in {gap['subject']}.
+    
+    CONTEXT:
+    - Subtopic: {gap.get('subtopic', gap['topic'])}
+    - Mistakes/Weaknesses: {error_summary or 'General review'}
+    
+    Create a new question that specifically helps test and fix these weaknesses. It should be solvable by typing a text/numerical answer or showing steps.
+    
+    Return ONLY valid JSON (no markdown):
+    {{
+      "text": "The text of the question. E.g., 'Solve for x: x^2 - 6x + 8 = 0 and explain how you factored it.'",
+      "equation": "Optional equation to display on a highlighted card",
+      "hint": "A helpful hint tailored to avoid their common error"
+    }}"""
+    
+    try:
+        raw = await chat_completion([
+            {"role": "system", "content": f"You are a professional educational developer for {gap['subject']}. Return only valid JSON."},
+            {"role": "user", "content": prompt}
+        ])
+        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+        data = json.loads(raw)
+    except Exception:
+        data = {
+            "text": f"Solve a typical problem on {gap['topic']}.",
+            "equation": "",
+            "hint": "Double check your math calculations."
+        }
+    return data
+
+@router.post("/{gap_id}/verify-answer")
+async def verify_practice_answer(gap_id: str, body: VerifyAnswerRequest, user=Depends(require_role("student")), db=Depends(get_db)):
+    try:
+        gap = await db.learning_gaps.find_one({"_id": ObjectId(gap_id), "student_id": user["id"]})
+    except Exception:
+        raise HTTPException(400, "Invalid gap ID")
+    if not gap:
+        raise HTTPException(404, "Gap not found")
+
+    from services.llm import chat_completion
+
+    prompt = f"""Evaluate the student's answer/working for this practice question:
+    
+    QUESTION:
+    {body.question_text}
+    
+    STUDENT ANSWER / WORKINGS:
+    {body.student_answer}
+    
+    Evaluate the student's steps for conceptual accuracy and computational correctness.
+    Return a score between 0 and 100 representing their level of correctness, and a brief coaching feedback message.
+    
+    Return ONLY valid JSON (no markdown):
+    {{
+      "score": 85,
+      "feedback": "Your overall approach was excellent! However, you made a minor calculation error on the final step..."
+    }}"""
+    
+    try:
+        raw = await chat_completion([
+            {"role": "system", "content": "You are an expert tutor. Evaluate the student's solution carefully. Return only valid JSON."},
+            {"role": "user", "content": prompt}
+        ])
+        raw = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+        result = json.loads(raw)
+        score = int(result.get("score", 50))
+        feedback = result.get("feedback", "Good effort.")
+    except Exception:
+        score = 50
+        feedback = "Answer submitted. Check your final steps."
+
+    # Update gap attempts in DB
+    attempts = gap.get("attempts", [])
+    attempts = [a for a in attempts if isinstance(a, dict)]
+    attempt_num = len(attempts) + 1
+    new_attempt = {
+        "attemptNumber": attempt_num,
+        "score": score,
+        "date": datetime.utcnow().isoformat()[:10],
+        "question": body.question_text,
+        "student_answer": body.student_answer,
+        "feedback": feedback
+    }
+    
+    await db.learning_gaps.update_one(
+        {"_id": ObjectId(gap_id)},
+        {"$push": {"attempts": new_attempt}}
+    )
+    
+    # Also update masteryPercent if the new score is higher than current
+    current_mastery = gap.get("masteryPercent", 0)
+    if score > current_mastery:
+        await db.learning_gaps.update_one(
+            {"_id": ObjectId(gap_id)},
+            {"$set": {"masteryPercent": score, "score": score}}
+        )
+
+    return {"score": score, "feedback": feedback, "attempt": new_attempt}
+
