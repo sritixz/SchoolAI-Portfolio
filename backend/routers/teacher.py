@@ -1952,8 +1952,10 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
 
     # ── Phase 2: Wikipedia image search (semaphore=6, Pollinations fallback) ──
     from services.media_search import search_images as _wiki_search_images
+    import re
 
     img_sem = asyncio.Semaphore(6)
+    used_image_urls = set()  # Track assigned image URLs for the entire presentation
 
     async def _fetch_slide_image(slide: dict) -> None:
         content = slide.get("content") or {}
@@ -1969,19 +1971,42 @@ Return ONLY the JSON array, starting with [ and ending with ]. No other text."""
         except Exception:
             pass
 
-        keyword = visual_keyword or content.get("visual_prompt") or slide.get("title", topic)
-        # Build a grade-appropriate image search query
+        raw_keyword = visual_keyword or content.get("visual_prompt") or slide.get("title", topic)
+        
+        # Clean & optimize the keyword
+        keyword = raw_keyword.strip()
+        
+        # Handle generic terms by prepending the topic
+        GENERIC_TERMS = {"introduction", "intro", "hook", "summary", "conclusion", "assessment", "quiz", "example", "activity", "outline", "basics"}
+        keyword_words = set(re.findall(r"\w+", keyword.lower()))
+        if keyword_words.intersection(GENERIC_TERMS) or len(keyword.split()) <= 1:
+            keyword = f"{topic} {keyword}"
+
+        # Build clean query focused on diagram/illustration
+        query_lower = keyword.lower()
+        if not any(w in query_lower for w in ["diagram", "illustration", "chart", "map", "structure", "anatomy"]):
+            query = f"{keyword} diagram"
+        else:
+            query = keyword
+
+        # Remove board and grade boilerplate from Search queries as they clutter search
+        # Keep grade if it makes it simpler, but skip CBSE/ICSE tags
         grade_qualifier = f"simple {grade}" if grade else ""
-        query   = f"{keyword} {grade_qualifier} {board} educational diagram for children".strip()
+        query = f"{query} {grade_qualifier}".strip()
 
         async with img_sem:
             try:
-                results = await _wiki_search_images(query, grade, board, 3)
+                # Fetch up to 10 results to have fallback options
+                results = await _wiki_search_images(query, grade, board, 10)
                 if results:
-                    content["image_url"]        = results[0]["url"]
-                    content["image_source_url"] = results[0]["source"]
-                    content["image_alt"]        = results[0]["title"]
-                    return
+                    for res in results:
+                        u = res["url"]
+                        if u not in used_image_urls:
+                            content["image_url"]        = u
+                            content["image_source_url"] = res["source"]
+                            content["image_alt"]        = res["title"]
+                            used_image_urls.add(u)
+                            return
             except Exception as exc:
                 log.warning("[PPTX] Wikipedia image failed for slide %s: %s", slide.get("number"), exc)
 
